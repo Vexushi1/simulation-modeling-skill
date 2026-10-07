@@ -1140,6 +1140,8 @@ validator 分别报告 schema_valid、valid、proposal_complete、challenge_comp
 
 开发出口要求：model_contract_checks（草稿、完整候选、多问共享、0..N备选、引用/单位/结构审查/挑战）、model_approval_binding（当前人类决定、项目/Problem/摘要/锁定文件、拒绝/agent/旧批准失败）、model_route_and_state（无环境纯设计、当前frozen B、状态不伪升、不自动写文件、D–K deferred）、source_and_stale_checks（当前来源/Brief/决定/锁定文件、保守失效、TTL分离）、authority_and_indexes 与全部 A/B 回归。
 
+独立复核补充：design/model ID 可以包含点号，但导出的平面 `model_identities` 使用 `design.id + '.' + model.id`；不同 ID 对若生成同一键，validator 必须显式拒绝，不能静默覆盖并进入 proposed/challenged/approved 或生成锁定快照。保留原 ID，不自动重命名；提供碰撞负例及非碰撞点号 ID 正例，保证每个有效候选都有唯一且完整的身份映射。
+
 独立原始输入行为测试、精确最终提交审查、对应 Windows/Ubuntu CI、合并与合并后回读分别记录。合成批准夹具只验证开发基础设施，不证明有人批准真实模型、数学正确、真实物理有效、统计独立或已获数值执行资格。
 
 ---
