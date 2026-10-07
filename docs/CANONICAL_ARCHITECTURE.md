@@ -1,12 +1,12 @@
 # Canonical Architecture — Simulation Modeling Skill
 
-> Status: v0.1.1 Phase A infrastructure implementation; independent PR qualification and merge pending
+> Scope: v0.2.0 Phase B implementation, based on merged Phase A infrastructure
 > Primary runtime baseline: MATLAB R2025b + Simulink  
 > Target: competition-oriented simulation modeling with engineering-grade reproducibility and paper-ready evidence.
 
 [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md) is the detailed development authority. [V1_IMPLEMENTATION_ROADMAP.md](V1_IMPLEMENTATION_ROADMAP.md) summarizes it. This architecture describes the target layers; the active contracts begin at [../core/bootstrap.yaml](../core/bootstrap.yaml).
 
-Current implementation is limited to environment inspection and assurance. Layers B–J below are deferred targets. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct.
+Current implementation covers environment inspection and assurance, and problem audit. Layers C–J below are deferred targets; the full plan's Phases C–K remain deferred. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Phase A's merged qualification is recorded in the full plan; later qualification, CI, merge, and release results are recorded separately in their development PRs.
 
 ## 1. Scope
 
@@ -54,24 +54,19 @@ The baseline declares targets and candidates, not current availability. Qualific
 
 Read-only inspection needs no existing profile and does not advance a project state. Selected operations belong to the current route decision. The resolver never updates project state automatically. No missing downstream module or unqualified upstream composition may be activated as a fallback.
 
-### Layer B — Problem audit & requirement freeze (deferred)
+### Layer B — Problem audit & requirement freeze (Phase B infrastructure)
 
-Adapt the strongest methodology from `mathmodel-skill/modules/01_problem_audit.md` to simulation-specific semantics.
+The active [problem-audit module](../modules/01_problem_audit.md) and [Problem Contract schema](../core/problem_contract.schema.yaml) adapt requirement review to simulation-specific semantics. A contract binds original materials and UTF-8 review text, a literal requirement map, question facts, variable/data roles, a dependency DAG, and critical ambiguities. Non-text statement extractions require a current review record.
 
-Every subproblem defines:
+Every subproblem explicitly identifies its original system, direct goal, and deliverables. Other required categories distinguish `specified`, `not_specified`, `not_applicable`, and `deferred`, with reasons and requirement references. Given facts cannot be deferred to bypass ambiguity. Abstraction, state representation, algebraic variables, derived parameters, and event representation that depend on model design can remain deferred to Phase C; candidate model clues do not lock a model.
 
-- physical/system object;
-- simulation purpose;
-- input, disturbance, state, algebraic, parameter and output variables;
-- initial and boundary conditions;
-- event/switching logic;
-- required fidelity;
-- observable/calibration/validation data roles;
-- explicit and mechanism-derived constraints;
-- expected paper/result deliverables;
-- cross-question dependencies.
+Literal audit units use exact quotes and Unicode codepoint intervals, cover every non-whitespace character once, and connect requirements bidirectionally to their source and question. Variables can have related roles when that relationship is explicit. Data uses bind sources and ranges; fitting data cannot be presented as independent validation of the same range. Cross-question dependencies must reference known nodes and remain acyclic; future expected artefacts need not already exist.
 
-No Simulink implementation begins while a material ambiguity changes model structure, state definition, constraints, boundary conditions or final claims.
+The validator separately reports `schema_valid`, `valid`, `audit_complete`, `freeze_ready`, and `frozen`. A draft's legal shape does not establish audit completion. Freeze requires closed critical ambiguities and a source-bound review decision identifying the current semantic digest. The decision follows the actual task authorization and necessary material choices; repeated per-question approval is not required. Development authorization does not answer a competition task or approve its model.
+
+The `problem_audit` route is read-only, selects no runtime operations, and can start from `NEW` without an environment profile. It cannot grant numerical execution. State recording is a separate explicit caller update: `PROBLEM_AUDITED` requires the current audit-complete contract declared `audited` or `frozen`, and `PROBLEM_FROZEN` requires the current frozen contract with matching project identity. Problem-scoped validation leaves runtime readiness unassessed.
+
+Problem evidence and accepted dependents become stale when their actual contract, material, extraction review, or decision identities change. Environment expiry does not expire unchanged problem meaning. Mechanical coverage and traceability do not prove semantic interpretation or real-system validity. Formal model design and Simulink implementation remain deferred.
 
 ### Layer C — System & model design (deferred)
 

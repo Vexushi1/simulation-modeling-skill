@@ -1,0 +1,23 @@
+# Draft only. Replace identifiers and audit the actual sources before changing status.
+# File paths resolve within --project-root (default: this contract's directory).
+# No source hashes, review identities or numeric facts are fabricated here.
+schema_version: 1
+project_id: replace-with-project-id
+status: draft
+sources: []
+audit_units: []
+requirements: []
+questions: []
+question_dependencies: []
+data_uses: []
+ambiguities: []
+freeze: null
+# Each question has classification {objectives: [], model_structures: [], capabilities: []},
+# facts (all schema fields), and variables. Unknown fact values are null with a reason.
+# Candidate model_structures may remain empty until Phase C.
+# data_uses.scope is {kind: all} or {kind: rows, start: 0, end: 10};
+# row indices denote declared logical records, zero-based and end-exclusive.
+# A review decision binds path, sha256, start, end, quote, reviewed_by.
+# Its UTF-8 quote must contain the reviewed identity: extraction's two hashes,
+# resolved ambiguity's id/value, or freeze's semantic_sha256. The authorized
+# reviewer writes evidence after actual review; this validator never writes it.

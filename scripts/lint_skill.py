@@ -1,4 +1,4 @@
-"""Check Phase A authorities, schemas, routing availability and navigation."""
+"""Check implemented authorities, schemas, routing availability and navigation."""
 from __future__ import annotations
 
 import re
@@ -30,6 +30,7 @@ def lint(root: Path = ROOT) -> list[str]:
             "router": "core/workflow_router.yaml", "module_manifest": "core/module_manifest.yaml",
             "resolver": "scripts/resolve_runtime.py", "state_schema": "core/project_state.schema.yaml",
             "output_contract": "core/output_contract.yaml",
+            "problem_contract": "core/problem_contract.schema.yaml",
         }
         if bootstrap["runtime_entry"] != bindings:
             errors.append("bootstrap runtime entry differs from implemented consumers")
@@ -40,6 +41,7 @@ def lint(root: Path = ROOT) -> list[str]:
                            "capability_taxonomy": "core/capability_taxonomy.yaml",
                            "runtime_contract": "core/runtime_assurance_contract.yaml",
                            "project_state_schema": bindings["state_schema"]}
+        router_bindings["problem_contract_schema"] = bindings["problem_contract"]
         if any(router.get(key) != value for key, value in router_bindings.items()):
             errors.append("router Authority references differ from implemented consumers")
         upstream = {"simulink_execution": "matlab/simulink-agentic-toolkit",
@@ -83,7 +85,8 @@ def lint(root: Path = ROOT) -> list[str]:
             errors.append("core operation selection differs between contracts")
         for identity, module in modules.items():
             if module["status"] == "implemented":
-                if identity != "environment_assurance" or module["phase"] != "A":
+                expected_phases = {"environment_assurance": "A", "problem_audit": "B"}
+                if identity not in expected_phases or module["phase"] != expected_phases[identity]:
                     errors.append(f"business capability activated before implementation: {identity}")
                 for path in module["resources"]:
                     if not (root / path).is_file():
@@ -91,12 +94,28 @@ def lint(root: Path = ROOT) -> list[str]:
             elif module["status"] != "deferred" or module["resources"]:
                 errors.append(f"invalid deferred module: {identity}")
         for identity, item in taxonomy["capabilities"].items():
-            if identity not in modules or modules[identity]["status"] != "deferred" or modules[identity]["phase"] != item["phase"]:
+            expected_status = "implemented" if identity == "problem_audit" else "deferred"
+            if identity not in modules or modules[identity]["status"] != expected_status or modules[identity]["phase"] != item["phase"]:
                 errors.append(f"taxonomy availability mismatch: {identity}")
         if router["intents"]["inspect"]["execution_allowed"] is not False:
             errors.append("inspect cannot grant execution")
         if router["future_capabilities"]["execution_allowed"] is not False:
             errors.append("future capabilities cannot grant execution")
+        problem_route = router["intents"]["problem_audit"]
+        if problem_route["execution_allowed"] is not False or modules["problem_audit"]["required_operations"]:
+            errors.append("problem audit cannot require numerical operations or grant execution")
+        if "core/problem_contract.schema.yaml" not in manifest["active_authorities"]:
+            errors.append("problem schema is not an active Authority")
+        output = load_document(root / "core/output_contract.yaml")
+        problem_outputs = output["problem_contract"]
+        problem_resources = {"modules/01_problem_audit.md", bindings["problem_contract"],
+                             problem_outputs["consumer"], problem_outputs["template"]}
+        if problem_outputs["schema"] != bindings["problem_contract"]:
+            errors.append("problem output schema differs from the bootstrap Authority")
+        if not problem_resources <= set(modules["problem_audit"]["resources"]):
+            errors.append("problem module omits required contract resources")
+        if any(not (root / name).is_file() for name in problem_resources):
+            errors.append("problem output resources are missing")
 
         graph = bootstrap["authority_graph"]
         edges = {node: [] for node in graph["nodes"]}

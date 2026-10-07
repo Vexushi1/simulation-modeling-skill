@@ -1,12 +1,14 @@
 schema_version: 1
-phase: A
+phase: B
 module_manifest: core/module_manifest.yaml
 capability_taxonomy: core/capability_taxonomy.yaml
 runtime_contract: core/runtime_assurance_contract.yaml
 project_state_schema: core/project_state.schema.yaml
+problem_contract_schema: core/problem_contract.schema.yaml
 
 intents:
   inspect:
+    phase: A
     mode: read_only
     module: environment_assurance
     profile_required: false
@@ -15,6 +17,7 @@ intents:
     expected_artefacts: []
     next_step: Run the repository probe in a new evidence directory when environment assurance is needed.
   assure_environment:
+    phase: A
     mode: environment_only
     module: environment_assurance
     profile_required: true
@@ -29,6 +32,23 @@ intents:
       - raw_probe_report
       - process_log
     next_step: Record the validated profile in project state through a separate explicit state update.
+  problem_audit:
+    phase: B
+    mode: read_only
+    module: problem_audit
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: problem
+    required_gates:
+      - problem_sources_current_if_supplied
+      - problem_contract_valid_if_supplied
+      - problem_state_valid_if_supplied
+    expected_artefacts:
+      - problem_contract_draft
+      - literal_audit
+      - requirement_map
+      - problem_audit_report
+    next_step: Prepare or review the source-bound problem contract; record a freeze review separately and update project state only through an explicit caller action.
 
 operation_selection:
   defaults_from: module_manifest.modules.environment_assurance.required_operations
@@ -43,11 +63,10 @@ future_capabilities:
   activate_packs: false
   activate_upstream_skills: false
   common_missing_gates:
-    - phase_a_exit_reviewed
+    - phase_b_exit_reviewed
     - requested_capability_implemented
   prerequisite_gates_by_phase:
-    B: [runtime_assured]
-    C: [requirement_frozen]
+    C: [problem_contract_frozen]
     D: [model_design_approved]
     E: [model_structure_checked, simulation_protocol_approved]
     F: [simulation_protocol_approved, calibration_data_roles_approved]
@@ -55,7 +74,7 @@ future_capabilities:
     H: [accepted_simulation_evidence]
     I: [accepted_verification_evidence, validation_target_approved]
     J: [accepted_claim_evidence, evidence_package_valid]
-  next_step_template: Complete the implementation and reviewed exit gates for Phase {phase}; the current Phase A router grants no business execution permission.
+  next_step_template: Complete the implementation and reviewed exit gates for Phase {phase}; the current Phase A/B router grants no business execution permission.
 
 fallback:
   missing_or_stale_profile:
@@ -71,6 +90,9 @@ fallback:
   future_capability:
     action: implement_next_phase
     reason: Review the full implementation plan and complete the declared phase; no unimplemented module or upstream skill is activated.
+  problem_contract_invalid:
+    action: review_problem_sources_and_contract
+    reason: Re-read the original material, repair its exact source bindings and requirement audit, and preserve unresolved information. Do not substitute a numerical method or generate a freeze decision.
 
 invariants:
   - inspect_never_grants_execution_or_advances_state
@@ -81,3 +103,6 @@ invariants:
   - no_mathematical_method_change_in_fallback
   - deferred_capabilities_activate_no_resources
   - unknown_intents_are_invalid
+  - problem_audit_does_not_require_matlab_or_select_operations
+  - problem_state_validation_is_partial_and_never_grants_environment_permission
+  - problem_freeze_is_a_recorded_review_not_an_automatic_state_transition

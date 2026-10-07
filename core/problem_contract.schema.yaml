@@ -1,0 +1,212 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Phase B problem audit contract
+type: object
+additionalProperties: false
+required: [schema_version, project_id, status, sources, audit_units, requirements, questions, question_dependencies, data_uses, ambiguities, freeze]
+properties:
+  schema_version: {const: 1}
+  project_id: {$ref: '#/$defs/id'}
+  status: {enum: [draft, audited, frozen]}
+  sources: {type: array, items: {$ref: '#/$defs/source'}}
+  audit_units: {type: array, items: {$ref: '#/$defs/audit_unit'}}
+  requirements: {type: array, items: {$ref: '#/$defs/requirement'}}
+  questions: {type: array, items: {$ref: '#/$defs/question'}}
+  question_dependencies: {type: array, items: {$ref: '#/$defs/dependency'}}
+  data_uses: {type: array, items: {$ref: '#/$defs/data_use'}}
+  ambiguities: {type: array, items: {$ref: '#/$defs/ambiguity'}}
+  freeze:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [semantic_sha256, decision]
+        properties:
+          semantic_sha256: {$ref: '#/$defs/sha'}
+          decision: {$ref: '#/$defs/decision'}
+$defs:
+  id: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'}
+  text: {type: string, pattern: '\S'}
+  sha: {type: string, pattern: '^[a-f0-9]{64}$'}
+  ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+  decision:
+    type: object
+    additionalProperties: false
+    required: [path, sha256, start, end, quote, reviewed_by]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+      start: {type: integer, minimum: 0}
+      end: {type: integer, minimum: 1}
+      quote: {$ref: '#/$defs/text'}
+      reviewed_by: {$ref: '#/$defs/text'}
+  source:
+    type: object
+    additionalProperties: false
+    required: [id, kind, path, sha256, text]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      kind: {enum: [statement, data]}
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+      text:
+        anyOf:
+          - {type: 'null'}
+          - type: object
+            additionalProperties: false
+            required: [path, sha256, verification, review]
+            properties:
+              path: {$ref: '#/$defs/text'}
+              sha256: {$ref: '#/$defs/sha'}
+              verification: {enum: [direct_text, reviewed_extraction]}
+              review:
+                anyOf:
+                  - {type: 'null'}
+                  - {$ref: '#/$defs/decision'}
+  audit_unit:
+    type: object
+    additionalProperties: false
+    required: [id, source_id, start, end, quote, disposition, reason, requirement_ids]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      source_id: {$ref: '#/$defs/id'}
+      start: {type: integer, minimum: 0}
+      end: {type: integer, minimum: 1}
+      quote: {$ref: '#/$defs/text'}
+      disposition: {enum: [requirement, context, excluded]}
+      reason: {$ref: '#/$defs/text'}
+      requirement_ids: {$ref: '#/$defs/ids'}
+  requirement:
+    type: object
+    additionalProperties: false
+    required: [id, unit_ids, category, question_ids, interpretation, origin]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      unit_ids: {allOf: [{$ref: '#/$defs/ids'}], minItems: 1}
+      category: {$ref: '#/$defs/text'}
+      question_ids: {allOf: [{$ref: '#/$defs/ids'}], minItems: 1}
+      interpretation: {$ref: '#/$defs/text'}
+      origin: {enum: [explicit, inferred]}
+  fact:
+    type: object
+    additionalProperties: false
+    required: [status, value, reason, requirement_ids]
+    properties:
+      status: {enum: [specified, not_specified, not_applicable, deferred]}
+      value: {}
+      reason: {$ref: '#/$defs/text'}
+      requirement_ids: {$ref: '#/$defs/ids'}
+  facts:
+    type: object
+    additionalProperties: false
+    required: [original_system, derived_system, system_boundary, commanded_inputs, disturbances, state_variables, algebraic_variables, parameters, decision_variables, outputs, observables, initial_conditions, boundary_conditions, events, mode_transitions, time_domain, spatial_domain, data, direct_goal, implicit_goal, constraints, deliverables, risks]
+    properties:
+      original_system: {$ref: '#/$defs/fact'}
+      derived_system: {$ref: '#/$defs/fact'}
+      system_boundary: {$ref: '#/$defs/fact'}
+      commanded_inputs: {$ref: '#/$defs/fact'}
+      disturbances: {$ref: '#/$defs/fact'}
+      state_variables: {$ref: '#/$defs/fact'}
+      algebraic_variables: {$ref: '#/$defs/fact'}
+      parameters: {$ref: '#/$defs/fact'}
+      decision_variables: {$ref: '#/$defs/fact'}
+      outputs: {$ref: '#/$defs/fact'}
+      observables: {$ref: '#/$defs/fact'}
+      initial_conditions: {$ref: '#/$defs/fact'}
+      boundary_conditions: {$ref: '#/$defs/fact'}
+      events: {$ref: '#/$defs/fact'}
+      mode_transitions: {$ref: '#/$defs/fact'}
+      time_domain: {$ref: '#/$defs/fact'}
+      spatial_domain: {$ref: '#/$defs/fact'}
+      data: {$ref: '#/$defs/fact'}
+      direct_goal: {$ref: '#/$defs/fact'}
+      implicit_goal: {$ref: '#/$defs/fact'}
+      constraints: {$ref: '#/$defs/fact'}
+      deliverables: {$ref: '#/$defs/fact'}
+      risks: {$ref: '#/$defs/fact'}
+  question:
+    type: object
+    additionalProperties: false
+    required: [id, classification, facts, variables]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      classification:
+        type: object
+        additionalProperties: false
+        required: [objectives, model_structures, capabilities]
+        properties:
+          objectives: {$ref: '#/$defs/ids'}
+          model_structures: {$ref: '#/$defs/ids'}
+          capabilities: {$ref: '#/$defs/ids'}
+      facts: {$ref: '#/$defs/facts'}
+      variables: {type: array, items: {$ref: '#/$defs/variable'}}
+  variable:
+    type: object
+    additionalProperties: false
+    required: [id, symbol, quantity, roles, role_relation, unit, status, requirement_ids]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      symbol: {$ref: '#/$defs/text'}
+      quantity: {$ref: '#/$defs/text'}
+      roles:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          enum: [commanded_input, disturbance, state, algebraic, parameter, decision, output, observable, reference, residual]
+      role_relation: {type: [string, 'null']}
+      unit: {type: [string, 'null']}
+      status: {enum: [declared, candidate]}
+      requirement_ids: {$ref: '#/$defs/ids'}
+  dependency:
+    type: object
+    additionalProperties: false
+    required: [producer, consumer, type, artefact, requirement_ids]
+    properties:
+      producer: {$ref: '#/$defs/id'}
+      consumer: {$ref: '#/$defs/id'}
+      type: {enum: [data, parameter, state, model, initial_condition, boundary_condition, result, controller, scenario, validation_evidence]}
+      artefact: {$ref: '#/$defs/text'}
+      requirement_ids: {allOf: [{$ref: '#/$defs/ids'}], minItems: 1}
+  data_use:
+    type: object
+    additionalProperties: false
+    required: [id, source_id, question_id, role, scope, independence_declared]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      source_id: {$ref: '#/$defs/id'}
+      question_id: {$ref: '#/$defs/id'}
+      role: {enum: [input, calibration, validation, benchmark]}
+      scope:
+        oneOf:
+          - type: object
+            additionalProperties: false
+            required: [kind]
+            properties:
+              kind: {const: all}
+          - type: object
+            additionalProperties: false
+            required: [kind, start, end]
+            properties:
+              kind: {const: rows}
+              start: {type: integer, minimum: 0}
+              end: {type: integer, minimum: 1}
+      independence_declared: {type: boolean}
+  ambiguity:
+    type: object
+    additionalProperties: false
+    required: [id, question_ids, description, critical, status, resolution]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      question_ids: {allOf: [{$ref: '#/$defs/ids'}], minItems: 1}
+      description: {$ref: '#/$defs/text'}
+      critical: {type: boolean}
+      status: {enum: [unresolved, resolved]}
+      resolution:
+        anyOf:
+          - {type: 'null'}
+          - type: object
+            additionalProperties: false
+            required: [value, decision]
+            properties:
+              value: {$ref: '#/$defs/text'}
+              decision: {$ref: '#/$defs/decision'}

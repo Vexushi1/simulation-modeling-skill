@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.1.1
+version: 0.2.0
 development_authority: docs/V1_FULL_IMPLEMENTATION_PLAN.md
 runtime_entry:
   router: core/workflow_router.yaml
@@ -7,6 +7,7 @@ runtime_entry:
   resolver: scripts/resolve_runtime.py
   state_schema: core/project_state.schema.yaml
   output_contract: core/output_contract.yaml
+  problem_contract: core/problem_contract.schema.yaml
 authority_graph:
   # These are precedence edges, not Markdown navigation links.
   nodes:
@@ -22,6 +23,8 @@ authority_graph:
     outputs: core/output_contract.yaml
     taxonomy: core/capability_taxonomy.yaml
     upstream: core/upstream_integration_policy.md
+    problem: core/problem_contract.schema.yaml
+    audit: modules/01_problem_audit.md
   edges:
     - [plan, governance]
     - [governance, bootstrap]
@@ -34,5 +37,7 @@ authority_graph:
     - [runtime, profile]
     - [router, taxonomy]
     - [router, upstream]
-implemented_phase: A
+    - [bootstrap, problem]
+    - [problem, audit]
+implemented_phase: B
 business_execution_enabled: false

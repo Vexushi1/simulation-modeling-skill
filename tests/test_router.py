@@ -95,7 +95,8 @@ def test_explicit_optional_selection_keeps_core_and_deduplicates(tmp_path):
 
 
 @pytest.mark.parametrize("intent,phase", [(key, value["phase"]) for key, value in
-                         load_contract("core/capability_taxonomy.yaml")["capabilities"].items()])
+                         load_contract("core/capability_taxonomy.yaml")["capabilities"].items()
+                         if key not in load_contract("core/workflow_router.yaml")["intents"]])
 def test_all_future_intents_stay_deferred_without_activating_resources(intent, phase):
     route = resolve_runtime(intent)
     assert route["status"] == "deferred"
@@ -105,7 +106,7 @@ def test_all_future_intents_stay_deferred_without_activating_resources(intent, p
     assert route["activated_resources"] == []
     assert route["selected_operations"] == []
     assert f"{intent}_implemented" in route["missing_gates"]
-    assert "phase_a_exit_reviewed" in route["missing_gates"]
+    assert "phase_b_exit_reviewed" in route["missing_gates"]
     assert f"Phase {phase}" in route["next_step"]
     assert_no_business_permission(route)
 
@@ -115,9 +116,8 @@ def test_environment_state_does_not_authorize_business_execution(tmp_path):
     state = write_state(tmp_path, profile=profile, stage="ENVIRONMENT_ASSURED")
     before = state.read_bytes()
     route = resolve_runtime("problem_audit", profile_path=profile, state_path=state)
-    assert route["status"] == "deferred"
-    assert "runtime_assured" not in route["missing_gates"]
-    assert "problem_audit_implemented" in route["missing_gates"]
+    assert route["status"] == "allowed"
+    assert "problem_contract_frozen" in route["missing_gates"]
     assert route["execution_allowed"] is False
     assert state.read_bytes() == before
     assert_no_business_permission(route)

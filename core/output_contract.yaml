@@ -1,6 +1,6 @@
 schema_version: 1
-version: 0.1.1
-phase: A
+version: 0.2.0
+phase: B
 runtime_evidence:
   producer: scripts/probe_environment.py
   consumer: scripts/validate_environment.py
@@ -16,7 +16,25 @@ project_state:
   schema: core/project_state.schema.yaml
   validator: scripts/validate_project_state.py
   writes: explicit_caller_only
-  evidence_binding: [profile_sha256, receipt_sha256]
+  evidence_binding:
+    environment: [profile_sha256, receipt_sha256]
+    problem: [sha256]
   artefact_paths: inside_declared_project_root
   stale_propagation: transitive_dependents_of_changed_ids
   preserve_history: true
+  validation_scopes:
+    all: validate every implemented evidence role and current runtime requirements
+    problem: validate problem identity and dependencies; environment readiness is unassessed
+problem_contract:
+  schema: core/problem_contract.schema.yaml
+  consumer: scripts/validate_problem_contract.py
+  template: templates/contracts/problem_contract.yaml
+  writer: caller performing the authorized audit; validator and resolver never write
+  statuses: [draft, audited, frozen]
+  literal_offsets: Unicode codepoints; start inclusive and end exclusive
+  original_and_text_identity: exact file SHA-256 values; reviewed extraction required for non-text statements
+  semantic_digest_excludes: [status, freeze]
+  review_decision: independently byte-bound text and exact quote; cannot be manufactured by the validator
+  freshness: source, contract and decision identities; runtime TTL does not expire unchanged problem meaning
+  acceptance: current source and role/DAG/coverage checks; frozen additionally requires closed critical ambiguities and matching review decision
+  claim_limit: mechanical completeness and traceability do not prove interpretation or real-system validity
