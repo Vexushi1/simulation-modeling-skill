@@ -49,8 +49,14 @@ def model_identity(model: dict) -> str:
 
 
 def _identities(contract: dict) -> dict:
-    return {f"{design['id']}.{model['id']}": model_identity(model)
-            for design in contract["designs"] for model in design["models"]}
+    identities = {}
+    for design in contract["designs"]:
+        for model in design["models"]:
+            key = f"{design['id']}.{model['id']}"
+            if key in identities:
+                raise ValueError(f"duplicate identity key collision: {key}")
+            identities[key] = model_identity(model)
+    return identities
 
 
 def expected_locked_spec(contract: dict) -> dict:

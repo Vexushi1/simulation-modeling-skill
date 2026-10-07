@@ -49,6 +49,43 @@ def test_current_shared_design_statuses(tmp_path, status):
     assert result["problem_path"] == str((tmp_path / "problem.json").resolve())
 
 
+def designs_with_dotted_ids(contract, *, collision):
+    first = contract["designs"][0]
+    second = copy.deepcopy(first)
+    first.update(id="d.a", main_model="b")
+    first["models"][0]["id"] = "b"
+    second.update(id="d", main_model="a.b" if collision else "a.c")
+    second["models"][0]["id"] = second["main_model"]
+    contract["designs"].append(second)
+
+
+@pytest.mark.parametrize("status", ["proposed", "challenged", "approved"])
+def test_combined_identity_key_collision_cannot_pass_design_gates(tmp_path, status):
+    path = make_model_contract(tmp_path, status=status)
+    result = mutate(path, lambda contract: designs_with_dotted_ids(contract, collision=True))
+    assert result["schema_valid"] and not result["valid"]
+    assert not any(result[field] for field in ("proposal_complete", "challenge_complete", "ready_for_approval", "approved"))
+    assert result["model_identities"] == {}
+    assert any("identity key collision: d.a.b" in error for error in result["errors"])
+
+
+def test_locked_spec_cannot_silently_drop_colliding_model_identity(tmp_path):
+    contract = read_contract(make_model_contract(tmp_path, status="challenged"))
+    designs_with_dotted_ids(contract, collision=True)
+    with pytest.raises(ValueError, match="identity key collision: d.a.b"):
+        expected_locked_spec(contract)
+
+
+def test_noncolliding_dotted_ids_preserve_all_models_and_approval(tmp_path):
+    path = make_model_contract(tmp_path, status="challenged")
+    result = mutate(path, lambda contract: designs_with_dotted_ids(contract, collision=False))
+    assert result["valid"] and result["ready_for_approval"]
+    assert set(result["model_identities"]) == {"d.a.b", "d.a.c"}
+    assert len(expected_locked_spec(read_contract(path))["model_identities"]) == 2
+    approve_contract(path)
+    assert validate_model_contract(path, require_approved=True)["approved"]
+
+
 def test_template_is_a_legal_incomplete_draft():
     path = ROOT / "templates/contracts/model_contract.yaml"
     result = validate_model_contract(path)
