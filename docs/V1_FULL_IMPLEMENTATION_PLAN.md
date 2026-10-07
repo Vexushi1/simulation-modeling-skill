@@ -1142,6 +1142,8 @@ validator 分别报告 schema_valid、valid、proposal_complete、challenge_comp
 
 独立复核补充：design/model ID 可以包含点号，但导出的平面 `model_identities` 使用 `design.id + '.' + model.id`；不同 ID 对若生成同一键，validator 必须显式拒绝，不能静默覆盖并进入 proposed/challenged/approved 或生成锁定快照。保留原 ID，不自动重命名；提供碰撞负例及非碰撞点号 ID 正例，保证每个有效候选都有唯一且完整的身份映射。
 
+锁定快照匹配还必须保留当前完整 JSON 内容及类型，不能依赖 Python 中 `true == 1` 或 `1.0 == 1` 的宽松相等。使用与语义 digest 一致的 canonical 表示比较完整 payload；布尔/整数/浮点类型替换、非有限值或不支持的 YAML 类型均受控失败，不得复用原人类决定放过已改变的锁定内容。
+
 独立原始输入行为测试、精确最终提交审查、对应 Windows/Ubuntu CI、合并与合并后回读分别记录。合成批准夹具只验证开发基础设施，不证明有人批准真实模型、数学正确、真实物理有效、统计独立或已获数值执行资格。
 
 ---
