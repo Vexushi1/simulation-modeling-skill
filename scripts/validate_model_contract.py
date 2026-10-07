@@ -357,8 +357,13 @@ def validate_model_contract(path: Path, *, require_proposed=False, require_chall
                         if contextual != [f"{field}={value}"]:
                             errors.append(f"approval_decision: exact unique context line required for {field}")
                 _, locked = bound_file(approval["locked_model_spec"], "locked_model_spec", document=True)
-                if locked is not None and (contract["problem"] is None or locked != expected_locked_spec(contract)):
-                    errors.append("locked_model_spec: differs from complete current design payload")
+                if locked is not None:
+                    try:
+                        if (contract["problem"] is None or
+                                canonical_digest(locked) != canonical_digest(expected_locked_spec(contract))):
+                            errors.append("locked_model_spec: differs from complete current design payload")
+                    except (TypeError, ValueError, RecursionError) as error:
+                        errors.append(f"locked_model_spec: invalid canonical payload: {error}")
                 approval_valid = not errors
 
     status = contract["status"]

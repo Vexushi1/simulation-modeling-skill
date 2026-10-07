@@ -405,6 +405,44 @@ def test_locked_flag_or_empty_payload_is_not_a_locked_model(tmp_path, payload):
     assert not result["valid"] and any("complete current design payload" in error for error in result["errors"])
 
 
+@pytest.mark.parametrize("replacement", [True, 1.0], ids=["boolean-for-integer", "float-for-integer"])
+def test_locked_payload_keeps_json_types_when_numeric_values_compare_equal(tmp_path, replacement):
+    path = make_model_contract(tmp_path, status="approved")
+    locked_path = tmp_path / "locked-model-spec.json"
+    locked = read_contract(locked_path)
+    original = copy.deepcopy(locked)
+    locked["design"]["schema_version"] = replacement
+    assert locked == original  # Python's equality must not be an approval gate.
+    write_contract(locked_path, locked)
+    result = mutate_approval(path, lambda a: a.update(locked_model_spec=file_ref(tmp_path, locked_path)))
+    assert not result["valid"] and not result["approved"]
+    assert any("locked_model_spec: differs" in error for error in result["errors"])
+
+
+@pytest.mark.parametrize("yaml_value", [".inf", ".nan", "2026-10-07", "!!set {a: null}", "&recursive [*recursive]"])
+def test_yaml_locked_payload_rejects_noncanonical_values_without_crashing(tmp_path, yaml_value):
+    import yaml
+
+    path = make_model_contract(tmp_path, status="approved")
+    locked_path = tmp_path / "locked-model-spec.yaml"
+    locked = read_contract(tmp_path / "locked-model-spec.json")
+    locked_path.write_text(yaml.safe_dump(locked, allow_unicode=True) + f"unsupported_value: {yaml_value}\n", encoding="utf-8")
+    result = mutate_approval(path, lambda a: a.update(locked_model_spec=file_ref(tmp_path, locked_path)))
+    assert not result["valid"] and not result["approved"]
+    assert any("locked_model_spec: invalid canonical payload" in error for error in result["errors"])
+
+
+def test_locked_payload_key_order_does_not_change_approved_content(tmp_path):
+    path = make_model_contract(tmp_path, status="approved")
+    locked_path = tmp_path / "locked-model-spec.json"
+    locked = read_contract(locked_path)
+    locked["design"] = dict(reversed(list(locked["design"].items())))
+    locked = dict(reversed(list(locked.items())))
+    write_contract(locked_path, locked)
+    result = mutate_approval(path, lambda a: a.update(locked_model_spec=file_ref(tmp_path, locked_path)))
+    assert result["valid"] and result["approved"]
+
+
 def test_expected_paths_check_bindings_without_substituting_files(tmp_path):
     path = make_model_contract(tmp_path, status="approved")
     assert validate_model_contract(path, problem_path=tmp_path / "problem.json", approval_path=tmp_path / "model-approval.json")["valid"]
