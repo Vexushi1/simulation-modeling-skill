@@ -177,7 +177,7 @@ Windows 为首要资格验证平台
 
 - **Statistics and Machine Learning Toolbox：当前已恢复为可调用能力。**
 
-当前 bootstrap 文件仍保留旧 quarantine 记录，因此 Phase A 的第一项正式修复就是：
+实施前的 bootstrap 文件保留旧 quarantine 记录，因此 Phase A 的第一项正式修复就是：
 
 1. 删除旧 quarantine 状态；
 2. 将该工具箱纳入候选能力矩阵，以当前 probe 的实际调用证据决定 callable；
@@ -661,9 +661,10 @@ README 和 Index 后续明确该层级。
 - scripts/generate_indexes.py
 - tests/test_project_state.py
 - tests/test_lint.py
-- tests/conftest.py
+- tests/conftest.py（仅在共享 pytest fixture 确有需要时创建，不创建占位）
 - .github/workflows/ci.yml
 - .gitignore
+- .gitattributes（统一源码换行，保证 Windows/Linux 的源码身份可复核）
 - requirements.txt
 - pyproject.toml
 
