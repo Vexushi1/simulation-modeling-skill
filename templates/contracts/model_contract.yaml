@@ -1,0 +1,30 @@
+# Legal unfilled draft. Read modules/02_model_design.md and the current schema first.
+# Paths resolve inside --project-root (default: this contract's directory).
+# Do not insert invented hashes, values, review conclusions, or approval records.
+schema_version: 1
+project_id: replace-with-project-id
+status: draft
+problem: null
+sources: []
+designs: []
+brief: null
+approval: null
+# Bind problem, brief, and approval as {path: <actual-file>, sha256: <actual-SHA>}.
+# A source records id, path, sha256, purpose, and problem_source_id (null for an
+# additional design reference; otherwise the actual registered Problem source ID).
+# Each design records id, question_ids, requirement_ids, main_model,
+# selection_reason, alternative_review, models, and all nine challenge keys.
+# main_model references a model ID in that design. Other models are 0..N alternatives.
+# Each model records id, name, structure, body, source_ids, fidelity, solver_plan,
+# validator_plan, and all four structure_review keys. Use a structural family from
+# the capability taxonomy; solver names cannot stand in for mathematical structure.
+# Structural initial/boundary operators belong in body.relations with role initial
+# or boundary; condition.value records numerical scenario assignments only.
+# Parameter value may remain null with its source role and proposed method.
+# validator_plan items remain status: planned; they are not completed V&V evidence.
+# Reviews record status, conclusion, reason, next_action, source_ids; statuses are
+# pending, reviewed, blocked, or not_applicable. Explain task-specific exclusions.
+# Write the actual Brief first, bind its current SHA, then calculate the full-design
+# semantic digest. The Brief must not contain that same digest and create a cycle.
+# approval stays null until an actual human explicitly approves this current design.
+# Validators never write decisions, locks, contracts, or project state.

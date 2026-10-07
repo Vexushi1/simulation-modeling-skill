@@ -106,7 +106,8 @@ def test_all_future_intents_stay_deferred_without_activating_resources(intent, p
     assert route["activated_resources"] == []
     assert route["selected_operations"] == []
     assert f"{intent}_implemented" in route["missing_gates"]
-    assert "phase_b_exit_reviewed" in route["missing_gates"]
+    assert "phase_b_exit_reviewed" not in route["required_gates"]
+    assert "phase_b_exit_reviewed" not in route["missing_gates"]
     assert f"Phase {phase}" in route["next_step"]
     assert_no_business_permission(route)
 

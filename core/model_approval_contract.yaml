@@ -1,0 +1,34 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Phase C external human model approval
+type: object
+additionalProperties: false
+required: [schema_version, project_id, problem_sha256, model_semantic_sha256, decision, locked_model_spec]
+properties:
+  schema_version: {const: 1}
+  project_id: {$ref: '#/$defs/text'}
+  problem_sha256: {$ref: '#/$defs/sha'}
+  model_semantic_sha256: {$ref: '#/$defs/sha'}
+  decision:
+    type: object
+    additionalProperties: false
+    required: [path, sha256, start, end, quote, actor, actor_kind, action]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+      start: {type: integer, minimum: 0}
+      end: {type: integer, minimum: 1}
+      quote: {$ref: '#/$defs/text'}
+      actor: {$ref: '#/$defs/text'}
+      actor_kind: {const: human}
+      action: {const: approve}
+  locked_model_spec: {$ref: '#/$defs/file'}
+$defs:
+  text: {type: string, pattern: '\S'}
+  sha: {type: string, pattern: '^[a-f0-9]{64}$'}
+  file:
+    type: object
+    additionalProperties: false
+    required: [path, sha256]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}

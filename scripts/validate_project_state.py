@@ -18,13 +18,18 @@ def affected_artefacts(artefacts: list[dict], changed_ids: set[str]) -> set[str]
 
 def validate_project_state(state_path: Path, *, profile_path: Path | None = None,
                            scope: str = "all") -> dict:
-    """A problem-scoped result validates text evidence, never environment assurance."""
+    """Partial scopes validate only declared evidence, never the whole project."""
     errors = []
     stale = set()
     stage = None
-    result = {"scope": scope, "environment_checked": False, "problem_path": None,
-              "problem_contract_sha256": None, "project_root": None}
-    if scope not in ("all", "problem"):
+    result = {"scope": scope, "environment_checked": False, "model_checked": False,
+              "stage_assessment": {"all": "all_implemented_evidence", "problem": "problem_only",
+                                   "model": "problem_and_model_only"}.get(scope),
+              "problem_path": None, "problem_contract_sha256": None,
+              "model_path": None, "model_contract_sha256": None,
+              "approval_path": None, "approval_sha256": None, "model_approved": False,
+              "project_root": None}
+    if scope not in ("all", "problem", "model"):
         return {**result, "valid": False, "errors": [f"unknown validation scope: {scope}"],
                 "stale_artefacts": [], "current_stage": None}
     try:
@@ -67,13 +72,15 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
         bound_problem = None
         problem_report = None
         problem_status = None
+        model_stages = {"MODEL_PROPOSED", "MODEL_CHALLENGED", "MODEL_APPROVED"}
         if problem:
             from validate_problem_contract import validate_problem_contract
 
             bound_problem = contained_path(project_root, problem["path"])
             result["problem_path"] = str(bound_problem)
             problem_report = validate_problem_contract(
-                bound_problem, require_frozen=stage == "PROBLEM_FROZEN", project_root=project_root)
+                bound_problem, require_frozen=stage == "PROBLEM_FROZEN" or stage in model_stages,
+                project_root=project_root)
             result["problem_validation"] = problem_report
             if problem_report["schema_valid"]:
                 problem_status = load_document(bound_problem)["status"]
@@ -99,6 +106,68 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                 errors.append("PROBLEM_FROZEN requires a current recorded freeze review")
                 stale.add("problem")
 
+        model = state.get("model")
+        approval = state.get("approval")
+        bound_model = contained_path(project_root, model["path"]) if model else None
+        bound_approval = contained_path(project_root, approval["path"]) if approval else None
+        model_report = None
+        model_status = None
+        if scope != "problem" and model:
+            from validate_model_contract import validate_model_contract
+
+            result["model_checked"] = True
+            result["model_path"] = str(bound_model)
+            model_report = validate_model_contract(
+                bound_model, project_root=project_root, problem_path=bound_problem,
+                approval_path=bound_approval, require_proposed=stage == "MODEL_PROPOSED",
+                require_challenged=stage == "MODEL_CHALLENGED",
+                require_approved=stage == "MODEL_APPROVED")
+            result["model_validation"] = model_report
+            result["model_contract_sha256"] = model_report["contract_sha256"]
+            result["approval_path"] = model_report.get("approval_path")
+            result["approval_sha256"] = model_report.get("approval_sha256")
+            if model_report["schema_valid"]:
+                model_status = load_document(bound_model)["status"]
+            if model_report["contract_sha256"] != model["sha256"]:
+                errors.append("model contract SHA differs from project-state binding")
+                stale.add("model")
+            if not model_report["valid"]:
+                errors.extend(f"model: {error}" for error in model_report["errors"])
+                if not model_report["errors"]:
+                    errors.append("model contract validation failed")
+                stale.add("model")
+            if model_report["project_id"] != state["project_id"]:
+                errors.append("model contract project_id differs from project state")
+                stale.add("model")
+            if (not problem or model_report.get("problem_path") != str(bound_problem) or
+                    model_report.get("problem_sha256") != problem["sha256"]):
+                errors.append("model contract must match the project problem binding")
+                stale.add("model")
+            if approval:
+                if (model_report.get("approval_path") != str(bound_approval) or
+                        model_report.get("approval_sha256") != approval["sha256"]):
+                    errors.append("model approval differs from project-state binding")
+                    stale.add("approval")
+                if not model_report["approved"]:
+                    errors.append("approval binding requires a current approved model")
+                    stale.add("approval")
+            elif model_report["approved"]:
+                errors.append("approved model requires a project approval binding")
+                stale.add("approval")
+            result["model_approved"] = bool(
+                model_report["approved"] and approval and "model" not in stale and "approval" not in stale)
+            required_statuses = {
+                "MODEL_PROPOSED": {"proposed", "challenged", "approved"},
+                "MODEL_CHALLENGED": {"challenged", "approved"},
+                "MODEL_APPROVED": {"approved"},
+            }
+            if stage in required_statuses and model_status not in required_statuses[stage]:
+                errors.append(f"{stage} requires the corresponding declared model status")
+                stale.add("model")
+        elif scope != "problem" and approval:
+            errors.append("approval binding requires a model binding")
+            stale.add("approval")
+
         artefacts = state["artefacts"]
         by_id = {item["id"]: item for item in artefacts}
         if len(by_id) != len(artefacts):
@@ -109,10 +178,14 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
             item["id"] for item in artefacts if item["role"] in ("environment_profile", "route_decision")}
         environment_dependents = affected_artefacts(artefacts, environment_ids)
         anchors = ({"environment"} if environment else set()) | ({"problem"} if problem else set())
+        anchors |= ({"model"} if model else set()) | ({"approval"} if approval else set())
         known = set(by_id) | anchors
+        scoped_roles = {"problem_contract"}
+        if scope == "model":
+            scoped_roles |= {"model_contract", "model_approval"}
         checked_ids = set(by_id) if scope == "all" else {
-            item["id"] for item in artefacts if item["role"] == "problem_contract"}
-        if scope == "problem":
+            item["id"] for item in artefacts if item["role"] in scoped_roles}
+        if scope != "all":
             while True:
                 ancestors = {dependency for identity in checked_ids
                              for dependency in by_id[identity]["depends_on"] if dependency in by_id}
@@ -170,7 +243,32 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                         errors.append(f"{item['id']}: accepted problem contract requires a declared audited or frozen status")
                         stale.add(item["id"])
                     continue
-                if scope == "problem":
+                if item["role"] in ("model_contract", "model_approval"):
+                    if item["id"] in environment_dependents:
+                        errors.append(f"{item['id']}: accepted model evidence cannot depend on environment evidence")
+                        stale.add(item["id"])
+                    required_anchors = {"model", "problem"}
+                    if item["role"] == "model_approval":
+                        required_anchors.add("approval")
+                    expected_path = bound_model if item["role"] == "model_contract" else bound_approval
+                    binding = model if item["role"] == "model_contract" else approval
+                    if (not binding or not required_anchors <= set(item["depends_on"]) or
+                            path != expected_path or item["sha256"] != binding["sha256"]):
+                        errors.append(f"{item['id']}: accepted model evidence must match and depend on its project bindings")
+                        stale.add(item["id"])
+                    elif (not model_report or not model_report["valid"] or
+                          not model_report["proposal_complete"] or
+                          model_status not in ("proposed", "challenged", "approved")):
+                        errors.append(f"{item['id']}: accepted model evidence requires a current declared proposal")
+                        stale.add(item["id"])
+                    elif not problem_report or not problem_report["frozen"]:
+                        errors.append(f"{item['id']}: accepted model evidence requires the current frozen problem")
+                        stale.add(item["id"])
+                    elif item["role"] == "model_approval" and not result["model_approved"]:
+                        errors.append(f"{item['id']}: accepted approval lacks a current approved model")
+                        stale.add(item["id"])
+                    continue
+                if scope != "all":
                     # Byte/dependency checks above do not qualify an environment ancestor.
                     continue
                 if not environment or "environment" not in item["depends_on"]:
@@ -224,7 +322,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("state", type=Path)
     parser.add_argument("--profile", type=Path)
-    parser.add_argument("--scope", choices=["all", "problem"], default="all")
+    parser.add_argument("--scope", choices=["all", "problem", "model"], default="all")
     args = parser.parse_args()
     result = validate_project_state(args.state, profile_path=args.profile, scope=args.scope)
     emit(result)

@@ -65,6 +65,21 @@ def test_problem_module_cannot_omit_its_validator(copy_repo):
     assert any("omits required contract resources" in error for error in lint(copy_repo))
 
 
+def test_model_design_cannot_select_runtime_operations(copy_repo):
+    path = copy_repo / "core/module_manifest.yaml"
+    text = path.read_text(encoding="utf-8")
+    marker = "  model_design:"
+    before, after = text.split(marker, 1)
+    path.write_text(before + marker + after.replace("required_operations: []", "required_operations: [matlab.basic_execution]", 1), encoding="utf-8")
+    assert any("model design cannot require numerical operations" in error for error in lint(copy_repo))
+
+
+def test_model_module_cannot_omit_approval_contract(copy_repo):
+    path = copy_repo / "core/module_manifest.yaml"
+    path.write_text(path.read_text(encoding="utf-8").replace("    - core/model_approval_contract.yaml\n", ""), encoding="utf-8")
+    assert any("model module omits required contract resources" in error for error in lint(copy_repo))
+
+
 def test_index_drift_is_detected(copy_repo):
     (copy_repo / "REPOSITORY_INDEX.md").write_text("stale", encoding="utf-8")
     assert any("stale generated index" in error for error in lint(copy_repo))

@@ -31,6 +31,8 @@ def lint(root: Path = ROOT) -> list[str]:
             "resolver": "scripts/resolve_runtime.py", "state_schema": "core/project_state.schema.yaml",
             "output_contract": "core/output_contract.yaml",
             "problem_contract": "core/problem_contract.schema.yaml",
+            "model_contract": "core/model_contract.schema.yaml",
+            "model_approval": "core/model_approval_contract.yaml",
         }
         if bootstrap["runtime_entry"] != bindings:
             errors.append("bootstrap runtime entry differs from implemented consumers")
@@ -42,6 +44,8 @@ def lint(root: Path = ROOT) -> list[str]:
                            "runtime_contract": "core/runtime_assurance_contract.yaml",
                            "project_state_schema": bindings["state_schema"]}
         router_bindings["problem_contract_schema"] = bindings["problem_contract"]
+        router_bindings["model_contract_schema"] = bindings["model_contract"]
+        router_bindings["model_approval_contract"] = bindings["model_approval"]
         if any(router.get(key) != value for key, value in router_bindings.items()):
             errors.append("router Authority references differ from implemented consumers")
         upstream = {"simulink_execution": "matlab/simulink-agentic-toolkit",
@@ -85,7 +89,7 @@ def lint(root: Path = ROOT) -> list[str]:
             errors.append("core operation selection differs between contracts")
         for identity, module in modules.items():
             if module["status"] == "implemented":
-                expected_phases = {"environment_assurance": "A", "problem_audit": "B"}
+                expected_phases = {"environment_assurance": "A", "problem_audit": "B", "model_design": "C"}
                 if identity not in expected_phases or module["phase"] != expected_phases[identity]:
                     errors.append(f"business capability activated before implementation: {identity}")
                 for path in module["resources"]:
@@ -94,7 +98,7 @@ def lint(root: Path = ROOT) -> list[str]:
             elif module["status"] != "deferred" or module["resources"]:
                 errors.append(f"invalid deferred module: {identity}")
         for identity, item in taxonomy["capabilities"].items():
-            expected_status = "implemented" if identity == "problem_audit" else "deferred"
+            expected_status = "implemented" if identity in ("problem_audit", "model_design") else "deferred"
             if identity not in modules or modules[identity]["status"] != expected_status or modules[identity]["phase"] != item["phase"]:
                 errors.append(f"taxonomy availability mismatch: {identity}")
         if router["intents"]["inspect"]["execution_allowed"] is not False:
@@ -116,6 +120,23 @@ def lint(root: Path = ROOT) -> list[str]:
             errors.append("problem module omits required contract resources")
         if any(not (root / name).is_file() for name in problem_resources):
             errors.append("problem output resources are missing")
+        model_route = router["intents"]["model_design"]
+        if model_route["execution_allowed"] is not False or modules["model_design"]["required_operations"]:
+            errors.append("model design cannot require numerical operations or grant execution")
+        model_outputs = output["model_contract"]
+        model_resources = {"modules/02_model_design.md", bindings["model_contract"], bindings["model_approval"],
+                           model_outputs["consumer"], model_outputs["template"], model_outputs["brief_template"]}
+        if (model_outputs["schema"] != bindings["model_contract"] or
+                model_outputs["approval_contract"] != bindings["model_approval"]):
+            errors.append("model output schemas differ from the bootstrap Authority")
+        if not {bindings["model_contract"], bindings["model_approval"]} <= set(manifest["active_authorities"]):
+            errors.append("model schemas are not active Authorities")
+        if not model_resources <= set(modules["model_design"]["resources"]):
+            errors.append("model module omits required contract resources")
+        if any(not (root / name).is_file() for name in model_resources):
+            errors.append("model output resources are missing")
+        if "phase_b_exit_reviewed" in router["future_capabilities"]["common_missing_gates"]:
+            errors.append("completed repository gates cannot be missing project requirements")
 
         graph = bootstrap["authority_graph"]
         edges = {node: [] for node in graph["nodes"]}

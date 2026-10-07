@@ -4,7 +4,7 @@
 
 Use this module to audit the supplied simulation task, its attachments, and cross-question requirements before designing a model. Follow [the trusted root](../core/bootstrap.yaml), [the Problem Contract schema](../core/problem_contract.schema.yaml), and [the router](../core/workflow_router.yaml). The development scope and exit gates are in [the full plan §6](../docs/V1_FULL_IMPLEMENTATION_PLAN.md).
 
-Phase B freezes the task meaning and conditions already supplied. Model design, fidelity selection, formal equations, implementation, simulation, and evidence production remain deferred to Phases C–K. Candidate model clues are allowed; a frozen Problem Contract does not approve a model or authorize numerical execution.
+Phase B freezes the task meaning and conditions already supplied. [Phase C model design](02_model_design.md) then reviews fidelity and mathematical relations; implementation, simulation, and numerical evidence production remain deferred to Phases D–K. Candidate model clues are allowed in B; a frozen Problem Contract does not approve a model or authorize numerical execution.
 
 Text review and read-only contract validation require no MATLAB capability profile. Environment assurance and problem meaning have separate dependencies. Validators and the resolver never create a freeze decision or write project state.
 
@@ -79,4 +79,4 @@ For missing material, an unverified extraction, a changed source, an invalid map
 
 Changing the contract, statement, attachment, extraction verification, or review decision invalidates the affected problem evidence and accepted artefacts that actually depend on it. Re-review and rebind them through an explicit update. A runtime profile's expiry does not invalidate unchanged problem meaning; operations requiring MATLAB must independently obtain current runtime evidence.
 
-The Phase B development fixtures establish this infrastructure's behavior. They do not freeze another competition task or prove the physical validity of a future model. Current routing must leave Phases C–K deferred and must never activate an upstream execution skill to bypass that boundary.
+The Phase B development fixtures establish this infrastructure's behavior. They do not freeze another competition task or prove the physical validity of a future model. Current routing must leave Phases D–K deferred and must never activate an upstream execution skill to bypass that boundary. Phase C separately requires the current frozen Problem before its text-design route.

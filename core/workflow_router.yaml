@@ -1,10 +1,12 @@
 schema_version: 1
-phase: B
+phase: C
 module_manifest: core/module_manifest.yaml
 capability_taxonomy: core/capability_taxonomy.yaml
 runtime_contract: core/runtime_assurance_contract.yaml
 project_state_schema: core/project_state.schema.yaml
 problem_contract_schema: core/problem_contract.schema.yaml
+model_contract_schema: core/model_contract.schema.yaml
+model_approval_contract: core/model_approval_contract.yaml
 
 intents:
   inspect:
@@ -49,6 +51,23 @@ intents:
       - requirement_map
       - problem_audit_report
     next_step: Prepare or review the source-bound problem contract; record a freeze review separately and update project state only through an explicit caller action.
+  model_design:
+    phase: C
+    mode: read_only
+    module: model_design
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model
+    required_gates:
+      - problem_contract_frozen
+      - model_sources_current_if_supplied
+      - model_contract_valid_if_supplied
+      - model_state_valid_if_supplied
+    expected_artefacts:
+      - model_contract_draft
+      - model_challenge_review
+      - model_approval_brief
+    next_step: Develop and challenge the mathematical model, preserve unknown parameters and proposed checks, then request a human decision on the current brief; no implementation or numerical execution is authorized.
 
 operation_selection:
   defaults_from: module_manifest.modules.environment_assurance.required_operations
@@ -63,7 +82,6 @@ future_capabilities:
   activate_packs: false
   activate_upstream_skills: false
   common_missing_gates:
-    - phase_b_exit_reviewed
     - requested_capability_implemented
   prerequisite_gates_by_phase:
     C: [problem_contract_frozen]
@@ -74,7 +92,7 @@ future_capabilities:
     H: [accepted_simulation_evidence]
     I: [accepted_verification_evidence, validation_target_approved]
     J: [accepted_claim_evidence, evidence_package_valid]
-  next_step_template: Complete the implementation and reviewed exit gates for Phase {phase}; the current Phase A/B router grants no business execution permission.
+  next_step_template: Complete the implementation and reviewed exit gates for Phase {phase}; the current Phase A/B/C router grants no business execution permission.
 
 fallback:
   missing_or_stale_profile:
@@ -93,6 +111,9 @@ fallback:
   problem_contract_invalid:
     action: review_problem_sources_and_contract
     reason: Re-read the original material, repair its exact source bindings and requirement audit, and preserve unresolved information. Do not substitute a numerical method or generate a freeze decision.
+  model_contract_invalid:
+    action: review_model_sources_and_design
+    reason: Re-read the frozen problem and design sources, repair the mathematical design and exact bindings, and preserve pending or blocked reviews. Do not generate a human approval or lock a model without an actual decision.
 
 invariants:
   - inspect_never_grants_execution_or_advances_state
@@ -106,3 +127,7 @@ invariants:
   - problem_audit_does_not_require_matlab_or_select_operations
   - problem_state_validation_is_partial_and_never_grants_environment_permission
   - problem_freeze_is_a_recorded_review_not_an_automatic_state_transition
+  - model_design_requires_current_frozen_problem_without_runtime_permission
+  - model_scope_does_not_assess_environment_and_problem_scope_does_not_assess_model
+  - human_model_approval_is_never_generated_by_a_validator_or_resolver
+  - model_approval_never_activates_deferred_implementation_or_execution
