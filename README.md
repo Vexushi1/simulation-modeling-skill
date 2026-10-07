@@ -2,11 +2,15 @@
 
 Competition simulation methodology and evidence orchestration for **MATLAB R2025b + Simulink 25.2**.
 
-Version **0.1.1** is an unreleased Phase A infrastructure implementation. Independent PR review, CI, merge, and release are separate qualification steps; this status does not claim they have completed.
+Version **0.2.0** adds Phase B problem-audit infrastructure to the merged Phase A environment infrastructure. Local checks, CI, independent review, merge, and release are separate results recorded in the relevant development PR.
 
 ## Current behavior
 
-Start from [SKILL.md](SKILL.md) and [core/bootstrap.yaml](core/bootstrap.yaml). Phase A supports read-only environment inspection and evidence-based environment assurance. Business modeling and simulation workflows in Phases B–K remain deferred, and the router cannot activate their missing modules or upstream skills.
+Start from [SKILL.md](SKILL.md) and [core/bootstrap.yaml](core/bootstrap.yaml). Active routes support environment inspection and assurance, and [problem audit](modules/01_problem_audit.md). Model design and the implementation, simulation, verification, and paper workflows in Phases C–K remain deferred.
+
+Problem audit binds the original materials and review text, maps literal requirements, records variable and data roles, and checks the question dependency graph. The [Problem Contract](core/problem_contract.schema.yaml) distinguishes a legal draft, an audit-complete result, readiness to freeze, and a frozen contract with a current review decision. Text review and validation need no MATLAB profile. A freeze decision follows the actual task authorization and resolution of critical ambiguities; it does not require separate repeated approval of every question. Validators and the resolver do not freeze a contract or write project state.
+
+Problem evidence depends on its current sources and review decision. Source changes invalidate its actual dependents; runtime expiry does not expire unchanged task meaning. A frozen problem does not approve a model or grant numerical execution.
 
 The [environment baseline](core/environment_baseline.yaml) declares the strong runtime target and candidate products. Current availability comes from a repository probe, with each operation's inputs, assertions, runtime, channel, raw report, receipt, logs, and process result. A product inventory or license flag is insufficient. Loading the Simulink library does not qualify a business simulation.
 
@@ -18,10 +22,10 @@ For local development commands and a fresh qualification run, see [AGENTS.md](AG
 
 The [full implementation plan](docs/V1_FULL_IMPLEMENTATION_PLAN.md) is the sole detailed development authority. The [roadmap](docs/V1_IMPLEMENTATION_ROADMAP.md) summarizes it; the [canonical architecture](docs/CANONICAL_ARCHITECTURE.md) explains ownership and target layers. Read the full plan, [governance](DEVELOPMENT_GOVERNANCE.md), and affected contracts before changing active behavior.
 
-Development Phase A–K gates are distinct from a user's project states. Formal Phase A completion requires its four gates, evidence from the final source version, independent PR review, CI, and post-merge read-back. Later phases cannot be declared implemented because they appear in the taxonomy or target architecture.
+Development Phase A–K gates are distinct from a user's project states. Phase A's merged qualification is recorded in the full plan; each new runtime request still requires appropriate current operation evidence. Phase B's exit requires its contract, route, state-binding, source/stale, and authority/index checks, followed by independent review, final CI, and post-merge read-back. Passing repository fixtures does not freeze another task or approve its model. Later phases cannot be activated because they appear in the taxonomy or target architecture.
 
 ## v1 target and integrations
 
-The target workflow covers requirement freezing, system and model design, implementation, simulation protocols, identification or optimization when needed, numerical verification, model comparison decisions, validation, and scientific evidence for paper handoff. Those business capabilities are planned, not active in 0.1.1.
+The target workflow continues from requirement freezing to system and model design, implementation, simulation protocols, identification or optimization when needed, numerical verification, model comparison decisions, validation, and scientific evidence for paper handoff. The stages after problem audit are planned, not active in 0.2.0.
 
 This repository owns competition methodology, routing, evidence, and claim boundaries. Future execution adapters prefer `matlab/simulink-agentic-toolkit` and `matlab/matlab-agentic-toolkit`, subject to operation and composition qualification. `Vexushi1/mathmodel-skill` is a methodology and paper-writing reference, not a core runtime dependency. Integration ownership and admission rules live in [core/upstream_integration_policy.md](core/upstream_integration_policy.md).

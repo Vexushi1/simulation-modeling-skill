@@ -89,6 +89,17 @@ phase-k/release-qualification
 
 导航链接可以双向，Authority 优先关系和运行依赖必须单独登记并保持无环；不把普通链接环误判为 Authority 环。本次先以计划修订提交保存这些决定，再修改 Phase A 实现。
 
+## 0.4 Phase B 实施前审查
+
+用户继续授权下一步修改。Phase A PR #1/#2 已合并，main `6f8634314909d669c5758bb41fcc17faa4892ab3` 的 CI、源码与本机证据回读通过。Phase B 在独立分支实施，先作如下修订：
+
+- 题意审查可以从 NEW 开始，不以 MATLAB 当前资格为前提；运行环境只控制需要它的执行。
+- B 冻结题意与已给条件，不强迫确定 C 才产生的完整模型状态、抽象对象或数学结构。
+- 原文件/审阅文本身份、逐字覆盖、引用、数据使用范围、依赖 DAG、关键歧义和审查决定必须可校验。
+- 同一物理量可以有多个明确关联的角色；不机械要求所有角色互斥。
+- 项目 frozen Gate 与仓库 B 开发验收分开；保留关键审查决定，验证器不自动生成冻结决定或修改状态。
+- 题面或审查决定变化使问题及其依赖失效；环境 TTL 不使未变的问题语义失效。
+
 # 1. 已冻结的顶层决策
 
 以下决策视为 v1.0.0 的已确认前提，后续不重复讨论，除非出现新的硬约束。
@@ -536,7 +547,7 @@ simulation-modeling-skill/
 
 # 4. 总体运行状态机
 
-以下是单个建模项目的目标运行状态链，不是仓库开发 Phase A–K 的完成状态。开发阶段只登记已实现且测试通过的能力；未实现的项目状态可以保留在目标图中，但不得被当前 router 激活或通过。Phase A 仅实现 NEW 与 ENVIRONMENT_ASSURED 的运行保障，不提前实现其余状态的业务合同。
+以下是单个建模项目的目标运行状态链，不是仓库开发 Phase A–K 的完成状态。开发阶段只登记已实现且测试通过的能力；未实现的项目状态可以保留在目标图中，但不得被当前 router 激活或通过。Phase A 实现 NEW 与 ENVIRONMENT_ASSURED；Phase B 只增加 PROBLEM_AUDITED 与 PROBLEM_FROZEN。下图是典型工作顺序，纯文本审题可以从 NEW 开始；环境 readiness 与题意状态独立，问题已冻结不代表数值执行已获许可。
 
 主状态链：
 
@@ -778,7 +789,7 @@ router_smoke_test = passed
 
 - 先搭 Simulink；
 - 先搜 Block；
-- 先写 MATLAB；
+- 在题意未澄清时先写业务 MATLAB 模型；
 - 因某 Block 好用而改变题意；
 - 因计算方便把真实对象换成别的对象。
 
@@ -806,6 +817,10 @@ router_smoke_test = passed
 - 图表；
 - 文件交付；
 - 论文要求。
+
+每个 statement source 同时绑定原文件字节 SHA 和 UTF-8 审阅文本 SHA。直接文本可复用同一文件；PDF/OCR 等抽取文本必须有当前可追溯的核实记录，本阶段不实现通用 PDF/OCR 引擎。数据附件按来源与使用范围绑定，不强行逐字覆盖整张数据表。
+
+audit unit 使用 Unicode codepoint 的 start（含）/end（不含）、精确原句和 requirement/context/excluded 处置；validator 检查精确切片、全部非空白覆盖、无重叠及排除理由。Requirement 与 audit unit 双向引用，并按小问绑定；显式事实和解释/推断分别登记。覆盖及引用正确只是机械完整性，仍需审查题意解释本身。
 
 ## 6.4 Simulation Problem Contract
 
@@ -835,6 +850,10 @@ router_smoke_test = passed
 | 交付 | numerical / figure / model / paper |
 | 风险 | ambiguity / identifiability / fidelity / numerical |
 
+上述事实字段逐类登记 specified / not_specified / not_applicable / deferred、内容、理由及 requirement 引用。未给信息必须显式保留，不能编造数值。只有模型设计本来才确定的抽象、状态表示、代数量、参数推导、事件/切换等可 deferred；不能把题设明确的对象、初边条件或交付要求转成 deferred 来绕过审查。original_system、direct_goal 与 deliverables 必须明确，其余实质未知通过关键歧义记录控制冻结。
+
+model_structures 只登记候选线索，也可以留空等待 C；不能登记 locked model。每问的 objectives/capabilities 分别登记。数据使用绑定来源、question、role 和范围；同文件不同子集可以承担不同角色，相同拟合范围不得宣称独立验证。B 只检查角色/范围声明的闭环，真实统计独立性与现实有效性仍在后续阶段核验。
+
 ## 6.5 变量角色闭环
 
 建议语义：
@@ -854,6 +873,8 @@ e(t)  residual/error
 
 不强制符号，但强制角色不混淆。
 
+变量使用稳定 ID、物理量、单位（未知时明确为空）、角色、来源及 declared/candidate 状态。状态同时可被观测、物理参数同时作为设计量时，必须说明角色关系，不机械禁止多角色。B 不把候选状态或变量登记升级为模型方程已确定。
+
 ## 6.6 Question Dependency DAG
 
 依赖类型扩展为：
@@ -868,6 +889,8 @@ e(t)  residual/error
 - controller；
 - scenario；
 - validation_evidence。
+
+每条依赖指定 producer/consumer 小问、type、预期 artefact 与 requirement 依据。校验未知节点、自环、重复边和循环；预期产物无需在审题时已计算出来。
 
 ## 6.7 问题分类
 
@@ -886,6 +909,12 @@ e(t)  residual/error
 - templates/contracts/problem_contract.yaml
 - scripts/validate_problem_contract.py
 - tests/test_problem_contract.py
+- tests/problem_factory.py
+- tests/test_problem_router.py
+- tests/test_problem_state.py
+- tests/fixtures/problem_audit/ 中的代表性原始题面与附件（明确为测试）
+
+接通 bootstrap/manifest/module manifest/router/resolver、project state schema/validator、output contract、lint、入口文档与生成索引。保持 Phase A probe、runtime_common、profile schema 和操作资格合同不变。模板保持 draft，未填写内容不能被当成 audited/frozen。只激活 problem_audit；C–K 继续 deferred。
 
 ## 6.9 Gate
 
@@ -899,6 +928,28 @@ problem_contract_status = frozen
 - 数据角色明确；
 - 依赖 DAG 明确；
 - 关键歧义关闭。
+
+validator 分别报告 schema_valid、valid、audit_complete、freeze_ready 和 frozen。合法草稿可以保留未知与未解决歧义；audited 要求原文/事实/引用/角色/数据/DAG 检查完成。frozen 另要求关键歧义已关闭、必要内容明确、语义 digest 与当前审查决定一致。决定绑定当前文件 SHA 和精确原句，独立于语义内容，避免摘要循环。
+
+冻结是一项明确的审查决定，是否需要用户补充或确认由任务授权和关键歧义决定；不额外要求每个小问都走一次用户审批。开发继续授权不是某道竞赛题的事实、歧义答复或 Model Approval。validator/router 只验证决定及条件，不自动写 frozen 或项目状态。
+
+project state 保持旧 A 文件兼容，只在 PROBLEM_AUDITED / PROBLEM_FROZEN 要求精确问题合同绑定与相应状态。问题证据只依赖自身题面、附件及审查决定；环境记录仍按 A 的规则校验。problem_audit 使用明确的问题审查 scope，环境过期不阻断纯文本审题，也不使未变的问题合同 stale；需要 runtime 的 route 仍要求新证据。合同/来源/决定变化使问题及实际依赖它的 accepted 产物 stale，保留历史。
+
+## 6.10 开发 Exit Gate 与测试
+
+项目 frozen 不是仓库 Phase B 开发完成的替代标志。开发出口要求：
+
+~~~text
+problem_contract_checks = passed
+problem_audit_route_smoke = passed
+project_state_problem_binding = passed
+source_and_stale_checks = passed
+authority_and_indexes = passed
+~~~
+
+完整测试应覆盖正常 draft/audited/frozen 路径，以及来源/抽取文本变化或缺失、引用错位/遗漏/重叠、未核实抽取文本、错误角色与数据使用范围、未知/循环依赖、未关闭关键歧义、错误审查决定 digest、手填 frozen、合同与项目身份不符、路径越界、stale 传播、环境过期与问题语义分离、C–K 继续 deferred 和无写入。保留 A 的回归测试，并做一次独立 agent 从原始题面进行审题的行为测试。
+
+独立 PR 审查、对应最终源码 CI、合并与合并后回读分别记录。代表性合成题可以资格验证 B 的实现，但不能冒充真实竞赛项目已冻结或已建模。
 
 ---
 

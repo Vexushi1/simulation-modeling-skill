@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.1.1
+version: 0.2.0
 modules:
   environment_assurance:
     phase: A
@@ -15,8 +15,13 @@ modules:
     - simulink.library_load
   problem_audit:
     phase: B
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/01_problem_audit.md
+    - core/problem_contract.schema.yaml
+    - templates/contracts/problem_contract.yaml
+    - scripts/validate_problem_contract.py
+    required_operations: []
   model_design:
     phase: C
     status: deferred

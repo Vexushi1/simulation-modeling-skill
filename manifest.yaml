@@ -1,7 +1,7 @@
 schema_version: 1
 name: simulation-modeling-skill
-version: 0.1.1
-status: phase_a_implementation
+version: 0.2.0
+status: phase_b_implementation
 primary_runtime:
   product: MATLAB
   release: R2025b
@@ -27,6 +27,8 @@ active_authorities:
   - core/project_state.schema.yaml
   - core/output_contract.yaml
   - core/capability_profile.schema.yaml
+  - core/problem_contract.schema.yaml
+  - modules/01_problem_audit.md
   - docs/V1_FULL_IMPLEMENTATION_PLAN.md
   - docs/CANONICAL_ARCHITECTURE.md
   - docs/V1_IMPLEMENTATION_ROADMAP.md

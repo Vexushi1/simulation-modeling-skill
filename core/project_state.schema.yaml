@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-title: Phase A project state
+title: Phase A and B project state
 type: object
 additionalProperties: false
 required: [schema_version, project_id, project_root, current_stage, environment, artefacts]
@@ -13,7 +13,7 @@ properties:
     type: string
     minLength: 1
   current_stage:
-    enum: [NEW, ENVIRONMENT_ASSURED]
+    enum: [NEW, ENVIRONMENT_ASSURED, PROBLEM_AUDITED, PROBLEM_FROZEN]
   environment:
     oneOf:
       - type: 'null'
@@ -30,6 +30,19 @@ properties:
           receipt_sha256:
             type: string
             pattern: '^[a-f0-9]{64}$'
+  problem:
+    oneOf:
+      - type: 'null'
+      - type: object
+        additionalProperties: false
+        required: [path, sha256]
+        properties:
+          path:
+            type: string
+            minLength: 1
+          sha256:
+            type: string
+            pattern: '^[a-f0-9]{64}$'
   artefacts:
     type: array
     items:
@@ -41,9 +54,9 @@ properties:
           type: string
           minLength: 1
           not:
-            const: environment
+            enum: [environment, problem]
         role:
-          enum: [environment_profile, route_decision]
+          enum: [environment_profile, route_decision, problem_contract]
         path:
           type: string
           minLength: 1
@@ -66,4 +79,13 @@ allOf:
     then:
       properties:
         environment:
+          type: object
+  - if:
+      properties:
+        current_stage:
+          enum: [PROBLEM_AUDITED, PROBLEM_FROZEN]
+    then:
+      required: [problem]
+      properties:
+        problem:
           type: object

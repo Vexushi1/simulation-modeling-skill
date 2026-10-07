@@ -1,4 +1,4 @@
-name: Phase A repository checks
+name: Simulation Skill repository checks
 
 'on':
   push:
