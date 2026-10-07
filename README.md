@@ -1,35 +1,27 @@
 # Simulation Modeling Skill
 
-Agent skill system for competition-oriented simulation modeling with **MATLAB R2025b** and **Simulink** as the primary runtime baseline.
+Competition simulation methodology and evidence orchestration for **MATLAB R2025b + Simulink 25.2**.
 
-## Project goal
+Version **0.1.1** is an unreleased Phase A infrastructure implementation. Independent PR review, CI, merge, and release are separate qualification steps; this status does not claim they have completed.
 
-Build a rigorous end-to-end simulation-modeling workflow that separates:
+## Current behavior
 
-- problem interpretation and requirement freezing;
-- mechanism/system abstraction and mathematical model design;
-- MATLAB/Simulink/Simscape implementation;
-- parameter identification, calibration and optimization;
-- simulation experiment design, parallel sweeps and Monte Carlo studies;
-- numerical verification, sensitivity, robustness and multi-model comparison;
-- verification & validation;
-- scientific visualization and paper evidence delivery.
+Start from [SKILL.md](SKILL.md) and [core/bootstrap.yaml](core/bootstrap.yaml). Phase A supports read-only environment inspection and evidence-based environment assurance. Business modeling and simulation workflows in Phases B–K remain deferred, and the router cannot activate their missing modules or upstream skills.
 
-## Architecture principle
+The [environment baseline](core/environment_baseline.yaml) declares the strong runtime target and candidate products. Current availability comes from a repository probe, with each operation's inputs, assertions, runtime, channel, raw report, receipt, logs, and process result. A product inventory or license flag is insufficient. Loading the Simulink library does not qualify a business simulation.
 
-This repository owns the **competition methodology, routing, evidence contracts and simulation-specific delivery logic**.
+Probe only the operations needed for the request. Statistics and Machine Learning Toolbox is a normal optional candidate; successful current probes can qualify its tested operations. Optional failures are reported with a fallback and do not block a route that requires only the qualified core operations.
 
-It does **not** duplicate upstream MathWorks Agentic Toolkit skills when an official skill already provides the execution capability. Instead, this project defines when and why those capabilities should be invoked.
+For local development commands and a fresh qualification run, see [AGENTS.md](AGENTS.md). Install the Python tooling dependencies from [requirements.txt](requirements.txt) in the chosen development environment. A MATLAB batch probe is transparent about its execution channel and does not establish an MCP connection.
 
-The mature methodology and paper-writing rules in `Vexushi1/mathmodel-skill` are treated as design references. The simulation repository remains independently evolvable and does not require the math-modeling repository as a core runtime dependency.
+## Authority and development
 
-## Runtime baseline
+The [full implementation plan](docs/V1_FULL_IMPLEMENTATION_PLAN.md) is the sole detailed development authority. The [roadmap](docs/V1_IMPLEMENTATION_ROADMAP.md) summarizes it; the [canonical architecture](docs/CANONICAL_ARCHITECTURE.md) explains ownership and target layers. Read the full plan, [governance](DEVELOPMENT_GOVERNANCE.md), and affected contracts before changing active behavior.
 
-- Primary target: MATLAB R2025b
-- Primary simulation backend: Simulink
-- Optional capability backends: Simscape, Stateflow, System Identification, Optimization, Parallel Computing, Simulink Test and related products
-- Statistics and Machine Learning Toolbox must not be assumed available unless runtime capability checks confirm its callable installation.
+Development Phase A–K gates are distinct from a user's project states. Formal Phase A completion requires its four gates, evidence from the final source version, independent PR review, CI, and post-merge read-back. Later phases cannot be declared implemented because they appear in the taxonomy or target architecture.
 
-## Status
+## v1 target and integrations
 
-Repository bootstrap in progress. The canonical architecture and phased implementation plan will live under `docs/`.
+The target workflow covers requirement freezing, system and model design, implementation, simulation protocols, identification or optimization when needed, numerical verification, model comparison decisions, validation, and scientific evidence for paper handoff. Those business capabilities are planned, not active in 0.1.1.
+
+This repository owns competition methodology, routing, evidence, and claim boundaries. Future execution adapters prefer `matlab/simulink-agentic-toolkit` and `matlab/matlab-agentic-toolkit`, subject to operation and composition qualification. `Vexushi1/mathmodel-skill` is a methodology and paper-writing reference, not a core runtime dependency. Integration ownership and admission rules live in [core/upstream_integration_policy.md](core/upstream_integration_policy.md).

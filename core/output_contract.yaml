@@ -1,0 +1,22 @@
+schema_version: 1
+version: 0.1.1
+phase: A
+runtime_evidence:
+  producer: scripts/probe_environment.py
+  consumer: scripts/validate_environment.py
+  directory_policy: new_directory_per_invocation
+  artefacts_from: core/runtime_assurance_contract.yaml#evidence_policy.artifacts
+  receipt_from: core/runtime_assurance_contract.yaml#evidence_policy.receipt_filename
+route_decision:
+  producer: scripts/resolve_runtime.py
+  output: json_stdout
+  mutates_project_state: false
+  business_execution_allowed: false
+project_state:
+  schema: core/project_state.schema.yaml
+  validator: scripts/validate_project_state.py
+  writes: explicit_caller_only
+  evidence_binding: [profile_sha256, receipt_sha256]
+  artefact_paths: inside_declared_project_root
+  stale_propagation: transitive_dependents_of_changed_ids
+  preserve_history: true

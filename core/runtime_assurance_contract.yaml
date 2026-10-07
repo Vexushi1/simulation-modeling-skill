@@ -1,0 +1,86 @@
+schema_version: 1
+phase: A
+target:
+  matlab_release: R2025b
+  simulink_version: '25.2'
+core_operations:
+  - matlab.basic_execution
+  - simulink.library_load
+statistics_operations:
+  - statistics.normcdf
+  - statistics.fitlm
+  - statistics.lhsdesign
+evidence_policy:
+  validity_seconds: 86400
+  execution_channel: matlab_batch
+  unique_output_directory: true
+  required_process_state: completed
+  required_exit_code: 0
+  receipt_filename: receipt.json
+  source_files:
+    - core/runtime_assurance_contract.yaml
+    - core/environment_baseline.yaml
+    - core/capability_profile.schema.yaml
+    - scripts/probe_environment.py
+    - scripts/matlab/probe_environment.m
+    - scripts/validate_environment.py
+    - scripts/runtime_common.py
+  artifacts:
+    input: inputs.json
+    raw: raw-probe.json
+    log: matlab-batch.log
+    profile: profile.json
+  binding: receipt binds the exact input/raw/log/profile bytes; validators return the receipt SHA for project-state binding
+  freshness: reject future, reversed, incomplete, expired, changed-source, changed-input, changed-runtime and changed-host evidence
+semantics:
+  installed: product appears in the actual MATLAB ver inventory
+  licensed: license test is separately observed; it cannot establish callability
+  resolvable: each operation function has an actual resolution path
+  callable: the specific operation was attempted and returned successfully
+  qualified: the specific operation passes its declared input and output assertions on the target runtime and execution channel
+  selected: a task-router decision; probes never select operations for a business task
+  qualification_scope: phase_a_minimal_operations_only
+  deferred: simulation execution, solver decisions, business models and Phase E protocols are not qualified by library loading
+operations:
+  matlab.basic_execution:
+    product: MATLAB
+    license_feature: MATLAB
+    functions: [sum]
+    input: {values: [1, 2, 3], expected: 6}
+    assertion: finite scalar sum equals expected
+    scope: deterministic basic numeric execution
+  simulink.library_load:
+    product: Simulink
+    license_feature: SIMULINK
+    functions: [load_system, bdIsLoaded, get_param, close_system]
+    input: {library: simulink}
+    assertion: official library loads as a library and closes without saving; no simulation or model save
+    scope: built-in Simulink library loading only
+  statistics.normcdf:
+    product: Statistics and Machine Learning Toolbox
+    license_feature: Statistics_Toolbox
+    functions: [normcdf]
+    input: {x: 0, expected: 0.5, tolerance: 1.0e-15}
+    assertion: finite standard normal CDF at zero agrees with expected
+    scope: scalar standard normal CDF smoke call
+  statistics.fitlm:
+    product: Statistics and Machine Learning Toolbox
+    license_feature: Statistics_Toolbox
+    functions: [fitlm]
+    input:
+      x: [0, 1, 2, 3, 4, 5]
+      y: [1.1, 2.9, 4.9, 7.1, 9, 11]
+      expected_coefficients: [1, 2]
+      prediction_x: [0, 2, 5]
+      expected_predictions: [1, 5, 11]
+      expected_rmse: 0.1
+      tolerance: 1.0e-10
+    assertion: deterministic dense regression coefficients, predictions and RMSE meet tolerance
+    scope: small dense ordinary linear regression smoke call
+  statistics.lhsdesign:
+    product: Statistics and Machine Learning Toolbox
+    license_feature: Statistics_Toolbox
+    functions: [lhsdesign]
+    input: {n: 6, p: 2, seed: 1729, generator: twister}
+    assertion: finite n-by-p sample strictly in (0,1), one point per stratum in each dimension
+    scope: small dense Latin hypercube smoke call

@@ -1,0 +1,38 @@
+schema_version: 1
+version: 0.1.1
+development_authority: docs/V1_FULL_IMPLEMENTATION_PLAN.md
+runtime_entry:
+  router: core/workflow_router.yaml
+  module_manifest: core/module_manifest.yaml
+  resolver: scripts/resolve_runtime.py
+  state_schema: core/project_state.schema.yaml
+  output_contract: core/output_contract.yaml
+authority_graph:
+  # These are precedence edges, not Markdown navigation links.
+  nodes:
+    plan: docs/V1_FULL_IMPLEMENTATION_PLAN.md
+    governance: DEVELOPMENT_GOVERNANCE.md
+    bootstrap: core/bootstrap.yaml
+    router: core/workflow_router.yaml
+    modules: core/module_manifest.yaml
+    runtime: core/runtime_assurance_contract.yaml
+    baseline: core/environment_baseline.yaml
+    profile: core/capability_profile.schema.yaml
+    state: core/project_state.schema.yaml
+    outputs: core/output_contract.yaml
+    taxonomy: core/capability_taxonomy.yaml
+    upstream: core/upstream_integration_policy.md
+  edges:
+    - [plan, governance]
+    - [governance, bootstrap]
+    - [bootstrap, router]
+    - [bootstrap, modules]
+    - [bootstrap, runtime]
+    - [bootstrap, state]
+    - [bootstrap, outputs]
+    - [runtime, baseline]
+    - [runtime, profile]
+    - [router, taxonomy]
+    - [router, upstream]
+implemented_phase: A
+business_execution_enabled: false

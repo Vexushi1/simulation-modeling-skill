@@ -1,0 +1,83 @@
+schema_version: 1
+phase: A
+module_manifest: core/module_manifest.yaml
+capability_taxonomy: core/capability_taxonomy.yaml
+runtime_contract: core/runtime_assurance_contract.yaml
+project_state_schema: core/project_state.schema.yaml
+
+intents:
+  inspect:
+    mode: read_only
+    module: environment_assurance
+    profile_required: false
+    execution_allowed: false
+    required_gates: []
+    expected_artefacts: []
+    next_step: Run the repository probe in a new evidence directory when environment assurance is needed.
+  assure_environment:
+    mode: environment_only
+    module: environment_assurance
+    profile_required: true
+    execution_allowed: true
+    required_gates:
+      - capability_profile_current
+      - requested_operations_qualified
+      - project_state_valid_if_supplied
+    expected_artefacts:
+      - capability_profile
+      - runtime_receipt
+      - raw_probe_report
+      - process_log
+    next_step: Record the validated profile in project state through a separate explicit state update.
+
+operation_selection:
+  defaults_from: module_manifest.modules.environment_assurance.required_operations
+  optional_policy: explicit_request_only
+  selected_scope: route_decision_only
+  mutate_profile: false
+
+future_capabilities:
+  status: deferred
+  execution_allowed: false
+  activate_modules: false
+  activate_packs: false
+  activate_upstream_skills: false
+  common_missing_gates:
+    - phase_a_exit_reviewed
+    - requested_capability_implemented
+  prerequisite_gates_by_phase:
+    B: [runtime_assured]
+    C: [requirement_frozen]
+    D: [model_design_approved]
+    E: [model_structure_checked, simulation_protocol_approved]
+    F: [simulation_protocol_approved, calibration_data_roles_approved]
+    G: [simulation_protocol_approved, experiment_design_approved]
+    H: [accepted_simulation_evidence]
+    I: [accepted_verification_evidence, validation_target_approved]
+    J: [accepted_claim_evidence, evidence_package_valid]
+  next_step_template: Complete the implementation and reviewed exit gates for Phase {phase}; the current Phase A router grants no business execution permission.
+
+fallback:
+  missing_or_stale_profile:
+    action: reprobe_current_environment
+    command: python scripts/probe_environment.py --matlab-executable <R2025b-executable> --output-dir <new-evidence-directory>
+    reason: Environment evidence must come from the current repository probe and be bound to its receipt.
+  optional_operation_unavailable:
+    action: repair_or_review_optional_requirement
+    reason: Repair and re-probe the requested operation, or explicitly review whether the task can omit it without changing the mathematical method.
+  invalid_project_state:
+    action: repair_project_state
+    reason: Repair invalid or stale state evidence before requesting execution; the resolver never rewrites project state.
+  future_capability:
+    action: implement_next_phase
+    reason: Review the full implementation plan and complete the declared phase; no unimplemented module or upstream skill is activated.
+
+invariants:
+  - inspect_never_grants_execution_or_advances_state
+  - current_profile_and_requested_operations_required_for_environment_execution
+  - environment_permission_does_not_grant_simulation_or_model_permission
+  - optional_operations_are_explicit_and_do_not_change_profile
+  - no_automatic_file_writes_or_state_transitions
+  - no_mathematical_method_change_in_fallback
+  - deferred_capabilities_activate_no_resources
+  - unknown_intents_are_invalid
