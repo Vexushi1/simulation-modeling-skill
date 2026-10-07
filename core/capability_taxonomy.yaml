@@ -1,0 +1,105 @@
+schema_version: 1
+
+objectives:
+  - dynamic_response
+  - prediction_simulation
+  - control_design
+  - physical_system_simulation
+  - hybrid_logic_simulation
+  - parameter_identification
+  - calibration
+  - optimization
+  - uncertainty_quantification
+  - reliability_safety
+  - verification_validation
+
+model_structures:
+  continuous:
+    - ode
+    - dae
+    - state_space
+    - transfer_function
+    - nonlinear_state_equation
+  discrete:
+    - difference_equation
+    - discrete_state_space
+    - sampled_data_system
+  hybrid:
+    - switched_system
+    - event_driven_system
+    - state_machine
+  physical:
+    - acausal_physical_network
+    - multibody
+    - electrical_network
+    - thermal_fluid_network
+    - multidomain_simscape
+  data_driven:
+    - identified_linear_model
+    - identified_nonlinear_model
+    - surrogate_model
+  system_level:
+    - hierarchical_block_diagram
+    - architecture_model
+    - co_simulation
+
+capabilities:
+  problem_audit:
+    phase: B
+  model_design:
+    phase: C
+  simulink_build:
+    phase: D
+  simscape_build:
+    phase: D
+  stateflow_build:
+    phase: D
+  simulation_execution:
+    phase: E
+  solver_diagnostics:
+    phase: E
+  parameter_identification:
+    phase: F
+  calibration:
+    phase: F
+  optimization:
+    phase: F
+  parameter_sweep:
+    phase: G
+  monte_carlo:
+    phase: G
+  parallel_simulation:
+    phase: G
+  numerical_verification:
+    phase: H
+  sensitivity_analysis:
+    phase: H
+  robustness_analysis:
+    phase: H
+  model_comparison:
+    phase: H
+  solver_comparison:
+    phase: H
+  validation:
+    phase: I
+  simulink_test:
+    phase: I
+  coverage:
+    phase: I
+  design_verifier:
+    phase: I
+  fault_analysis:
+    phase: I
+  scientific_visualization:
+    phase: J
+  paper_handoff:
+    phase: J
+
+routing_invariants:
+  - model_identity_is_not_solver_identity
+  - implementation_block_is_not_mathematical_model
+  - successful_simulation_is_not_validation
+  - visual_plausibility_is_not_numerical_verification
+  - model_comparison_requires_structural_difference
+  - optional_toolboxes_are_task_activated
+  - callable_runtime_capability_overrides_license_only_signal

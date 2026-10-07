@@ -1,0 +1,28 @@
+schema_version: 1
+name: simulation-modeling-skill
+version: 0.1.0
+status: bootstrap
+primary_runtime:
+  product: MATLAB
+  release: R2025b
+primary_simulation_backend: Simulink
+repository:
+  owner: Vexushi1
+  name: simulation-modeling-skill
+upstream_authorities:
+  simulink_execution: matlab/simulink-agentic-toolkit
+  matlab_execution: matlab/matlab-agentic-toolkit
+external_methodology_reference:
+  repository: Vexushi1/mathmodel-skill
+  runtime_dependency: false
+paper_strategy:
+  mode: delegate_when_available
+  preferred_authority: Vexushi1/mathmodel-skill
+active_authorities:
+  - SKILL.md
+  - docs/CANONICAL_ARCHITECTURE.md
+  - docs/V1_IMPLEMENTATION_ROADMAP.md
+  - core/environment_baseline.yaml
+  - core/capability_taxonomy.yaml
+  - core/upstream_integration_policy.md
+  - DEVELOPMENT_GOVERNANCE.md

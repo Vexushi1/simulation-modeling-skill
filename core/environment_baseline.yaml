@@ -1,0 +1,69 @@
+schema_version: 1
+baseline:
+  matlab_release: R2025b
+  matlab_version: 25.2.0.2998904
+  simulink_version: "25.2"
+  primary_backend: Simulink
+  installation_root_observed: 'D:\matlab'
+
+capability_semantics:
+  installed: product is discovered by MATLAB ver/product inventory
+  licensed: license test reports true
+  callable: required files/functions are actually resolvable and usable
+  rule: callable capability is authoritative for execution routing; license presence alone is insufficient
+
+core_required:
+  - MATLAB
+  - Simulink
+
+competition_core_available:
+  - Control System Toolbox
+  - Optimization Toolbox
+  - Global Optimization Toolbox
+  - Parallel Computing Toolbox
+  - System Identification Toolbox
+  - Symbolic Math Toolbox
+  - Curve Fitting Toolbox
+  - Robust Control Toolbox
+  - Partial Differential Equation Toolbox
+  - Model Predictive Control Toolbox
+  - Model-Based Calibration Toolbox
+
+simulation_products_available:
+  - Simscape
+  - Simscape Battery
+  - Simscape Driveline
+  - Simscape Electrical
+  - Simscape Fluids
+  - Simscape Multibody
+  - Stateflow
+  - System Composer
+  - SimEvents
+  - Simulink Control Design
+  - Simulink Coverage
+  - Simulink Design Optimization
+  - Simulink Design Verifier
+  - Simulink Fault Analyzer
+  - Simulink Test
+  - Simulink Check
+  - Simulink Coder
+  - Embedded Coder
+
+quarantined_capabilities:
+  - product: Statistics and Machine Learning Toolbox
+    status: unavailable_until_runtime_repaired
+    observed_conflict:
+      addon_registered: true
+      addon_enabled: true
+      license_test: true
+      ver_detected: false
+      product_folder_detected: false
+      representative_functions_resolvable: false
+    routing_rule: do_not_select_or_require_this_toolbox until callable runtime detection passes
+
+routing_policy:
+  - never infer a capability from license status alone
+  - detect task requirements before activating optional products
+  - prefer the smallest sufficient toolbox set for a workflow
+  - record fallbacks when an optional product is unavailable
+  - do not silently replace a requested mathematical method with a toolbox-driven alternative
