@@ -1,14 +1,18 @@
 # Canonical Architecture — Simulation Modeling Skill
 
-> Status: bootstrap authority draft  
+> Status: v0.1.1 Phase A infrastructure implementation; independent PR qualification and merge pending
 > Primary runtime baseline: MATLAB R2025b + Simulink  
 > Target: competition-oriented simulation modeling with engineering-grade reproducibility and paper-ready evidence.
+
+[V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md) is the detailed development authority. [V1_IMPLEMENTATION_ROADMAP.md](V1_IMPLEMENTATION_ROADMAP.md) summarizes it. This architecture describes the target layers; the active contracts begin at [../core/bootstrap.yaml](../core/bootstrap.yaml).
+
+Current implementation is limited to environment inspection and assurance. Layers B–J below are deferred targets. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct.
 
 ## 1. Scope
 
 This repository is a **simulation-modeling methodology and orchestration layer**.
 
-It owns:
+The v1 target owns:
 
 1. problem and requirement audit for simulation tasks;
 2. system boundary, state/parameter/input/output abstraction;
@@ -29,23 +33,28 @@ The project has one strong runtime baseline:
 
 - MATLAB: **R2025b**
 - Simulink: **R2025b**
+- Simulink version series: **25.2**
 - Platform-specific behavior must be discovered at runtime rather than inferred from documentation alone.
 
 Older MATLAB releases are not a release target for v1.0. Upstream MathWorks skills may support older releases, but this repository optimizes behavior, examples and validation for R2025b.
 
 ## 3. Layered architecture
 
-### Layer A — Runtime & capability assurance
+### Layer A — Runtime & capability assurance (Phase A infrastructure)
 
-Before model design:
+The environment assurance route:
 
 - confirm MATLAB release;
 - detect installed products;
-- distinguish installed product, licensed product and actually callable capability;
+- distinguish declared products, inventory, license tests, resolution, callable operations, qualified operation assertions, and route selection;
 - record unavailable or contradictory capabilities;
-- freeze the project backend and capability profile.
+- validate current profile, receipt, raw report, process result, and source/runtime bindings against the runtime assurance contract.
 
-### Layer B — Problem audit & requirement freeze
+The baseline declares targets and candidates, not current availability. Qualification is operation-specific and limited to the repository probe's inputs and assertions. Simulink library loading does not qualify simulation execution. Statistics is a normal optional candidate; optional failure does not invalidate a route needing only qualified core operations. The contract defines profile freshness and invalidation; historical evidence is preserved.
+
+Read-only inspection needs no existing profile and does not advance a project state. Selected operations belong to the current route decision. The resolver never updates project state automatically. No missing downstream module or unqualified upstream composition may be activated as a fallback.
+
+### Layer B — Problem audit & requirement freeze (deferred)
 
 Adapt the strongest methodology from `mathmodel-skill/modules/01_problem_audit.md` to simulation-specific semantics.
 
@@ -64,7 +73,7 @@ Every subproblem defines:
 
 No Simulink implementation begins while a material ambiguity changes model structure, state definition, constraints, boundary conditions or final claims.
 
-### Layer C — System & model design
+### Layer C — System & model design (deferred)
 
 Maintain strict role separation:
 
@@ -72,10 +81,7 @@ Maintain strict role separation:
 - **Solver**: numerical integration, optimization or search method;
 - **Validator**: independent evidence used to assess the model/solution.
 
-For each material subproblem, compare at least:
-
-1. a conservative/classical model route;
-2. an improved or cross-domain route when evidence and computational budget support it.
+For each material subproblem, propose a minimally sufficient main route and review 0..N alternatives supported by mechanism, data, and computational budget. Classical and advanced approaches are candidate types, not a fixed quota. Record a technical reason when no useful alternative exists; the later structural-comparison decision governs actual comparator execution.
 
 Model selection must justify:
 
@@ -86,7 +92,7 @@ Model selection must justify:
 - computational feasibility;
 - expected failure modes.
 
-### Layer D — Execution adapter
+### Layer D — Execution adapter (deferred)
 
 Use upstream capabilities instead of copying their implementation rules.
 
@@ -99,7 +105,7 @@ Supplementary specialized skills may be used after explicit compatibility review
 
 The local repository owns routing and competition methodology; upstream skills own low-level implementation behavior such as model editing, simulation, testing and supported toolbox workflows.
 
-### Layer E — Simulation experiment design
+### Layer E — Simulation experiment design (deferred)
 
 Every nontrivial simulation records:
 
@@ -117,7 +123,7 @@ Every nontrivial simulation records:
 
 Prefer `Simulink.SimulationInput` for non-destructive per-run configuration.
 
-### Layer F — Calibration, identification & optimization
+### Layer F — Calibration, identification & optimization (deferred)
 
 Depending on the task:
 
@@ -138,7 +144,9 @@ Parameter provenance must distinguish:
 - optimized;
 - assumed.
 
-### Layer G — Model verification
+These are provenance roles, not a universal credibility ranking. Judge suitability from the parameter's role, object, conditions, units, data quality, identifiability, uncertainty, and independent validation. Trial/calibration runs are not accepted primary evidence; final parameters require a frozen final protocol, a new run, and numerical verification.
+
+### Layer G — Model verification (deferred)
 
 Model verification is a first-class module.
 
@@ -157,7 +165,7 @@ Multi-model comparison is a mandatory **review decision**, not a mandatory waste
 
 A changed solver is not a changed model. A changed parameter value is not a changed model. A structural comparator must change mathematical structure, mechanism, abstraction or fidelity while preserving a common evaluation target.
 
-### Layer H — Verification & validation
+### Layer H — Verification & validation (deferred)
 
 Separate:
 
@@ -178,7 +186,9 @@ Evidence may include:
 - fault injection;
 - physical plausibility constraints.
 
-### Layer I — Evidence & visualization
+Each validation decision must identify its target, independent reference, applicable conditions, metric, and claim boundary. Structural agreement, coverage, physical plausibility, and successful simulation do not automatically establish real-system validity. Task-dependent analyses require a decision and technical reason when not required, rather than fabricated evidence.
+
+### Layer I — Evidence & visualization (deferred)
 
 Figures are evidence, not decoration.
 
@@ -197,7 +207,7 @@ Plots must be sourced from accepted simulation/analysis outputs and should suppo
 - parameter identifiability;
 - validation agreement.
 
-### Layer J — Paper/report delivery
+### Layer J — Paper/report delivery (deferred)
 
 This repository owns the simulation-specific evidence contract:
 
@@ -262,4 +272,5 @@ v1.0.0 is reached only when:
 - a model can progress from audited problem to validated paper evidence;
 - failure and fallback behavior are explicit;
 - representative end-to-end regression cases pass;
+- Phase A–K gates, independent PR review, CI, and post-merge evidence are complete;
 - repository semantics and version references are internally consistent.

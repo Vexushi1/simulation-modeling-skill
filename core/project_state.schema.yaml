@@ -1,0 +1,69 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Phase A project state
+type: object
+additionalProperties: false
+required: [schema_version, project_id, project_root, current_stage, environment, artefacts]
+properties:
+  schema_version:
+    const: 1
+  project_id:
+    type: string
+    minLength: 1
+  project_root:
+    type: string
+    minLength: 1
+  current_stage:
+    enum: [NEW, ENVIRONMENT_ASSURED]
+  environment:
+    oneOf:
+      - type: 'null'
+      - type: object
+        additionalProperties: false
+        required: [profile_path, profile_sha256, receipt_sha256]
+        properties:
+          profile_path:
+            type: string
+            minLength: 1
+          profile_sha256:
+            type: string
+            pattern: '^[a-f0-9]{64}$'
+          receipt_sha256:
+            type: string
+            pattern: '^[a-f0-9]{64}$'
+  artefacts:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, role, path, sha256, status, depends_on]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          not:
+            const: environment
+        role:
+          enum: [environment_profile, route_decision]
+        path:
+          type: string
+          minLength: 1
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        status:
+          enum: [draft, accepted, stale]
+        depends_on:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+allOf:
+  - if:
+      properties:
+        current_stage:
+          const: ENVIRONMENT_ASSURED
+    then:
+      properties:
+        environment:
+          type: object

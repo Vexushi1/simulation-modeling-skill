@@ -1,7 +1,7 @@
 schema_version: 1
 name: simulation-modeling-skill
-version: 0.1.0
-status: bootstrap
+version: 0.1.1
+status: phase_a_implementation
 primary_runtime:
   product: MATLAB
   release: R2025b
@@ -20,9 +20,18 @@ paper_strategy:
   preferred_authority: Vexushi1/mathmodel-skill
 active_authorities:
   - SKILL.md
+  - core/bootstrap.yaml
+  - core/runtime_assurance_contract.yaml
+  - core/workflow_router.yaml
+  - core/module_manifest.yaml
+  - core/project_state.schema.yaml
+  - core/output_contract.yaml
+  - core/capability_profile.schema.yaml
+  - docs/V1_FULL_IMPLEMENTATION_PLAN.md
   - docs/CANONICAL_ARCHITECTURE.md
   - docs/V1_IMPLEMENTATION_ROADMAP.md
   - core/environment_baseline.yaml
   - core/capability_taxonomy.yaml
   - core/upstream_integration_policy.md
   - DEVELOPMENT_GOVERNANCE.md
+  - AGENTS.md

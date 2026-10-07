@@ -1,6 +1,6 @@
 # Simulation Modeling Skill v1.0.0 全流程实施计划
 
-> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划）**  
+> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-07 审查修订）**
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
@@ -74,6 +74,20 @@ phase-k/release-qualification
 ~~~
 
 ---
+
+## 0.3 2026-10-07 审查修订记录
+
+用户授权先审查计划，必要时先改计划再实施。本次保留独立仓库、R2025b、官方执行适配、证据链和 A–K 顺序，修订以下不合理或不明确的规则：
+
+1. 分离仓库开发资格与项目运行状态，避免计划中的阶段自动变成已实现能力。
+2. 将能力资格限定到具体操作，增加当前 probe、字节绑定、时效和透明执行通道，避免静态清单或库加载冒充全部仿真资格。
+3. 补齐 Phase A 自举所需的 probe、schema、索引、测试依赖和 CI；未实现模块保持 deferred，禁止空文件占位。
+4. 将机械双模型和固定假设数量改为按信息需求审查，保留正式结构对照裁决和证据要求。
+5. 将参数来源分类与可信度评价分开，补齐数据、参数、场景、运行环境的依赖失效规则。
+6. 明确候选/标定运行与最终主证据的区别；按需分析必须保留决定与理由，验证主张不得超过证据范围。
+7. 阶段验收必须有可执行正常/失败检查和对应运行证据；本地通过、CI、PR 合并与发布分别报告。
+
+导航链接可以双向，Authority 优先关系和运行依赖必须单独登记并保持无环；不把普通链接环误判为 Authority 环。本次先以计划修订提交保存这些决定，再修改 Phase A 实现。
 
 # 1. 已冻结的顶层决策
 
@@ -163,10 +177,10 @@ Windows 为首要资格验证平台
 
 - **Statistics and Machine Learning Toolbox：当前已恢复为可调用能力。**
 
-当前 bootstrap 文件仍保留旧 quarantine 记录，因此 Phase A 的第一项正式修复就是：
+实施前的 bootstrap 文件保留旧 quarantine 记录，因此 Phase A 的第一项正式修复就是：
 
 1. 删除旧 quarantine 状态；
-2. 将该工具箱纳入 available/callable 能力矩阵；
+2. 将该工具箱纳入候选能力矩阵，以当前 probe 的实际调用证据决定 callable；
 3. 增加 runtime probe，未来以当前检测结果为准；
 4. 不再永久硬编码历史故障状态。
 
@@ -522,6 +536,8 @@ simulation-modeling-skill/
 
 # 4. 总体运行状态机
 
+以下是单个建模项目的目标运行状态链，不是仓库开发 Phase A–K 的完成状态。开发阶段只登记已实现且测试通过的能力；未实现的项目状态可以保留在目标图中，但不得被当前 router 激活或通过。Phase A 仅实现 NEW 与 ENVIRONMENT_ASSURED 的运行保障，不提前实现其余状态的业务合同。
+
 主状态链：
 
 ~~~text
@@ -607,7 +623,8 @@ solver 不稳定
 正式实施 Phase A 时：
 
 - 删除旧 quarantined 记录；
-- 写入 available/callable；
+- baseline 只声明候选能力与检测策略，不永久写死 available/callable；
+- 用当前 probe 的实际调用结果写入能力 profile；失败时明确 unavailable/fallback，下一次成功检测可恢复；
 - 增加 runtime capability probe；
 - 未来 capability 以当前检测为准；
 - 不永久硬编码旧故障。
@@ -637,6 +654,19 @@ README 和 Index 后续明确该层级。
 - scripts/lint_skill.py
 - tests/test_runtime.py
 - tests/test_router.py
+- core/capability_profile.schema.yaml
+- scripts/probe_environment.py
+- scripts/matlab/probe_environment.m
+- scripts/runtime_common.py
+- scripts/generate_indexes.py
+- tests/test_project_state.py
+- tests/test_lint.py
+- tests/conftest.py（仅在共享 pytest fixture 确有需要时创建，不创建占位）
+- .github/workflows/ci.yml
+- .gitignore
+- .gitattributes（统一源码换行，保证 Windows/Linux 的源码身份可复核）
+- requirements.txt
+- pyproject.toml
 
 修改：
 
@@ -645,6 +675,11 @@ README 和 Index 后续明确该层级。
 - SKILL.md
 - README.md
 - REPOSITORY_INDEX.md
+- docs/V1_IMPLEMENTATION_ROADMAP.md
+- docs/CANONICAL_ARCHITECTURE.md
+- DEVELOPMENT_GOVERNANCE.md
+
+Roadmap、架构与治理的修改限于此次审查确认的语义一致性和 Authority 衔接。测试依赖、索引生成器与 CI 是 Phase A 验收所需；不创建 B–K 的占位模块、业务模板或示例目录。
 
 ## 5.4 Capability Assurance
 
@@ -664,11 +699,17 @@ selected
 - declared：计划或配置声明；
 - installed：MATLAB 实际识别；
 - licensed：许可可用；
-- callable：关键函数/API 可调用；
-- qualified：本仓库 R2025b smoke test 通过；
+- callable：某项具体操作已实际调用成功；函数路径存在只属于 resolvable；
+- qualified：该操作通过本仓库指定 probe 的输入、断言与 R2025b 检查，必须注明操作、输入范围和执行通道；
 - selected：当前任务实际采用。
 
 运行时路由以 callable/qualified 为核心，不用 license 单独判能力。
+
+产品 inventory、license test、实际调用后的 license inuse 分开记录。不得从某个产品的一项成功操作推导其所有 API 都 qualified。Phase A 的 qualification_scope 只包含 MATLAB 基础调用、Simulink 官方库加载，以及按需检测的 Statistics 三项最小操作；库加载不能使 simulation_execution qualified。Phase E 与 Phase K 分别负责业务仿真和端到端资格。
+
+能力证据由 repository probe 生产，记录 UTC 时间、实际 runtime 身份、平台/宿主指纹、probe 与合同源码哈希、确定性输入、逐项输出/错误及独立进程退出记录。Python runner 将原始报告、规范化 profile 和日志绑定到 receipt；validator 检查这些字节身份与逐项断言，不接受仅手填 qualified=true、status=passed 或 exit_code=0。
+
+profile 默认有效期为 24 小时。未来时间、非法起止顺序、未完成或失败进程、宿主/runtime 不符、输入或绑定文件变化、过期记录均失效。显式检测与重检使用独立输出目录；不覆盖历史证据。无 MCP 时可以透明采用独立 matlab_batch 通道，资格范围不得写成 MCP 已连接。可选 Statistics 失败不阻断仅需 MATLAB/Simulink 核心操作的环境保障。
 
 ## 5.5 Runtime Router
 
@@ -689,6 +730,10 @@ selected
 - expected artefacts；
 - fallback route。
 
+module manifest 区分 implemented 与 deferred。当前只有 environment assurance 可执行；B–K 请求必须返回 deferred、具体原因、前置 Gate 与下一阶段，不返回可执行计划，也不加载不存在的模块/上游 skill。environment inspect 是只读意图，不要求已有 profile，不能推进项目状态。环境保障只选核心与用户本次显式所需的可选操作，selected 属于本次 route decision，不写回探测 profile。
+
+Phase A project state 验证器只验收已实现的状态和被哈希绑定的当前环境证据。目标状态链的下游状态不是本阶段可以手填通过的状态；状态同步不由 resolver 自动完成。
+
 ## 5.6 Phase A 测试
 
 - YAML 可解析；
@@ -701,6 +746,10 @@ selected
 - capability missing 有 fallback；
 - project state 合法；
 - stale 状态可验证。
+- profile/receipt/raw report 不一致、许可真但实际调用失败、伪造 qualified、过期/未来时间、错误宿主或源码变更均不能通过；
+- optional capability 缺失有明确失败与回退，核心环境可独立通过；
+- deferred 能力、未满足 Gate 和 inspect 请求都不能获得业务执行权限；
+- CI 分开静态/模拟 fixture 检查与本机 R2025b qualification，不把无 MATLAB 的 CI 写成 runtime 已通过。
 
 ## 5.7 Exit Gate
 
@@ -712,6 +761,8 @@ router_smoke_test = passed
 ~~~
 
 满足后进入 Phase B。
+
+四项 Gate 的本机证据与最终源版本必须一致；本地测试通过只是实现验收，正式阶段完成还要求独立 PR 审查、对应 CI 成功与合并后的回读。bootstrap PR 未合并时 Phase A 可以用明确依赖它的独立堆叠 PR，不为开始实施而绕过上游审查。阶段之间的 Gate 以产物/行为/证据/回退的审查结果为准；后续 Phase 开始前必须将其 Gate 细化为可执行检查，不能凭文档数量或实现者声明通过。
 
 ---
 
@@ -859,7 +910,7 @@ problem_contract_status = frozen
 
 ## 7.2 候选模型路线
 
-material 问题至少形成两条可比较路线：
+每个 material 问题先提出机制、数据与预算支持的最小充分主路线，再审查 0..N 个能够测试实质假设或满足题目要求的备选路线。经典与高级是候选类型，不是固定两条路线的配额；没有必要的高级路线应记录技术理由，不为凑数量增加状态、参数或复杂度。实际执行结构 comparator 的裁决仍由 §12.5 的 required / not_applicable 管理。
 
 ### Route A：经典稳健
 
@@ -950,7 +1001,7 @@ F4 benchmark / reference / high-cost
 
 ## 7.5 假设
 
-每个主模型 3–5 个核心假设，并记录：
+每个主模型记录所有影响结论的核心假设，数量由问题决定，不以 3–5 个作为配额。逐项记录：
 
 - 现实含义；
 - 数学作用；
@@ -1221,19 +1272,15 @@ Top Model
 
 # 10. Phase F — 参数辨识、Calibration 与 Optimization
 
-## 10.1 参数来源优先级
+## 10.1 参数来源与证据适用性
 
 ~~~text
-题面直接给定
-> 实验/权威数据
-> 机理推导
-> 系统辨识
-> 标定
-> 优化
-> 合理假设
+given / derived / identified / calibrated / optimized / assumed
 ~~~
 
-假设参数不能伪装成辨识结果。
+这些是来源角色，不是通用可信度排名。显式题设先约束任务；其它来源按当前对象、工况、单位、识别条件、独立验证与不确定性判定适用性。设计优化变量不得冒充已知物理参数，标定结果不得拿同一拟合数据宣称独立验证，假设参数不能伪装成辨识结果。
+
+开发顺序 F→G 不代表每个项目必须执行两者。F 的辨识/标定/优化可以使用其阶段明确的最小实验协议和迭代运行；这些候选运行标为 trial，不作为最终 accepted 主证据。参数或模型确定后重新冻结最终协议、重跑和数值验证，才进入正式主证据链；G 扩展成正式批量 campaign。
 
 ## 10.2 System Identification
 
@@ -1582,8 +1629,10 @@ Validation：
 - literature/reference；
 - holdout；
 - measured trajectory；
-- physical plausibility；
-- cross-model evidence。
+- physical plausibility（限定为可检查的物理合理性主张）；
+- cross-model evidence（限定为结构/基准对照覆盖的主张）。
+
+结构一致、覆盖率、物理合理性或仿真成功均不自动证明对现实系统有效。每个 validation 决定必须指明目标对象、独立参考、适用工况、指标和主张边界；无独立现实证据时，不得宣称现实有效。
 
 ## 13.4 Simulink Test
 
@@ -1704,14 +1753,16 @@ simulation protocol
 run receipt
 primary results
 numerical verification
-sensitivity
-robustness
+sensitivity decision / evidence when required
+robustness decision / evidence when required
 model comparison decision/evidence
 validation
 figure manifest
 claim manifest
 paper handoff
 ~~~
+
+辨识、标定、优化、敏感性、鲁棒性、不确定性及高级 V&V 根据题目和 material claim 决定是否 required。未执行时记录 not_required 的技术理由与限制，不生成虚构证据，也不为满足目录清单强制执行无信息增益的分析。普通任务的决定记录不替代用户明确要求的分析；结构 comparator 继续使用 §12.5 的 required / not_applicable。
 
 ## 14.5 Paper Handoff
 
@@ -1981,6 +2032,7 @@ model 保持
 simulation protocol stale
 run stale
 numerical verification stale
+依赖该运行的 model verification / validation / claim stale
 相关 figures / paper stale
 ~~~
 
@@ -1999,6 +2051,13 @@ paper figure anchor stale
 model approval
 及其全部下游 stale
 ~~~
+
+## 18.5 参数、数据、工况与环境变化
+
+- 参数、控制器、初值、边值、输入或场景变化：协议、运行及实际依赖的验证、主张、图表和论文失效；不自动改写题意。
+- 辨识/标定数据变化：相关参数和模型选择依据及下游失效；独立验证数据变化只使相关 validation、claim 和交付失效。
+- runtime/宿主、probe/合同、必要操作、输入或有效期变化：环境 profile 与依赖它的路由/环境状态失效并重检。后续运行按实际依赖传播，不删除历史证据。
+- 每项失效必须记录变化原因、影响范围与回退阶段；无依赖的产物保持有效，不用单个全局 stale 布尔值替代依赖追踪。
 
 ---
 
@@ -2241,9 +2300,9 @@ v1.0.0
 
 # 27. 本计划批准后的第一批动作
 
-**本计划写入后暂停实现。**
+原计划写入时暂停实现。用户于 2026-10-07 明确授权“开始进行修改”，并要求先审查、必要时先调整计划再实施；此授权适用于本次按阶段开发，不需要重复确认常规修订。
 
-待用户明确批准后，第一批修改只允许属于 Phase A：
+当前第一批修改只允许属于 Phase A：
 
 1. 修正 Statistics and Machine Learning Toolbox 的旧 quarantine；
 2. 建立 bootstrap.yaml；
@@ -2266,6 +2325,6 @@ simulation-modeling-skill v1.0.0 不是“仓库里已经有很多 Skill 文件�
 
 完成必须意味着：
 
-> 给定一道新的仿真建模竞赛题，系统能够从题面开始，形成可审查的系统与模型定义；根据 R2025b 当前能力选择 MATLAB / Simulink / Simscape / Stateflow 路线；生成或指导可运行仿真；完成参数辨识、标定或优化；对数值、参数、场景、求解器和模型结构进行相应检验；完成 Verification & Validation；形成科研级图表与可追踪证据；最后把内容可靠交接给论文写作模块，而且每个核心论文主张都能追溯到真实模型和真实仿真证据。
+> 给定一道新的仿真建模竞赛题，系统能够从题面开始，形成可审查的系统与模型定义；根据 R2025b 当前能力选择 MATLAB / Simulink / Simscape / Stateflow 路线；生成或指导可运行仿真；按任务需要完成参数辨识、标定或优化；对数值、参数、场景、求解器和模型结构进行相应检验并记录每项分析的决定与证据边界；完成适用于目标主张的 Verification & Validation；形成科研级图表与可追踪证据；最后把内容可靠交接给论文写作模块，而且每个核心论文主张都能追溯到真实模型和真实仿真证据。
 
 这才是 v1.0.0 的最终完成定义。

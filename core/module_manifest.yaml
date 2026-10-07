@@ -1,0 +1,115 @@
+schema_version: 1
+version: 0.1.1
+modules:
+  environment_assurance:
+    phase: A
+    status: implemented
+    resources:
+    - core/runtime_assurance_contract.yaml
+    - core/capability_profile.schema.yaml
+    - scripts/probe_environment.py
+    - scripts/matlab/probe_environment.m
+    - scripts/validate_environment.py
+    required_operations:
+    - matlab.basic_execution
+    - simulink.library_load
+  problem_audit:
+    phase: B
+    status: deferred
+    resources: []
+  model_design:
+    phase: C
+    status: deferred
+    resources: []
+  simulink_build:
+    phase: D
+    status: deferred
+    resources: []
+  simscape_build:
+    phase: D
+    status: deferred
+    resources: []
+  stateflow_build:
+    phase: D
+    status: deferred
+    resources: []
+  simulation_execution:
+    phase: E
+    status: deferred
+    resources: []
+  solver_diagnostics:
+    phase: E
+    status: deferred
+    resources: []
+  parameter_identification:
+    phase: F
+    status: deferred
+    resources: []
+  calibration:
+    phase: F
+    status: deferred
+    resources: []
+  optimization:
+    phase: F
+    status: deferred
+    resources: []
+  parameter_sweep:
+    phase: G
+    status: deferred
+    resources: []
+  monte_carlo:
+    phase: G
+    status: deferred
+    resources: []
+  parallel_simulation:
+    phase: G
+    status: deferred
+    resources: []
+  numerical_verification:
+    phase: H
+    status: deferred
+    resources: []
+  sensitivity_analysis:
+    phase: H
+    status: deferred
+    resources: []
+  robustness_analysis:
+    phase: H
+    status: deferred
+    resources: []
+  model_comparison:
+    phase: H
+    status: deferred
+    resources: []
+  solver_comparison:
+    phase: H
+    status: deferred
+    resources: []
+  validation:
+    phase: I
+    status: deferred
+    resources: []
+  simulink_test:
+    phase: I
+    status: deferred
+    resources: []
+  coverage:
+    phase: I
+    status: deferred
+    resources: []
+  design_verifier:
+    phase: I
+    status: deferred
+    resources: []
+  fault_analysis:
+    phase: I
+    status: deferred
+    resources: []
+  scientific_visualization:
+    phase: J
+    status: deferred
+    resources: []
+  paper_handoff:
+    phase: J
+    status: deferred
+    resources: []
