@@ -1,6 +1,6 @@
 # Simulation Modeling Skill v1.0.0 全流程实施计划
 
-> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-07 审查修订）**  
+> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-07 审查修订）**
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
@@ -74,6 +74,20 @@ phase-k/release-qualification
 ~~~
 
 ---
+
+## 0.3 2026-10-07 审查修订记录
+
+用户授权先审查计划，必要时先改计划再实施。本次保留独立仓库、R2025b、官方执行适配、证据链和 A–K 顺序，修订以下不合理或不明确的规则：
+
+1. 分离仓库开发资格与项目运行状态，避免计划中的阶段自动变成已实现能力。
+2. 将能力资格限定到具体操作，增加当前 probe、字节绑定、时效和透明执行通道，避免静态清单或库加载冒充全部仿真资格。
+3. 补齐 Phase A 自举所需的 probe、schema、索引、测试依赖和 CI；未实现模块保持 deferred，禁止空文件占位。
+4. 将机械双模型和固定假设数量改为按信息需求审查，保留正式结构对照裁决和证据要求。
+5. 将参数来源分类与可信度评价分开，补齐数据、参数、场景、运行环境的依赖失效规则。
+6. 明确候选/标定运行与最终主证据的区别；按需分析必须保留决定与理由，验证主张不得超过证据范围。
+7. 阶段验收必须有可执行正常/失败检查和对应运行证据；本地通过、CI、PR 合并与发布分别报告。
+
+导航链接可以双向，Authority 优先关系和运行依赖必须单独登记并保持无环；不把普通链接环误判为 Authority 环。本次先以计划修订提交保存这些决定，再修改 Phase A 实现。
 
 # 1. 已冻结的顶层决策
 
@@ -1265,6 +1279,8 @@ given / derived / identified / calibrated / optimized / assumed
 
 这些是来源角色，不是通用可信度排名。显式题设先约束任务；其它来源按当前对象、工况、单位、识别条件、独立验证与不确定性判定适用性。设计优化变量不得冒充已知物理参数，标定结果不得拿同一拟合数据宣称独立验证，假设参数不能伪装成辨识结果。
 
+开发顺序 F→G 不代表每个项目必须执行两者。F 的辨识/标定/优化可以使用其阶段明确的最小实验协议和迭代运行；这些候选运行标为 trial，不作为最终 accepted 主证据。参数或模型确定后重新冻结最终协议、重跑和数值验证，才进入正式主证据链；G 扩展成正式批量 campaign。
+
 ## 10.2 System Identification
 
 流程：
@@ -1612,8 +1628,10 @@ Validation：
 - literature/reference；
 - holdout；
 - measured trajectory；
-- physical plausibility；
-- cross-model evidence。
+- physical plausibility（限定为可检查的物理合理性主张）；
+- cross-model evidence（限定为结构/基准对照覆盖的主张）。
+
+结构一致、覆盖率、物理合理性或仿真成功均不自动证明对现实系统有效。每个 validation 决定必须指明目标对象、独立参考、适用工况、指标和主张边界；无独立现实证据时，不得宣称现实有效。
 
 ## 13.4 Simulink Test
 
@@ -1734,14 +1752,16 @@ simulation protocol
 run receipt
 primary results
 numerical verification
-sensitivity
-robustness
+sensitivity decision / evidence when required
+robustness decision / evidence when required
 model comparison decision/evidence
 validation
 figure manifest
 claim manifest
 paper handoff
 ~~~
+
+辨识、标定、优化、敏感性、鲁棒性、不确定性及高级 V&V 根据题目和 material claim 决定是否 required。未执行时记录 not_required 的技术理由与限制，不生成虚构证据，也不为满足目录清单强制执行无信息增益的分析。普通任务的决定记录不替代用户明确要求的分析；结构 comparator 继续使用 §12.5 的 required / not_applicable。
 
 ## 14.5 Paper Handoff
 
@@ -2304,6 +2324,6 @@ simulation-modeling-skill v1.0.0 不是“仓库里已经有很多 Skill 文件�
 
 完成必须意味着：
 
-> 给定一道新的仿真建模竞赛题，系统能够从题面开始，形成可审查的系统与模型定义；根据 R2025b 当前能力选择 MATLAB / Simulink / Simscape / Stateflow 路线；生成或指导可运行仿真；完成参数辨识、标定或优化；对数值、参数、场景、求解器和模型结构进行相应检验；完成 Verification & Validation；形成科研级图表与可追踪证据；最后把内容可靠交接给论文写作模块，而且每个核心论文主张都能追溯到真实模型和真实仿真证据。
+> 给定一道新的仿真建模竞赛题，系统能够从题面开始，形成可审查的系统与模型定义；根据 R2025b 当前能力选择 MATLAB / Simulink / Simscape / Stateflow 路线；生成或指导可运行仿真；按任务需要完成参数辨识、标定或优化；对数值、参数、场景、求解器和模型结构进行相应检验并记录每项分析的决定与证据边界；完成适用于目标主张的 Verification & Validation；形成科研级图表与可追踪证据；最后把内容可靠交接给论文写作模块，而且每个核心论文主张都能追溯到真实模型和真实仿真证据。
 
 这才是 v1.0.0 的最终完成定义。
