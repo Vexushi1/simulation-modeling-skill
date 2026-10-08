@@ -1308,6 +1308,8 @@ ModelFile模型工作区是本地baseline的参数scope，不强制全局basewor
 
 D操作profile为A的独立伴随证据，不改A七个hash-bound文件或把A原资格扩大。D记录新source/input/host/runtime/channel、过程completed/exit0、raw结构与日志、实际SLX字节与receipt。当前构建gate分别消费当前A和Dprofile。Dprofile生产者实际创建/连接/赋值/update/save/close/reload/readback；不是手填qualified/structure_checked标志。新运行需当前runtime资格，历史receipt按其完整身份及当时资格回读，不因为现在TTL过期就删除未变结构的历史有效性。
 
+2026-10-08 真实单项目构建复核补充：MATLAB成功保存/重开模型后，单条struct结果被JSON编码成object，暴露了多case资格探测与单case项目生产之间的协议缺口。原始raw和SLX保留为诊断，不能计入缺失consumer receipt的完成证据。跨语言raw的cases及结构中的blocks/connections/parameters必须保持0/1/N一致的JSON数组类型；MATLAB端使用明确cell数组编码，Python端验证实际形状并受控拒绝非法对象，不做宽松单值提升。修复后重新取得最终源码资格、真实单case反馈和Constant→Outport项目回读、最终commit审查与双平台CI。结构数组为空或单项时同样纳入真实回读，不能仅用Python fixture代替跨语言出口。
+
 加载、保存、update可能执行callback/初始化/掩码代码，绝非纯只读inspect。本地baseline只创建受控官方核心block、无自定义callback的自有新模型，记录库来源、实际函数路径和执行surface；不关闭其他模型或修改全局路径。支持范围以contract声明并真实运行核验。未知/错误端口、值、update或source变化受控失败并保留证据，不产出成功receipt。
 
 ### 状态、时效和失效
