@@ -99,7 +99,7 @@ def test_state_problem_and_project_identity_cannot_be_replaced_by_arguments(tmp_
 
 
 @pytest.mark.parametrize("intent", [key for key in load_contract("core/capability_taxonomy.yaml")["capabilities"]
-                                   if key != "problem_audit"])
+                                   if key not in load_contract("core/workflow_router.yaml")["intents"]])
 def test_even_frozen_problem_never_activates_future_capabilities(tmp_path, intent):
     contract = make_contract(tmp_path, status="frozen")
     state = write_problem_state(tmp_path, problem=contract, stage="PROBLEM_FROZEN")
@@ -108,9 +108,7 @@ def test_even_frozen_problem_never_activates_future_capabilities(tmp_path, inten
     assert route["execution_allowed"] is False and route["business_execution_allowed"] is False
     assert not route["activated_modules"] and not route["activated_resources"]
     assert not route["selected_operations"] and not route["upstream_skills"]
-    if intent == "model_design":
-        assert "problem_contract_frozen" not in route["missing_gates"]
-        assert "model_design_implemented" in route["missing_gates"]
+    assert f"{intent}_implemented" in route["missing_gates"]
 
 
 def test_problem_cli_needs_no_matlab_profile(tmp_path):

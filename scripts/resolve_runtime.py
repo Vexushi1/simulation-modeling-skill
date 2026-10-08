@@ -1,4 +1,4 @@
-"""Resolve Phase A/B intents without writing files or granting business execution."""
+"""Resolve Phase A/B/C intents without writing files or granting business execution."""
 from __future__ import annotations
 
 import argparse
@@ -8,7 +8,8 @@ from runtime_common import ROOT, emit, load_contract, load_document
 
 
 def resolve_runtime(intent, *, profile_path=None, state_path=None,
-                    required_operations=None, expected_root=None, problem_path=None) -> dict:
+                    required_operations=None, expected_root=None, problem_path=None,
+                    model_path=None, approval_path=None) -> dict:
     router = load_contract("core/workflow_router.yaml")
     taxonomy = load_contract(router["capability_taxonomy"])["capabilities"]
     manifest = load_contract(router["module_manifest"])["modules"]
@@ -34,6 +35,8 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         "profile_sha256": None,
         "receipt_sha256": None,
         "problem_contract_sha256": None,
+        "model_contract_sha256": None,
+        "model_approval_sha256": None,
     }
     if not isinstance(intent, str) or (intent not in router["intents"] and intent not in taxonomy):
         result["errors"] = [f"unknown intent: {intent}"]
@@ -77,13 +80,19 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         gates = [gate.replace("requested_capability", intent)
                  for gate in policy["common_missing_gates"]]
         gates += policy["prerequisite_gates_by_phase"].get(phase, [])
-        missing = [gate for gate in gates
-                   if not (gate == "problem_contract_frozen" and current_stage == "PROBLEM_FROZEN")]
+        satisfied = set()
+        if state_result and state_result.get("problem_validation", {}).get("frozen"):
+            satisfied.add("problem_contract_frozen")
+        if (state_result and state_result.get("model_checked") and
+                state_result.get("model_approved") and
+                state_result.get("model_validation", {}).get("approved")):
+            satisfied.add("model_design_approved")
+        missing = [gate for gate in gates if gate not in satisfied]
         result.update(status="deferred", phase=phase, required_gates=gates,
                       missing_gates=missing,
                       fallback=router["fallback"]["future_capability"],
                       next_step=policy["next_step_template"].format(phase=phase),
-                      errors=[f"{intent} is not implemented in Phase A/B (declared Phase {phase})"])
+                      errors=[f"{intent} is not implemented in Phase A/B/C (declared Phase {phase})"])
         return result
 
     route = router["intents"][intent]
@@ -140,6 +149,83 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         result.update(status="inspected", missing_gates=list(validation["missing_gates"]))
         return result
 
+    if intent == "model_design":
+        result.update(execution_scope="model_design", activated_modules=[module_id],
+                      activated_resources=list(resources))
+        bound_problem = state_result.get("problem_path") if state_result else None
+        bound_model = state_result.get("model_path") if state_result else None
+        bound_approval = state_result.get("approval_path") if state_result else None
+        for supplied, bound, label in ((problem_path, bound_problem, "problem"),
+                                       (model_path, bound_model, "model"),
+                                       (approval_path, bound_approval, "approval")):
+            if bound and supplied is not None and Path(supplied).resolve() != Path(bound):
+                result.update(status="blocked", missing_gates=[f"{label}_state_binding_matches"],
+                              errors=[f"requested {label} differs from project-state binding"],
+                              fallback=router["fallback"]["model_contract_invalid"])
+                return result
+        selected_problem = problem_path if problem_path is not None else bound_problem
+        selected_model = model_path if model_path is not None else bound_model
+        selected_approval = approval_path if approval_path is not None else bound_approval
+        project_root = state_result.get("project_root") if state_result else None
+        model_validation = None
+        if selected_model is not None:
+            from validate_model_contract import validate_model_contract
+
+            model_validation = validate_model_contract(
+                selected_model, project_root=project_root, problem_path=selected_problem,
+                approval_path=selected_approval)
+            result["model_validation"] = model_validation
+            result["model_contract_sha256"] = model_validation["contract_sha256"]
+            result["model_approval_sha256"] = model_validation.get("approval_sha256")
+            if not model_validation["valid"]:
+                result.update(status="blocked", errors=model_validation["errors"] or ["model contract validation failed"],
+                              missing_gates=list(model_validation["missing_gates"]) or ["model_contract_valid"],
+                              fallback=router["fallback"]["model_contract_invalid"],
+                              next_step=router["fallback"]["model_contract_invalid"]["reason"])
+                return result
+            if selected_problem is None:
+                selected_problem = model_validation.get("problem_path")
+            if state_path is not None and model_validation["project_id"] != load_document(Path(state_path))["project_id"]:
+                result.update(status="blocked", missing_gates=["model_project_id_matches"],
+                              errors=["model contract project_id differs from project state"],
+                              fallback=router["fallback"]["model_contract_invalid"])
+                return result
+        elif selected_approval is not None:
+            result.update(status="blocked", missing_gates=["model_contract_supplied"],
+                          errors=["an approval cannot replace the current model contract"],
+                          fallback=router["fallback"]["model_contract_invalid"])
+            return result
+        if selected_problem is None:
+            result.update(status="blocked", missing_gates=["problem_contract_frozen"],
+                          errors=["model design requires the current frozen problem contract"],
+                          fallback=router["fallback"]["problem_contract_invalid"],
+                          next_step="Complete the problem audit and its recorded freeze review before model design.")
+            return result
+        from validate_problem_contract import validate_problem_contract
+
+        problem_validation = validate_problem_contract(
+            selected_problem, require_frozen=True, project_root=project_root)
+        result["problem_validation"] = problem_validation
+        result["problem_contract_sha256"] = problem_validation["contract_sha256"]
+        if not problem_validation["valid"] or not problem_validation["frozen"]:
+            result.update(status="blocked", missing_gates=["problem_contract_frozen"],
+                          errors=problem_validation["errors"] or ["problem contract is not currently frozen"],
+                          fallback=router["fallback"]["problem_contract_invalid"],
+                          next_step="Review the problem sources and record the necessary freeze decision before model design.")
+            return result
+        if state_path is not None and problem_validation["project_id"] != load_document(Path(state_path))["project_id"]:
+            result.update(status="blocked", missing_gates=["problem_project_id_matches"],
+                          errors=["problem contract project_id differs from project state"],
+                          fallback=router["fallback"]["problem_contract_invalid"])
+            return result
+        if model_validation is None:
+            result.update(status="allowed", missing_gates=["model_contract_supplied", "model_proposal_complete",
+                                                           "model_challenge_complete", "human_model_approval_current"],
+                          next_step="Create a mathematical model draft from the current frozen problem, then prepare the challenge review and human approval brief.")
+        else:
+            result.update(status="inspected", missing_gates=list(model_validation["missing_gates"]))
+        return result
+
     selected = list(dict.fromkeys(module["required_operations"] + requested))
     result["selected_operations"] = selected
     if profile_path is None:
@@ -182,13 +268,16 @@ def main() -> int:
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--state", type=Path)
     parser.add_argument("--problem", type=Path)
+    parser.add_argument("--model", type=Path)
+    parser.add_argument("--approval", type=Path)
     parser.add_argument("--require-operation", action="append", default=[])
     parser.add_argument("--matlab-root", type=Path)
     args = parser.parse_args()
     try:
         result = resolve_runtime(args.intent, profile_path=args.profile, state_path=args.state,
                                  required_operations=args.require_operation,
-                                 expected_root=args.matlab_root, problem_path=args.problem)
+                                 expected_root=args.matlab_root, problem_path=args.problem,
+                                 model_path=args.model, approval_path=args.approval)
     except (OSError, ValueError, KeyError, TypeError) as error:
         result = {"status": "blocked", "execution_allowed": False,
                   "business_execution_allowed": False, "errors": [str(error)]}

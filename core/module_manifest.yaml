@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.2.0
+version: 0.3.0
 modules:
   environment_assurance:
     phase: A
@@ -24,8 +24,15 @@ modules:
     required_operations: []
   model_design:
     phase: C
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/02_model_design.md
+    - core/model_contract.schema.yaml
+    - core/model_approval_contract.yaml
+    - scripts/validate_model_contract.py
+    - templates/contracts/model_contract.yaml
+    - templates/contracts/model_approval_brief.md
+    required_operations: []
   simulink_build:
     phase: D
     status: deferred

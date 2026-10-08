@@ -1,0 +1,216 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Phase C model design contract
+type: object
+additionalProperties: false
+required: [schema_version, project_id, status, problem, sources, designs, brief, approval]
+properties:
+  schema_version: {const: 1}
+  project_id: {$ref: '#/$defs/id'}
+  status: {enum: [draft, proposed, challenged, approved]}
+  problem: {$ref: '#/$defs/nullable_file'}
+  sources: {type: array, items: {$ref: '#/$defs/source'}}
+  designs: {type: array, items: {$ref: '#/$defs/design'}}
+  brief: {$ref: '#/$defs/nullable_file'}
+  approval: {$ref: '#/$defs/nullable_file'}
+$defs:
+  id: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'}
+  text: {type: string, pattern: '\S'}
+  sha: {type: string, pattern: '^[a-f0-9]{64}$'}
+  ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+  file:
+    type: object
+    additionalProperties: false
+    required: [path, sha256]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+  nullable_file:
+    anyOf:
+      - {type: 'null'}
+      - {$ref: '#/$defs/file'}
+  source:
+    type: object
+    additionalProperties: false
+    required: [id, path, sha256, purpose, problem_source_id]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+      purpose: {$ref: '#/$defs/text'}
+      problem_source_id: {type: [string, 'null']}
+  review:
+    type: object
+    additionalProperties: false
+    required: [status, conclusion, reason, next_action, source_ids]
+    properties:
+      status: {enum: [reviewed, pending, blocked, not_applicable]}
+      conclusion: {$ref: '#/$defs/text'}
+      reason: {$ref: '#/$defs/text'}
+      next_action: {$ref: '#/$defs/text'}
+      source_ids: {$ref: '#/$defs/ids'}
+  challenge:
+    type: object
+    additionalProperties: false
+    required: [key_mechanisms, identifiability, data_support, dimensionality, implementation_bias, simpler_equivalent, hybrid_events, simscape_need, executable_vv]
+    properties:
+      key_mechanisms: {$ref: '#/$defs/review'}
+      identifiability: {$ref: '#/$defs/review'}
+      data_support: {$ref: '#/$defs/review'}
+      dimensionality: {$ref: '#/$defs/review'}
+      implementation_bias: {$ref: '#/$defs/review'}
+      simpler_equivalent: {$ref: '#/$defs/review'}
+      hybrid_events: {$ref: '#/$defs/review'}
+      simscape_need: {$ref: '#/$defs/review'}
+      executable_vv: {$ref: '#/$defs/review'}
+  design:
+    type: object
+    additionalProperties: false
+    required: [id, question_ids, requirement_ids, main_model, selection_reason, alternative_review, models, challenge]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      question_ids: {allOf: [{$ref: '#/$defs/ids'}], minItems: 1}
+      requirement_ids: {allOf: [{$ref: '#/$defs/ids'}], minItems: 1}
+      main_model: {$ref: '#/$defs/id'}
+      selection_reason: {$ref: '#/$defs/text'}
+      alternative_review: {$ref: '#/$defs/text'}
+      models: {type: array, minItems: 1, items: {$ref: '#/$defs/model'}}
+      challenge: {$ref: '#/$defs/challenge'}
+  condition:
+    type: object
+    additionalProperties: false
+    required: [status, value, reason, requirement_ids]
+    properties:
+      status: {enum: [specified, unknown, not_applicable]}
+      value: {}
+      reason: {$ref: '#/$defs/text'}
+      requirement_ids: {$ref: '#/$defs/ids'}
+  parameter:
+    type: object
+    additionalProperties: false
+    required: [value, provenance, source_ids, plan]
+    properties:
+      value: {}
+      provenance: {enum: [given, derived, identified, calibrated, optimized, assumed]}
+      source_ids: {$ref: '#/$defs/ids'}
+      plan: {type: [string, 'null']}
+  variable:
+    type: object
+    additionalProperties: false
+    required: [id, symbol, quantity, roles, role_relation, unit, parameter, requirement_ids]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      symbol: {$ref: '#/$defs/text'}
+      quantity: {$ref: '#/$defs/text'}
+      roles:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items: {enum: [commanded_input, disturbance, state, algebraic, parameter, decision, output, observable, reference, residual, independent_variable]}
+      role_relation: {type: [string, 'null']}
+      unit: {type: [string, 'null']}
+      parameter:
+        anyOf:
+          - {type: 'null'}
+          - {$ref: '#/$defs/parameter'}
+      requirement_ids: {$ref: '#/$defs/ids'}
+  relation:
+    type: object
+    additionalProperties: false
+    required: [id, expression, variable_ids, requirement_ids, role]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      expression: {$ref: '#/$defs/text'}
+      variable_ids: {allOf: [{$ref: '#/$defs/ids'}], minItems: 1}
+      requirement_ids: {$ref: '#/$defs/ids'}
+      role: {enum: [governing, output, constraint, event, constitutive, initial, boundary]}
+  mechanism:
+    type: object
+    additionalProperties: false
+    required: [id, description, relation_ids]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      description: {$ref: '#/$defs/text'}
+      relation_ids: {allOf: [{$ref: '#/$defs/ids'}], minItems: 1}
+  assumption:
+    type: object
+    additionalProperties: false
+    required: [id, meaning, mathematical_role, justification, failure_bias, test_plan, relation_ids]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      meaning: {$ref: '#/$defs/text'}
+      mathematical_role: {$ref: '#/$defs/text'}
+      justification: {$ref: '#/$defs/text'}
+      failure_bias: {$ref: '#/$defs/text'}
+      test_plan: {$ref: '#/$defs/text'}
+      relation_ids: {$ref: '#/$defs/ids'}
+  body:
+    type: object
+    additionalProperties: false
+    required: [object, boundary, variables, relations, inputs, outputs, initial_conditions, boundary_conditions, mechanisms, assumptions]
+    properties:
+      object: {$ref: '#/$defs/text'}
+      boundary: {$ref: '#/$defs/text'}
+      variables: {type: array, items: {$ref: '#/$defs/variable'}}
+      relations: {type: array, items: {$ref: '#/$defs/relation'}}
+      inputs: {$ref: '#/$defs/ids'}
+      outputs: {$ref: '#/$defs/ids'}
+      initial_conditions: {$ref: '#/$defs/condition'}
+      boundary_conditions: {$ref: '#/$defs/condition'}
+      mechanisms: {type: array, items: {$ref: '#/$defs/mechanism'}}
+      assumptions: {type: array, items: {$ref: '#/$defs/assumption'}}
+  fidelity:
+    type: object
+    additionalProperties: false
+    required: [level, mechanisms, scales, order, coupling, data_support, selection_reason]
+    properties:
+      level: {enum: [F0, F1, F2, F3, F4]}
+      mechanisms: {$ref: '#/$defs/text'}
+      scales: {$ref: '#/$defs/text'}
+      order: {$ref: '#/$defs/text'}
+      coupling: {$ref: '#/$defs/text'}
+      data_support: {$ref: '#/$defs/text'}
+      selection_reason: {$ref: '#/$defs/text'}
+  solver_plan:
+    type: object
+    additionalProperties: false
+    required: [status, method, risks, reason]
+    properties:
+      status: {enum: [proposed, not_applicable]}
+      method: {type: [string, 'null']}
+      risks: {$ref: '#/$defs/text'}
+      reason: {$ref: '#/$defs/text'}
+  validator_plan:
+    type: object
+    additionalProperties: false
+    required: [id, status, method, target, source_ids, criterion, claim_limit]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      status: {const: planned}
+      method: {$ref: '#/$defs/text'}
+      target: {$ref: '#/$defs/text'}
+      source_ids: {$ref: '#/$defs/ids'}
+      criterion: {$ref: '#/$defs/text'}
+      claim_limit: {$ref: '#/$defs/text'}
+  structure_review:
+    type: object
+    additionalProperties: false
+    required: [units, conservation, causality, initial_boundary]
+    properties:
+      units: {$ref: '#/$defs/review'}
+      conservation: {$ref: '#/$defs/review'}
+      causality: {$ref: '#/$defs/review'}
+      initial_boundary: {$ref: '#/$defs/review'}
+  model:
+    type: object
+    additionalProperties: false
+    required: [id, name, structure, body, source_ids, fidelity, solver_plan, validator_plan, structure_review]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      name: {$ref: '#/$defs/text'}
+      structure: {$ref: '#/$defs/id'}
+      body: {$ref: '#/$defs/body'}
+      source_ids: {$ref: '#/$defs/ids'}
+      fidelity: {$ref: '#/$defs/fidelity'}
+      solver_plan: {$ref: '#/$defs/solver_plan'}
+      validator_plan: {type: array, items: {$ref: '#/$defs/validator_plan'}}
+      structure_review: {$ref: '#/$defs/structure_review'}

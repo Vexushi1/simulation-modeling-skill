@@ -1,6 +1,6 @@
 schema_version: 1
-version: 0.2.0
-phase: B
+version: 0.3.0
+phase: C
 runtime_evidence:
   producer: scripts/probe_environment.py
   consumer: scripts/validate_environment.py
@@ -19,12 +19,15 @@ project_state:
   evidence_binding:
     environment: [profile_sha256, receipt_sha256]
     problem: [sha256]
+    model: [sha256]
+    approval: [sha256]
   artefact_paths: inside_declared_project_root
   stale_propagation: transitive_dependents_of_changed_ids
   preserve_history: true
   validation_scopes:
     all: validate every implemented evidence role and current runtime requirements
-    problem: validate problem identity and dependencies; environment readiness is unassessed
+    problem: validate problem identity and dependencies; environment and model readiness are unassessed
+    model: validate problem and model identity and dependencies; environment readiness is unassessed
 problem_contract:
   schema: core/problem_contract.schema.yaml
   consumer: scripts/validate_problem_contract.py
@@ -38,3 +41,22 @@ problem_contract:
   freshness: source, contract and decision identities; runtime TTL does not expire unchanged problem meaning
   acceptance: current source and role/DAG/coverage checks; frozen additionally requires closed critical ambiguities and matching review decision
   claim_limit: mechanical completeness and traceability do not prove interpretation or real-system validity
+model_contract:
+  schema: core/model_contract.schema.yaml
+  approval_contract: core/model_approval_contract.yaml
+  consumer: scripts/validate_model_contract.py
+  template: templates/contracts/model_contract.yaml
+  brief_template: templates/contracts/model_approval_brief.md
+  writer: explicit caller; validator and resolver never create approval or write state
+  statuses: [draft, proposed, challenged, approved]
+  validation_results: [schema_valid, valid, proposal_complete, challenge_complete, ready_for_approval, approved]
+  prerequisite: current frozen Problem for proposed or later status and model_design route
+  mathematical_identity: mathematical body only; no solver, validator, implementation, parameter values or approval
+  semantic_digest_excludes: [status, approval]
+  brief_binding: exact current file SHA; Brief must not embed the semantic digest that includes its SHA
+  approval_binding: independent current human decision, project, Problem SHA and semantic digest
+  locked_model_spec: exact snapshot of current semantic content and digest; explicit caller creates it after actual approval
+  freshness: current source, Problem, model, Brief, decision and locked bytes; independent of runtime TTL
+  stale_limit: whole Problem binding is conservative; not the future fine-grained validation-data graph
+  execution_allowed: false
+  claim_limit: mechanical checks do not prove math, physics, review authenticity or real human approval

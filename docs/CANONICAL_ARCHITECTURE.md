@@ -1,12 +1,12 @@
 # Canonical Architecture — Simulation Modeling Skill
 
-> Scope: v0.2.0 Phase B implementation, based on merged Phase A infrastructure
+> Scope: v0.3.0 Phase C implementation, based on merged Phase A/B infrastructure
 > Primary runtime baseline: MATLAB R2025b + Simulink  
 > Target: competition-oriented simulation modeling with engineering-grade reproducibility and paper-ready evidence.
 
 [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md) is the detailed development authority. [V1_IMPLEMENTATION_ROADMAP.md](V1_IMPLEMENTATION_ROADMAP.md) summarizes it. This architecture describes the target layers; the active contracts begin at [../core/bootstrap.yaml](../core/bootstrap.yaml).
 
-Current implementation covers environment inspection and assurance, and problem audit. Layers C–J below are deferred targets; the full plan's Phases C–K remain deferred. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Phase A's merged qualification is recorded in the full plan; later qualification, CI, merge, and release results are recorded separately in their development PRs.
+Current implementation covers environment inspection and assurance, problem audit, and text model design with challenge and human approval checks. Layers D–J below are deferred targets; the full plan's Phases D–K remain deferred. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Phase A/B's merged qualification is recorded in the full plan; later qualification, CI, merge, and release results are recorded separately in their development PRs.
 
 ## 1. Scope
 
@@ -66,9 +66,11 @@ The validator separately reports `schema_valid`, `valid`, `audit_complete`, `fre
 
 The `problem_audit` route is read-only, selects no runtime operations, and can start from `NEW` without an environment profile. It cannot grant numerical execution. State recording is a separate explicit caller update: `PROBLEM_AUDITED` requires the current audit-complete contract declared `audited` or `frozen`, and `PROBLEM_FROZEN` requires the current frozen contract with matching project identity. Problem-scoped validation leaves runtime readiness unassessed.
 
-Problem evidence and accepted dependents become stale when their actual contract, material, extraction review, or decision identities change. Environment expiry does not expire unchanged problem meaning. Mechanical coverage and traceability do not prove semantic interpretation or real-system validity. Formal model design and Simulink implementation remain deferred.
+Problem evidence and accepted dependents become stale when their actual contract, material, extraction review, or decision identities change. Environment expiry does not expire unchanged problem meaning. Mechanical coverage and traceability do not prove semantic interpretation or real-system validity. Formal model design is implemented in Layer C; Simulink implementation remains deferred.
 
-### Layer C — System & model design (deferred)
+### Layer C — System & model design (Phase C infrastructure)
+
+The active [model-design module](../modules/02_model_design.md), [Model Contract schema](../core/model_contract.schema.yaml), and [Model Approval contract](../core/model_approval_contract.yaml) consume the current frozen Problem without a MATLAB profile. A design may cover multiple questions, while justified candidates can serve the same question. Every Problem question and relevant requirement needs traceable coverage.
 
 Maintain strict role separation:
 
@@ -86,6 +88,20 @@ Model selection must justify:
 - data support;
 - computational feasibility;
 - expected failure modes.
+
+Describe objects/abstraction and boundary, structural family, variables with units and roles, mathematical relations and their variable references, inputs and outputs, applicable initial/boundary conditions, mechanisms/coupling, and core assumptions. Preserve known parameter evidence and unknown values separately from proposed future provenance and estimation. Relations can describe discrete, algebraic, data-driven, or noncausal systems without forcing an ODE. A Block choice is an implementation detail, not physical justification.
+
+F0–F4 are target-specific design labels, with mechanisms, scales, order, coupling, and data support explained. They do not create a universal quality order; a benchmark/reference is separately a validation evidence role. Review four structural questions—dimensions, conservation, causality, and initial/boundary closure—and all nine design challenges in the module. `pending`, `blocked`, `reviewed`, and reasoned `not_applicable` distinguish work left from completed reasoning. A proposal can be complete before challenges are complete; completed challenges can still identify blockers that prevent approval.
+
+Structural identity excludes solver/validator/implementation choices, parameter sources/current values, and approval state. The full-design semantic digest includes the current Problem, sources, design content, and Brief identity while excluding only status and approval references. Solver and parameter-value changes therefore preserve mathematical identity but can invalidate approval. The Brief cites independent structural identities and is written before the complete digest is calculated, avoiding a circular Brief/digest dependency.
+
+Structural identity describes the registered representation rather than symbolic equivalence. Variable renaming or equivalent equation rewriting can change its digest. A meaningful structural comparator requires independent review of actual mechanisms, abstraction, or mathematical differences; unequal hashes do not establish those differences.
+
+Actual Human Model Approval binds the current project, Problem, full design, exact current human decision, and matching locked specification. An agent recommendation, development authorization, an `approved` flag, or a blank lock is insufficient. Byte and actor/action checks assess recorded consistency; they do not prove mathematical/physical truth or authenticate an invented human record. Validators and the resolver remain read-only and cannot produce a human decision or advance state.
+
+`MODEL_PROPOSED`, `MODEL_CHALLENGED`, and `MODEL_APPROVED` require the current frozen Problem and corresponding declared contract/gates. Accepted model/approval artefacts bind their current anchors and must not depend on environment evidence. Model-scoped state checks assess B/C while leaving environment readiness unassessed; problem scope leaves C unassessed and cannot establish overall model approval. Default all-scope behavior retains A/B checks.
+
+Phase C binds the entire Problem and its current source evidence conservatively. Changed attachments can invalidate a model even when they were registered for independent validation; a finer-grained source impact graph remains future work. Contract, Brief, human decision, or locked-file changes invalidate their actual bindings and accepted dependents. Runtime TTL alone does not expire unchanged text design. Model approval grants no numerical execution and cannot activate Layers D–J.
 
 ### Layer D — Execution adapter (deferred)
 

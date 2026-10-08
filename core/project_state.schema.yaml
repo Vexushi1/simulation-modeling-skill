@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-title: Phase A and B project state
+title: Phase A, B and C project state
 type: object
 additionalProperties: false
 required: [schema_version, project_id, project_root, current_stage, environment, artefacts]
@@ -13,7 +13,7 @@ properties:
     type: string
     minLength: 1
   current_stage:
-    enum: [NEW, ENVIRONMENT_ASSURED, PROBLEM_AUDITED, PROBLEM_FROZEN]
+    enum: [NEW, ENVIRONMENT_ASSURED, PROBLEM_AUDITED, PROBLEM_FROZEN, MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED]
   environment:
     oneOf:
       - type: 'null'
@@ -43,6 +43,10 @@ properties:
           sha256:
             type: string
             pattern: '^[a-f0-9]{64}$'
+  model:
+    $ref: '#/$defs/contract_binding'
+  approval:
+    $ref: '#/$defs/contract_binding'
   artefacts:
     type: array
     items:
@@ -54,9 +58,9 @@ properties:
           type: string
           minLength: 1
           not:
-            enum: [environment, problem]
+            enum: [environment, problem, model, approval]
         role:
-          enum: [environment_profile, route_decision, problem_contract]
+          enum: [environment_profile, route_decision, problem_contract, model_contract, model_approval]
         path:
           type: string
           minLength: 1
@@ -83,9 +87,41 @@ allOf:
   - if:
       properties:
         current_stage:
-          enum: [PROBLEM_AUDITED, PROBLEM_FROZEN]
+          enum: [PROBLEM_AUDITED, PROBLEM_FROZEN, MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED]
     then:
       required: [problem]
       properties:
         problem:
           type: object
+  - if:
+      properties:
+        current_stage:
+          enum: [MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED]
+    then:
+      required: [model]
+      properties:
+        model:
+          type: object
+  - if:
+      properties:
+        current_stage:
+          const: MODEL_APPROVED
+    then:
+      required: [approval]
+      properties:
+        approval:
+          type: object
+$defs:
+  contract_binding:
+    oneOf:
+      - type: 'null'
+      - type: object
+        additionalProperties: false
+        required: [path, sha256]
+        properties:
+          path:
+            type: string
+            minLength: 1
+          sha256:
+            type: string
+            pattern: '^[a-f0-9]{64}$'

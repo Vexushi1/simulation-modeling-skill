@@ -547,7 +547,7 @@ simulation-modeling-skill/
 
 # 4. 总体运行状态机
 
-以下是单个建模项目的目标运行状态链，不是仓库开发 Phase A–K 的完成状态。开发阶段只登记已实现且测试通过的能力；未实现的项目状态可以保留在目标图中，但不得被当前 router 激活或通过。Phase A 实现 NEW 与 ENVIRONMENT_ASSURED；Phase B 只增加 PROBLEM_AUDITED 与 PROBLEM_FROZEN。下图是典型工作顺序，纯文本审题可以从 NEW 开始；环境 readiness 与题意状态独立，问题已冻结不代表数值执行已获许可。
+以下是单个建模项目的目标运行状态链，不是仓库开发 Phase A–K 的完成状态。开发阶段只登记已实现且测试通过的能力；未实现的项目状态可以保留在目标图中，但不得被当前 router 激活或通过。Phase A 实现 NEW 与 ENVIRONMENT_ASSURED；Phase B 增加 PROBLEM_AUDITED 与 PROBLEM_FROZEN；Phase C 增加 MODEL_PROPOSED、MODEL_CHALLENGED 与 MODEL_APPROVED，不另造 MODEL_DESIGNED 状态。下图是典型工作顺序，纯文本审题可以从 NEW 开始；环境 readiness 与题意/模型状态独立，问题冻结和模型批准都不授予数值执行许可。
 
 主状态链：
 
@@ -959,6 +959,14 @@ authority_and_indexes = passed
 
 决定“系统用什么数学结构表示”，而不是决定“用什么 Simulink Block”。
 
+### 实施前审查与范围（2026-10-07）
+
+用户授权进入 C。B 已由 PR #3 合并至 main `67d12deccf9b9f6d38b644d14a9bb2319455d383`，最终与合并后 Windows/Ubuntu CI、独立审查和原始题面试用通过。独立计划审查发现 §7 缺少结构闭环、身份/批准的可执行边界和开发出口，且 F4 将证据用途与 fidelity 混合；因此先修订本节，再实施消费者。
+
+C 仅实施数学/物理模型的文字设计、挑战审查、审批材料和只读校验。设计路径要求当前 frozen Problem；直接 validator 可读取合法但未完成的草稿，不能把它标成 proposed/challenged/approved。不要求 MATLAB profile，不建立业务模型文件，不运行 solver、辨识、仿真或 V&V。D–K 保持 deferred。
+
+一份模型可以服务多个问题，同一问题也可以有有理由的多个候选模型；必须覆盖 Problem 中的所有问题及相关 requirement，不机械要求每题一个模型或固定两模型。参数的数值估计和实际 comparator 执行属于后续阶段，C 可以登记其未知值、来源角色和拟议方法。
+
 ## 7.2 候选模型路线
 
 每个 material 问题先提出机制、数据与预算支持的最小充分主路线，再审查 0..N 个能够测试实质假设或满足题目要求的备选路线。经典与高级是候选类型，不是固定两条路线的配额；没有必要的高级路线应记录技术理由，不为凑数量增加状态、参数或复杂度。实际执行结构 comparator 的裁决仍由 §12.5 的 required / not_applicable 管理。
@@ -1031,15 +1039,21 @@ authority_and_indexes = passed
 
 禁止把 solver 名称写成模型名称。
 
+主模型需登记对象/抽象与边界、结构类别、变量和单位、关系/方程及其变量引用、输入输出、适用初边值、机制/耦合与核心假设。非物理、离散、数据驱动或非因果网络可以采用适合的关系表达，不能为了过 Gate 强制改成显式 ODE。登记守恒、因果、量纲及初边值闭合的设计审查，区分 reviewed、pending、blocked、not_applicable 与理由；结构引用检查和审查记录不等于自动数学证明。
+
+数学身份由结构本体计算：对象/边界、结构类别、变量定义/角色/单位、方程/关系、机制与核心假设；不含 solver/容差、validator、实现路径/Block、工况参数数值或审批状态。模型 ID 与完整设计语义摘要分别报告。仅改变 solver 或参数数值不得产生“另一个数学模型”；改变待审批的设计内容仍可使完整设计摘要变化并使旧批准失效。变量中的参数来源、当前值和证据用于完整设计审阅，不进入结构身份。
+
 ## 7.4 Fidelity Ladder
 
 ~~~text
 F0 conceptual
 F1 lumped / low-order
 F2 mechanism-complete engineering
-F3 multidomain / high-fidelity
-F4 benchmark / reference / high-cost
+F3 detailed / coupled mechanisms
+F4 resolved mechanisms / scales for the intended target
 ~~~
+
+F0–F4 是本任务情境中的设计标签，不构成跨模型的质量排序。分别说明机制、尺度、阶次、耦合和数据支持；多领域或高成本不自动意味着更高保真。benchmark/reference 另记为验证证据角色。F0 可以是合法候选或草稿，但不能用缺失关系/变量的概念标签冒充完整主模型。
 
 选择考虑：
 
@@ -1074,6 +1088,8 @@ F4 benchmark / reference / high-cost
 - 是否真的需要 Simscape；
 - 是否存在可执行 V&V。
 
+以上九项均须显式登记 reviewed、pending、blocked 或 not_applicable，说明结论、理由和拟议解决/检验。主模型的量纲、守恒、因果和初边值闭合另登记四项结构审查。MODEL_PROPOSED 要求提案结构完整；MODEL_CHALLENGED 另要求所有挑战/结构审查均已执行（无 pending），可以保留已识别的 blocked 问题；任何 blocked 材料问题阻止 ready_for_approval 和 approved。not_applicable 需要任务理由，不能用它隐去必需机制或题设条件。拟议检验不是已完成的数值证据。
+
 ## 7.7 Human Model Approval
 
 生成 Model Approval Brief：
@@ -1092,6 +1108,18 @@ F4 benchmark / reference / high-cost
 
 批准后形成 locked_model_spec。
 
+Human Model Approval 来自实际人类对当前 Brief/设计的明确决定；可复用仍适用于当前摘要的既有决定。仓库开发授权、agent 推荐、approved 标志或自填 reviewer 不能替代真实批准。调用者可忠实记录人类原话及其项目/设计上下文，不要求用户亲自输入哈希，也不为仓库实施请求虚构真实模型批准。
+
+ModelContract 使用 status draft/proposed/challenged/approved，绑定 project_id、当前 Problem 文件 path/SHA、设计依据 sources、designs、Brief 文件 path/SHA 和独立 approval 文件绑定。设计可多问共享，每个 design 登记 question_ids、requirement_ids、主模型、0..N 备选、选择理由、数学模型本体、fidelity 理由、solver 风险/validator 计划及九项挑战。未知参数可保留 null，来源 given/derived/identified/calibrated/optimized/assumed 与已知值、拟议来源/识别方案分别记录，不能制造数值或验证结果。
+
+完整设计语义 digest 排除 status 和 approval 引用，其余内容（含当前 Problem、实际来源和 Brief 身份）全部绑定。Brief 不反向嵌入这个 digest；可引用独立的模型结构身份，避免摘要循环。外部 ModelApproval 绑定 project_id、problem_sha256、model_semantic_sha256、人类决定的 path/SHA/Unicode起止/quote/actor/action 和 locked_model_spec 的 path/SHA。决定的精确引用包含项目、Problem 与完整设计摘要以及明确的 action=approve 上下文；不能用包含当前摘要的拒绝/撤销记录冒充批准。锁定文件由显式调用者在真实批准后生成，必须与当前语义内容及摘要逐项匹配，不接受仅有 locked=true 的空壳。validator/router 从不写批准、锁定文件或项目状态。
+
+状态 optional model/approval 绑定保持 A/B 兼容；三种 C 状态要求当前 frozen Problem，MODEL_PROPOSED/CHALLENGED/APPROVED 各要求相应当前合同状态与 Gate。accepted model/approval 产物精确绑定并依赖 model/problem（approval 另依赖 approval anchor）；不得依赖环境证据。model scope 验证 B/C，环境未评估；problem scope 不评估模型并明确报告该部分范围，不能冒充 MODEL_APPROVED 整体通过。默认 all 保留 A/B 检查。
+
+来源、B freeze 记录、ModelContract、Brief、人类决定或锁定文件改变使相应 anchor 与 accepted 下游 stale。C 采用整个 Problem 字节绑定与 B 的来源校验，这是安全的保守失效：独立验证附件变化也可能使该绑定过期，不宣称已实现 §18.5 的精细失效图。另登记真正用于模型选择的 source/data ID 及用途，留给后续精化。环境 TTL 不使未变的文字模型语义过期。
+
+未来路由不再将已完成的 phase_b_exit_reviewed 硬编码成项目缺项；只返回未实现能力及实际项目前置 Gate。模型批准不能使 D–K 激活，数值执行权限仍为 false。
+
 ## 7.8 产物
 
 - modules/02_model_design.md
@@ -1100,6 +1128,23 @@ F4 benchmark / reference / high-cost
 - templates/contracts/model_approval_brief.md
 - scripts/validate_model_contract.py
 - tests/test_model_contract.py
+- templates/contracts/model_contract.yaml
+- core/project_state.schema.yaml 与 scripts/validate_project_state.py 的 C 适配
+- core/workflow_router.yaml 与 scripts/resolve_runtime.py 的 model_design 路由
+- tests/test_model_router.py、tests/test_model_state.py 及原始合成来源夹具
+- bootstrap/module/output/manifest/lint/index/入口文档同步
+
+## 7.9 可执行开发出口
+
+validator 分别报告 schema_valid、valid、proposal_complete、challenge_complete、ready_for_approval、approved、model_identities、semantic_sha256、contract_sha256、project_id/question_ids、errors/missing_gates/changed_sources。CLI/API只读，支持 require_proposed/require_challenged/require_approved。
+
+开发出口要求：model_contract_checks（草稿、完整候选、多问共享、0..N备选、引用/单位/结构审查/挑战）、model_approval_binding（当前人类决定、项目/Problem/摘要/锁定文件、拒绝/agent/旧批准失败）、model_route_and_state（无环境纯设计、当前frozen B、状态不伪升、不自动写文件、D–K deferred）、source_and_stale_checks（当前来源/Brief/决定/锁定文件、保守失效、TTL分离）、authority_and_indexes 与全部 A/B 回归。
+
+独立复核补充：design/model ID 可以包含点号，但导出的平面 `model_identities` 使用 `design.id + '.' + model.id`；不同 ID 对若生成同一键，validator 必须显式拒绝，不能静默覆盖并进入 proposed/challenged/approved 或生成锁定快照。保留原 ID，不自动重命名；提供碰撞负例及非碰撞点号 ID 正例，保证每个有效候选都有唯一且完整的身份映射。
+
+锁定快照匹配还必须保留当前完整 JSON 内容及类型，不能依赖 Python 中 `true == 1` 或 `1.0 == 1` 的宽松相等。使用与语义 digest 一致的 canonical 表示比较完整 payload；布尔/整数/浮点类型替换、非有限值或不支持的 YAML 类型均受控失败，不得复用原人类决定放过已改变的锁定内容。
+
+独立原始输入行为测试、精确最终提交审查、对应 Windows/Ubuntu CI、合并与合并后回读分别记录。合成批准夹具只验证开发基础设施，不证明有人批准真实模型、数学正确、真实物理有效、统计独立或已获数值执行资格。
 
 ---
 
