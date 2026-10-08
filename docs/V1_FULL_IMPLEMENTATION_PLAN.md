@@ -1636,6 +1636,8 @@ J
 
 任意其它表达式、高阶/非线性/非均匀采样辨识、任意六块动态模型标定、Simscape/Stateflow/System Composer、SDO/MBC、Global Optimization、并行/全局/代理/多目标路由仍 deferred。`fitlm` 是静态回归候选，本轮不把它冒充 ARX 动态辨识。若后续确实使用它，仍必须把 `statistics.fitlm` 明列为 A 必需操作。复杂模型的候选与失效证据可以保留为草稿，不伪造可执行性。
 
+实施中独立审查补充：三个受限内核不消费额外 C 初始/边界协议。被选择的 C 模型初始条件和边界条件必须明确为 `not_applicable`；ARX 仅由声明数据中的实测 lag 条件化。存在 specified、未知或其它非适用状态时保留研究草稿并阻断 trial，不得静默丢弃批准条件或改作自由运行。扩展条件支持需另行设计与资格。
+
 ## 10.9 独立研究与试验权限
 
 新增 `core/parameter_study.schema.yaml`、模块 05、三个按需 task packs、合法未知草稿模板及只读 validator。研究区分 `draft` 与 `reviewed`，绑定项目、当前 frozen B 与完整 approved C、design/model/参数变量身份、实际来源、方法/精确方程及变量映射、候选参数单位与来源角色、初始化/边界、数据选择、loss/weights、诊断及预算、先验标准、适用性与可辨识性限制。已有 given/derived 值不能被当作未知待估参数或设计变量；准许的目标必须是当前 C 中明确提出 identified/calibrated/optimized/assumed 且具相应研究计划的参数。不要求未知参数先有 D build_ready 或 E primary_ready，也不填默认值。
