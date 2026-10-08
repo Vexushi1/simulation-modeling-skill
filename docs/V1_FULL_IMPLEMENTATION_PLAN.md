@@ -1463,6 +1463,8 @@ SIMULATION_PROTOCOL_FROZEN 要求当前完整冻结协议及有效 B/C/D 绑定�
 
 solver 值以 typed、有界有限数据登记，记录 StartTime/StopTime、Solver/SolverType、适用的步长、容差和 zero-crossing 设置及理由。不适用参数显式 null/理由，不能给 fixed-step 填无意义容差或给 variable-step 默填固定步长。要求 start < stop、步长/容差处于对应 API 的合法范围以及适用字段一致；例如 MinStep 的合法零下限不能机械拒绝为非正值。实际运行保存有效 solver/readback，而非只回显请求。期望指标、阈值和 claim_limit 在冻结前确定，实际结果不反向修改这些条件。
 
+独立复核补充：协议与运行器必须使用一致的时间和容差边界。R2025b StartTime 允许有限负起点，RelTol 要求正标量，没有通用的非负起点或不大于 1 限制；不能在运行器暗加这两项约束。固定步长的起点必须是步长的整数倍，以浮点表示误差范围检查，冻结前拒绝会被引擎自动调整的起点，不把这种调整当成已审查工况。StopTime 不凭空要求整数倍，但实际输出仍必须覆盖冻结终点。实际公开 SolverInfo 的名称、类型和适用的固定步长或 MaxStep 必须存在且与协议一致；缺失或矛盾不能凭配置回显通过。warning_policy=reject 同时检查实际 WarningDiagnostics 与 lastwarn 消息/标识，不能因诊断数组为空而忽略已经观测到的警告。
+
 R2025b 公开 SimulationMetadata 的 SolverInfo 不保证暴露全部容差字段。配置记录与实际观测分开：记录 SimulationInput 施加的完整 typed 参数，实际 solver 名称/类型及公开步长从 SimulationMetadata 读取；只核对公开观测和实际时间覆盖。未公开的容差不声称已独立 get_param readback，也不为此引入自定义运行 callback。输出采样间隔与内部求解步长保持区别。该限制来自本轮官方 API 审查，先保存此计划修订，再实施相关消费者。
 
 初轮真实 R2025b 九案例发现 ExecutionInfo 不含 StopEventTime，直接读取会使已返回的仿真输出在后处理失败中丢失。终止事件继续读实际 StopEvent；实际停止时间以 SimulationOutput.tout 的最后有限采样及各必需输出覆盖独立裁决，并记录观测来源，不能用配置 StopTime 代替。错误/零输出导致 tout 为空时保留 unknown 与失败诊断；受控早停必须有实际时间依据。SimulationOutput 返回后先持久化原始 MAT，再做元数据与格式后处理；失败保留原生部分数据，不提升成成功。此次按实际 API 证据先修订计划，再修正消费者，原九案例保留为失败记录。
