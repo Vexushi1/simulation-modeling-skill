@@ -33,6 +33,9 @@ def lint(root: Path = ROOT) -> list[str]:
             "problem_contract": "core/problem_contract.schema.yaml",
             "model_contract": "core/model_contract.schema.yaml",
             "model_approval": "core/model_approval_contract.yaml",
+            "domain_mapping": "core/domain_mapping.schema.yaml",
+            "parameter_provenance": "core/parameter_provenance.schema.yaml",
+            "implementation_assurance": "core/implementation_assurance_contract.yaml",
         }
         if bootstrap["runtime_entry"] != bindings:
             errors.append("bootstrap runtime entry differs from implemented consumers")
@@ -46,6 +49,9 @@ def lint(root: Path = ROOT) -> list[str]:
         router_bindings["problem_contract_schema"] = bindings["problem_contract"]
         router_bindings["model_contract_schema"] = bindings["model_contract"]
         router_bindings["model_approval_contract"] = bindings["model_approval"]
+        router_bindings["domain_mapping_schema"] = bindings["domain_mapping"]
+        router_bindings["parameter_provenance_schema"] = bindings["parameter_provenance"]
+        router_bindings["implementation_assurance_contract"] = bindings["implementation_assurance"]
         if any(router.get(key) != value for key, value in router_bindings.items()):
             errors.append("router Authority references differ from implemented consumers")
         upstream = {"simulink_execution": "matlab/simulink-agentic-toolkit",
@@ -89,7 +95,8 @@ def lint(root: Path = ROOT) -> list[str]:
             errors.append("core operation selection differs between contracts")
         for identity, module in modules.items():
             if module["status"] == "implemented":
-                expected_phases = {"environment_assurance": "A", "problem_audit": "B", "model_design": "C"}
+                expected_phases = {"environment_assurance": "A", "problem_audit": "B", "model_design": "C",
+                                   "domain_mapping": "D", "simulink_build": "D"}
                 if identity not in expected_phases or module["phase"] != expected_phases[identity]:
                     errors.append(f"business capability activated before implementation: {identity}")
                 for path in module["resources"]:
@@ -98,7 +105,7 @@ def lint(root: Path = ROOT) -> list[str]:
             elif module["status"] != "deferred" or module["resources"]:
                 errors.append(f"invalid deferred module: {identity}")
         for identity, item in taxonomy["capabilities"].items():
-            expected_status = "implemented" if identity in ("problem_audit", "model_design") else "deferred"
+            expected_status = "implemented" if identity in ("problem_audit", "model_design", "domain_mapping", "simulink_build") else "deferred"
             if identity not in modules or modules[identity]["status"] != expected_status or modules[identity]["phase"] != item["phase"]:
                 errors.append(f"taxonomy availability mismatch: {identity}")
         if router["intents"]["inspect"]["execution_allowed"] is not False:
@@ -135,6 +142,48 @@ def lint(root: Path = ROOT) -> list[str]:
             errors.append("model module omits required contract resources")
         if any(not (root / name).is_file() for name in model_resources):
             errors.append("model output resources are missing")
+        mapping_route = router["intents"]["domain_mapping"]
+        if mapping_route["execution_allowed"] is not False or modules["domain_mapping"]["required_operations"]:
+            errors.append("domain mapping cannot require native operations or grant execution")
+        mapping_outputs = output["domain_mapping"]
+        parameter_outputs = output["parameter_provenance"]
+        mapping_resources = {"modules/03_domain_mapping.md", bindings["domain_mapping"],
+                             bindings["parameter_provenance"], mapping_outputs["consumer"],
+                             parameter_outputs["consumer"], mapping_outputs["template"],
+                             parameter_outputs["template"]}
+        if (mapping_outputs["schema"] != bindings["domain_mapping"] or
+                parameter_outputs["schema"] != bindings["parameter_provenance"]):
+            errors.append("D output schemas differ from the bootstrap Authority")
+        if not {bindings["domain_mapping"], bindings["parameter_provenance"],
+                bindings["implementation_assurance"]} <= set(manifest["active_authorities"]):
+            errors.append("D contracts are not active Authorities")
+        if not mapping_resources <= set(modules["domain_mapping"]["resources"]):
+            errors.append("domain mapping module omits required contract resources")
+        native = load_document(root / bindings["implementation_assurance"])
+        if native["operation_id"] != "simulink.core_build_structure":
+            errors.append("D native operation is not declared")
+        if (native["target"]["matlab_release"] != "R2025b" or
+                str(native["target"]["simulink_version"]) != "25.2"):
+            errors.append("D native baseline must be R2025b and Simulink 25.2")
+        if native["business_simulation_allowed"] is not False:
+            errors.append("D native contract cannot grant simulation")
+        for name in native["source_files"]:
+            path = (root / name).resolve()
+            if not path.is_relative_to(root.resolve()) or not path.is_file():
+                errors.append(f"invalid D native source binding: {name}")
+        native_resources = {bindings["implementation_assurance"],
+                            "scripts/probe_implementation.py", "scripts/run_implementation.py",
+                            "scripts/validate_implementation_profile.py", "scripts/validate_implementation_receipt.py",
+                            "scripts/matlab/probe_implementation.m", "templates/simulink/README.md"}
+        if not native_resources <= set(modules["simulink_build"]["resources"]):
+            errors.append("D constructor omits required native consumers and resources")
+        if modules["simulink_build"]["required_operations"] != core_operations + ["simulink.core_build_structure"]:
+            errors.append("D constructor operation selection differs between contracts")
+        if modules["simulink_build"].get("execution_scope") != "implementation_execution":
+            errors.append("D constructor must have explicit implementation scope")
+        if (output["implementation_evidence"]["business_execution_allowed"] is not False or
+                output["implementation_evidence"]["simulation_execution_allowed"] is not False):
+            errors.append("D output contract cannot grant simulation")
         if "phase_b_exit_reviewed" in router["future_capabilities"]["common_missing_gates"]:
             errors.append("completed repository gates cannot be missing project requirements")
 

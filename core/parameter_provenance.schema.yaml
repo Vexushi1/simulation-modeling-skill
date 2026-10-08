@@ -1,0 +1,71 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Phase D approved parameter implementation bindings
+type: object
+additionalProperties: false
+required: [schema_version, project_id, status, model, parameters]
+properties:
+  schema_version: {const: 1}
+  project_id: {$ref: '#/$defs/id'}
+  status: {enum: [draft, bound]}
+  model: {$ref: '#/$defs/nullable_file'}
+  parameters:
+    type: array
+    items: {$ref: '#/$defs/parameter'}
+$defs:
+  id: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'}
+  text: {type: string, pattern: '\S'}
+  sha: {type: string, pattern: '^[a-f0-9]{64}$'}
+  file:
+    type: object
+    additionalProperties: false
+    required: [path, sha256]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+  nullable_file:
+    anyOf:
+      - {type: 'null'}
+      - {$ref: '#/$defs/file'}
+  reference:
+    type: object
+    additionalProperties: false
+    required: [design_id, model_id, variable_id]
+    properties:
+      design_id: {$ref: '#/$defs/id'}
+      model_id: {$ref: '#/$defs/id'}
+      variable_id: {$ref: '#/$defs/id'}
+  parameter:
+    type: object
+    additionalProperties: false
+    required: [reference, symbol, code_name, scope, value, unit, provenance, source_ids, uncertainty, tunability]
+    properties:
+      reference: {$ref: '#/$defs/reference'}
+      symbol: {$ref: '#/$defs/text'}
+      code_name: {type: string, pattern: '^[A-Za-z][A-Za-z0-9_]{0,62}$'}
+      scope:
+        type: object
+        additionalProperties: false
+        required: [kind, owner, data_source]
+        properties:
+          kind: {const: model_workspace}
+          owner: {type: string, pattern: '^[A-Za-z][A-Za-z0-9_]{0,62}$'}
+          data_source: {const: ModelFile}
+      value: {}
+      unit: {type: [string, 'null']}
+      provenance: {enum: [given, derived, identified, calibrated, optimized, assumed]}
+      source_ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+      uncertainty:
+        type: object
+        additionalProperties: false
+        required: [status, value, reason]
+        properties:
+          status: {enum: [specified, unknown, not_applicable]}
+          value: {}
+          reason: {$ref: '#/$defs/text'}
+      tunability:
+        type: object
+        additionalProperties: false
+        required: [status, reason]
+        properties:
+          status: {enum: [fixed, tunable, unknown]}
+          reason: {$ref: '#/$defs/text'}

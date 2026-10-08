@@ -1,0 +1,134 @@
+{
+  "captured_at": "2026-10-08",
+  "source": "MathWorks official matlab organization; GitHub connector read-back",
+  "repositories": [
+    {
+      "repository": "matlab/simulink-agentic-toolkit",
+      "commit": "c58e6aec7b904769ae43536e169d747feda95416",
+      "resources": [
+        {
+          "path": "VERSION",
+          "git_blob_sha1": "f99a3c7c2c08cc49b5f7b4d61dba79196905e75c",
+          "sha256": "672e05654ae2b31f6e048b904c847f7947a04aff46c35ab2d13c41dcf634d937",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/VERSION"
+        },
+        {
+          "path": "README.md",
+          "git_blob_sha1": "2d5e0d737ac811a603dbe2927de7a638e0547e1f",
+          "sha256": "78978ae8255f6fb0dda33d8eb626099c92cb9adfe7f7438c2945813887d908ef",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/README.md"
+        },
+        {
+          "path": "manifest.yaml",
+          "git_blob_sha1": "2d796fdfddd09a7101d67a59bd0b53c6600ba18b",
+          "sha256": "6c5eb83043b1eba17d9e60e8a5e7b06cde17c3fd23f7142847741ebd18a2e586",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/manifest.yaml"
+        },
+        {
+          "path": "LICENSE.md",
+          "git_blob_sha1": "01f4b13f831237945dd02137261485d0e65887cc",
+          "sha256": "0da2efb2251003469c80e945b850e2c6761283784d341739f8e6ba8a257b8ec5",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/LICENSE.md"
+        },
+        {
+          "path": "tools/tools.json",
+          "git_blob_sha1": "fe53383397f8b37c43fa9455d22c2fe94ed24750",
+          "sha256": "0478501b0f0bce15bcbb39d0ebd5b14c7cf5dfdb28aa668542a436e71caed2e8",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/tools/tools.json"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/building-simulink-models/SKILL.md",
+          "git_blob_sha1": "eb07bb524a606cfd57aff32ee1210a789b6e1625",
+          "sha256": "4e57fff2d6c962def8b0d056e0d8c05169147b8e8933d277ac1b427e78420b14",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/building-simulink-models/SKILL.md"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/building-simulink-models/manifest.yaml",
+          "git_blob_sha1": "3713fc68625604f071abba73b9d23121b0f95a65",
+          "sha256": "18a5b1b9404635c4eb7528310816b902df3e92b40869f09fe527cf525c93219c",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/building-simulink-models/manifest.yaml"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/specifying-mbd-algorithms/SKILL.md",
+          "git_blob_sha1": "b66201d71bb78a6bf97bfb4791e69b03dcc9a9c7",
+          "sha256": "464eec93f7bf82f6e00ec49ac0595de44f005fcd021f0062c6e22439d3e8c29a",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/specifying-mbd-algorithms/SKILL.md"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/specifying-mbd-algorithms/manifest.yaml",
+          "git_blob_sha1": "26fc742180a7a5d7edb91e2a9399b7ead63de113",
+          "sha256": "8bdd4b170975919abedf9b8cbd8ecce9d7e948b5feed49eed6366159995b71bc",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/specifying-mbd-algorithms/manifest.yaml"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/specifying-plant-models/SKILL.md",
+          "git_blob_sha1": "7bc48bf7b506a8822bc69f60a5bfb0062058df20",
+          "sha256": "c51c5ec67d277df2a9241326343960a271e9d19137c8df8c93ac19e48b0b8de1",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/specifying-plant-models/SKILL.md"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/specifying-plant-models/manifest.yaml",
+          "git_blob_sha1": "f3e3f44cfe9eba80dc3709e443d6600b1d1b2ba5",
+          "sha256": "eca28adefd6504ded29c07df08231412712c8412476ae10726b06290a9a28ecd",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/specifying-plant-models/manifest.yaml"
+        },
+        {
+          "path": "skills-catalog/physical-modeling/simscape-write-ssc/SKILL.md",
+          "git_blob_sha1": "f449dc267211ddd911dd9168bd9fe6a26e092573",
+          "sha256": "17baf62139b700b347fba8acfdcdb623cf55cedb6fbc0dbc9c98604468ee6414",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/physical-modeling/simscape-write-ssc/SKILL.md"
+        },
+        {
+          "path": "skills-catalog/physical-modeling/simscape-write-ssc/manifest.yaml",
+          "git_blob_sha1": "384a2e48ae27ada22a55f6179bfea1852281d9d4",
+          "sha256": "e67f1af52f1a51e53e9ac58c96e1bb4238935886909bb21594320ac804cc07aa",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/physical-modeling/simscape-write-ssc/manifest.yaml"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/building-simulink-models/references/stateflow.md",
+          "git_blob_sha1": "0470d6862a57cbe0eb79e9bc9cc5c36769ec7ba7",
+          "sha256": "dd68355fc7cc725604a8a351dd323e7cedbec646ec26717170b9a7bf4af506f3",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/building-simulink-models/references/stateflow.md"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/building-simulink-models/references/system-composer.md",
+          "git_blob_sha1": "48b219748d1b601d092be0dc6ccf3425d9f3ccb9",
+          "sha256": "3e5aa71dec635abb903c26b9efb46a321429e1ec5e6cd803e300676f9c77c9ab",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/building-simulink-models/references/system-composer.md"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/building-simulink-models/references/simscape.md",
+          "git_blob_sha1": "bf0a11d48524de9a26b551b1dae6cad78cedaa6f",
+          "sha256": "6ab0b83dc029711b97e23c8388118931a8ddb5546d241c1538a526eebdfc1c2e",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/building-simulink-models/references/simscape.md"
+        }
+      ],
+      "version": "2026.10.a"
+    },
+    {
+      "repository": "matlab/matlab-agentic-toolkit",
+      "commit": "59dfd92c43319041e2edf87ef1e68a512f233511",
+      "resources": [
+        {
+          "path": "LICENSE.md",
+          "git_blob_sha1": "7f17a1e8690cca1da0ec834b4e45a86126cdebde",
+          "sha256": "97de97afab4fd62d1b5a5701123ef138b149bf97a2a26ae8d2f00d0cda17895c",
+          "url": "https://github.com/matlab/matlab-agentic-toolkit/blob/59dfd92c43319041e2edf87ef1e68a512f233511/LICENSE.md"
+        },
+        {
+          "path": "manifest.yaml",
+          "git_blob_sha1": "0e221215230bcf2f7d03504124347f842a071273",
+          "sha256": "2affb6ae5208af3fe84e0247378a2a28bed0b7fcee4b257b98da4dbbb7785b08",
+          "url": "https://github.com/matlab/matlab-agentic-toolkit/blob/59dfd92c43319041e2edf87ef1e68a512f233511/manifest.yaml"
+        },
+        {
+          "path": "README.md",
+          "git_blob_sha1": "401357af7a0793a90b13a1a541ca7e9b4c4d8325",
+          "sha256": "b53238ad65442c00ac160fb34fc472586da94428af850902fd56320a806e1c65",
+          "url": "https://github.com/matlab/matlab-agentic-toolkit/blob/59dfd92c43319041e2edf87ef1e68a512f233511/README.md"
+        }
+      ]
+    }
+  ],
+  "schema_version": 1
+}

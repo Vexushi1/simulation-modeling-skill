@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "phase": "D",
+  "target_release": "R2025b",
+  "active_native_channel": "matlab_batch",
+  "active_native_operation": "simulink.core_build_structure",
+  "upstream_installation": {
+    "status": "not_installed_by_this_repository",
+    "detected": false,
+    "executed": false
+  },
+  "upstream_compatibility": {
+    "manifest_minimum_release": "R2023a",
+    "target_in_manifest_range": true,
+    "actual_tools_qualified": false,
+    "qualification_required": [
+      "installed toolkit commit and resources match pinned metadata",
+      "all declared required products and MCP tools resolve on actual host",
+      "specific operations complete with input/output assertions on R2025b",
+      "new channel gets its own qualification; batch evidence cannot qualify MCP"
+    ]
+  },
+  "native_fallback": {
+    "required_independent_profiles": [
+      "phase_a_core",
+      "phase_d_core_structure"
+    ],
+    "supported_blocks": [
+      "Inport",
+      "Outport",
+      "Constant",
+      "Gain",
+      "Sum",
+      "Integrator"
+    ],
+    "model_workspace": "Model File",
+    "parameters": "Simulink.Parameter finite scalar double",
+    "historical_receipt": "captured full mapping input plus semantic snapshot and exact evidence bytes; qualifications checked at execution time",
+    "simulation_allowed": false
+  },
+  "deferred": [
+    "toolkit MCP execution",
+    "Simscape execution",
+    "Stateflow execution",
+    "System Composer execution",
+    "arbitrary algorithms",
+    "solver qualification",
+    "business simulation"
+  ],
+  "license": {
+    "redistributed_upstream_code": false,
+    "review_required_before_install_or_redistribution": true,
+    "scope": "upstream licenses restrict use to MathWorks products and service offerings; preserve notices if redistributing"
+  }
+}

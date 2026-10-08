@@ -80,6 +80,25 @@ def test_model_module_cannot_omit_approval_contract(copy_repo):
     assert any("model module omits required contract resources" in error for error in lint(copy_repo))
 
 
+def test_mapping_cannot_grant_execution(copy_repo):
+    path = copy_repo / "core/workflow_router.yaml"
+    before, after = path.read_text(encoding="utf-8").split("  domain_mapping:", 1)
+    path.write_text(before + "  domain_mapping:" + after.replace("execution_allowed: false", "execution_allowed: true", 1), encoding="utf-8")
+    assert any("domain mapping cannot" in error for error in lint(copy_repo))
+
+
+def test_mapping_module_cannot_omit_parameter_consumer(copy_repo):
+    path = copy_repo / "core/module_manifest.yaml"
+    path.write_text(path.read_text(encoding="utf-8").replace("  - scripts/validate_parameter_provenance.py\n", ""), encoding="utf-8")
+    assert any("domain mapping module omits" in error for error in lint(copy_repo))
+
+
+def test_d_output_cannot_grant_simulation(copy_repo):
+    path = copy_repo / "core/output_contract.yaml"
+    path.write_text(path.read_text(encoding="utf-8").replace("simulation_execution_allowed: false", "simulation_execution_allowed: true"), encoding="utf-8")
+    assert any("cannot grant simulation" in error for error in lint(copy_repo))
+
+
 def test_index_drift_is_detected(copy_repo):
     (copy_repo / "REPOSITORY_INDEX.md").write_text("stale", encoding="utf-8")
     assert any("stale generated index" in error for error in lint(copy_repo))

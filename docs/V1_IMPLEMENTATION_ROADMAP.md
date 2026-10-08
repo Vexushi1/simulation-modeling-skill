@@ -1,6 +1,6 @@
 # v1.0.0 Implementation Roadmap
 
-> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. Version 0.3.0 implements Phase C text model design, challenge, and human approval checks on the merged Phase A/B base. Phases D–K remain deferred; qualification and merge evidence are recorded separately in the development PR.
+> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. Version 0.4.0 implements Phase D approved-model mapping, exact parameter provenance and qualified core Simulink construction on the merged A/B/C base. Other D domains and Phases E–K remain deferred; qualification and merge evidence are recorded separately in the development PR.
 
 ## Phase A — Runtime, governance, and trusted root
 
@@ -33,7 +33,7 @@ The five development exit checks in the full plan §6.10 are:
 - `source_and_stale_checks = passed`;
 - `authority_and_indexes = passed`.
 
-Verify legal draft, audited, and frozen paths as well as changed or missing materials, invalid offsets/references/coverage, unverified extraction, inconsistent roles/ranges, invalid dependencies, unresolved critical ambiguities, mismatching decisions or project identities, path escapes, and stale dependents. Confirm that environment expiry does not block unchanged text audit and routes never write state. Run the Phase A regressions and independent original-material review. Phase C now consumes the frozen Problem separately; Phases D–K remain deferred.
+Verify legal draft, audited, and frozen paths as well as changed or missing materials, invalid offsets/references/coverage, unverified extraction, inconsistent roles/ranges, invalid dependencies, unresolved critical ambiguities, mismatching decisions or project identities, path escapes, and stale dependents. Confirm that environment expiry does not block unchanged text audit and routes never write state. Run the Phase A regressions and independent original-material review. Phase C now consumes the frozen Problem separately; other D domains and Phases E–K remain deferred.
 
 Passing synthetic fixtures qualifies the B infrastructure's behavior. Formal development completion separately requires independent PR review, final-source CI, merge, and read-back. A user's project must independently meet its actual Problem Contract Gate. Problem evidence tracks material and decision changes; runtime TTL alone does not expire unchanged problem meaning.
 
@@ -59,15 +59,22 @@ The five development exit checks in the full plan §7.9 are:
 - `source_and_stale_checks = passed`;
 - `authority_and_indexes = passed`.
 
-Verify legal drafts, complete proposals, challenged and approved paths, multi-question/shared models, zero and useful alternatives, unresolved structural/challenge blockers, current human approval and rejection, stale sources/Briefs/decisions/locks, identity separation, path/reference failures, project/status mismatches, explicit validation scopes, no automatic writes, and deferred D–K routes. Run all A/B regressions, independent raw-input behavior review, exact-final-source PR review, Windows/Ubuntu CI, merge, and post-merge read-back separately.
+Verify legal drafts, complete proposals, challenged and approved paths, multi-question/shared models, zero and useful alternatives, unresolved structural/challenge blockers, current human approval and rejection, stale sources/Briefs/decisions/locks, identity separation, path/reference failures, project/status mismatches, explicit validation scopes, no automatic writes, and still-deferred domain/E–K routes. Run all A/B regressions, independent raw-input behavior review, exact-final-source PR review, Windows/Ubuntu CI, merge, and post-merge read-back separately.
 
 `MODEL_PROPOSED`, `MODEL_CHALLENGED`, and `MODEL_APPROVED` require the matching contract status and current frozen Problem. Model scope checks B/C while leaving runtime readiness unassessed; problem scope leaves C unassessed and cannot establish overall MODEL_APPROVED validity. C conservatively binds the entire Problem and its current sources, so any changed attachment can invalidate that binding; fine-grained source impact remains future work. Runtime expiry does not expire unchanged text design. Synthetic fixtures prove infrastructure behavior, not a real model approval, mathematical/physical validity, statistical independence, or numerical execution qualification.
+
+## Phase D — Mapping, parameters and qualified structure
+
+The full plan §8.7 requires current C human approval, explicit domain/trace/review decisions, exact typed parameter bindings and preserved unknowns. Mapping completion is distinct from native build readiness and actual structure readiness. The local baseline executes explicitly reviewed Inport/Outport/Constant/Gain/Sum/Integrator graphs with model-file workspace bindings. Other blocks and Simscape/Stateflow/System Composer operations remain unqualified for construction. No free-text mathematical code generation or estimation is performed.
+
+New mutation requires current A plus independent D profile evidence. The native probe exercises two different structures and a controlled failure; the producer binds input snapshots/semantic identity, current C and parameters, actual source/runtime/channel/process, saved/reopened SLX bytes, assertions and receipt. Historical readiness checks retain execution-time qualification and current dependencies without using current TTL to expire unchanged structures. Only explicit callers record receipts or IMPLEMENTATION_READY; implementation partial scope leaves current runtime unassessed. No simulation or physical/numerical validity claim follows.
+
+Exit checks: domain_mapping_checks, parameter_binding_checks, native_simulink_structure_qualification, mapping_route_and_state, source_and_stale_checks, upstream_compatibility_and_authority, authority_and_indexes, all A/B/C regressions, independent original-input behavior testing and exact-commit review, Windows/Ubuntu CI, merge and post-merge readback.
 
 ## Later phases — deferred
 
 | Phase | Planned scope |
 |---|---|
-| D | Approved mathematical model mapping and qualified official execution adapters |
 | E | Solver decisions, frozen simulation protocol, reproducible execution, and run receipts |
 | F | Parameter provenance, identification, calibration, and optimization when required |
 | G | Experiment design, campaigns, uncertainty sampling, and parallel simulation |
@@ -80,4 +87,4 @@ Develop phases in the full plan's order and refine each phase's executable gates
 
 ## Release
 
-The v1.0.0 gate remains the full plan's release definition: all phases qualified and merged, complete active indexes and CI, current upstream compatibility, representative R2025b runtime evidence, accepted evidence and claim boundaries, and verified paper handoff. Version 0.3.0 does not claim that release gate.
+The v1.0.0 gate remains the full plan's release definition: all phases qualified and merged, complete active indexes and CI, current upstream compatibility, representative R2025b runtime evidence, accepted evidence and claim boundaries, and verified paper handoff. Version 0.4.0 does not claim that release gate.

@@ -1,0 +1,7 @@
+# Core Simulink construction input
+
+Read [the D module](../../modules/03_domain_mapping.md), [mapping schema](../../core/domain_mapping.schema.yaml), [parameter schema](../../core/parameter_provenance.schema.yaml), and [operation contract](../../core/implementation_assurance_contract.yaml) before preparing input. Use [the legal mapping draft](../contracts/domain_mapping.yaml) and [parameter draft](../contracts/parameter_provenance.yaml). This directory supplies the construction workflow rather than a task-specific mathematical model.
+
+Bind current approved C and fill explicit reviewed target blocks, ports, connections, traces, and parameter/condition bindings. The local native baseline supports Inport/Outport/Constant/Gain/Sum/Integrator only. It consumes the validated mapping's `build_spec`; do not hand-edit that derived producer input or evaluate the C relation text. Unknown required values and unsupported domains/objects give specific missing gates.
+
+Inspect `scripts/probe_implementation.py --help` and `scripts/run_implementation.py --help`, qualify current A/D operations in new directories, and resolve `simulink_build` before mutation. Actual construction produces owned new SLX files and save/reopen/readback evidence. Bind its returned receipt through an explicit caller and validate readiness. It performs no simulation and supplies no user's Model Approval, numerical output, or physical validation.

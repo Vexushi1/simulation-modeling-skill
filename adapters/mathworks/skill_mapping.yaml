@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "phase": "D",
+  "pin_file": "adapters/mathworks/upstream_pin.yaml",
+  "ownership": {
+    "upstream": "MathWorks skills and APIs are reference knowledge; this repository owns current C binding, mapping, parameter provenance, gates and receipts",
+    "local": "No upstream execution or installation is performed by the mapping route"
+  },
+  "skills": [
+    {
+      "id": "building-simulink-models",
+      "repository": "matlab/simulink-agentic-toolkit",
+      "skill_path": "skills-catalog/model-based-design-core/building-simulink-models/SKILL.md",
+      "manifest_path": "skills-catalog/model-based-design-core/building-simulink-models/manifest.yaml",
+      "role": "structural API and port knowledge",
+      "required_products": [
+        "Simulink"
+      ],
+      "required_tools": [
+        "model_edit",
+        "model_overview",
+        "model_read",
+        "model_check",
+        "model_query_params",
+        "model_resolve_params"
+      ],
+      "native_execution": "deferred toolkit; local six-block builder independently qualified"
+    },
+    {
+      "id": "specifying-mbd-algorithms",
+      "repository": "matlab/simulink-agentic-toolkit",
+      "skill_path": "skills-catalog/model-based-design-core/specifying-mbd-algorithms/SKILL.md",
+      "manifest_path": "skills-catalog/model-based-design-core/specifying-mbd-algorithms/manifest.yaml",
+      "role": "interface, sign, unit and implementation-plan review for an approved algorithm when relevant",
+      "required_products": [
+        "Simulink"
+      ],
+      "required_tools": [
+        "model_overview",
+        "model_read",
+        "model_query_params"
+      ],
+      "native_execution": "deferred"
+    },
+    {
+      "id": "specifying-plant-models",
+      "repository": "matlab/simulink-agentic-toolkit",
+      "skill_path": "skills-catalog/model-based-design-core/specifying-plant-models/SKILL.md",
+      "manifest_path": "skills-catalog/model-based-design-core/specifying-plant-models/manifest.yaml",
+      "role": "equations, physical boundaries, initialization, units and parameter provenance for an approved plant when relevant",
+      "required_products": [
+        "Simulink"
+      ],
+      "required_tools": [
+        "model_overview",
+        "model_read",
+        "model_query_params",
+        "model_test"
+      ],
+      "native_execution": "deferred"
+    },
+    {
+      "id": "simscape-write-ssc",
+      "repository": "matlab/simulink-agentic-toolkit",
+      "skill_path": "skills-catalog/physical-modeling/simscape-write-ssc/SKILL.md",
+      "manifest_path": "skills-catalog/physical-modeling/simscape-write-ssc/manifest.yaml",
+      "role": "physical-domain mapping reference",
+      "required_products": [
+        "Simscape"
+      ],
+      "required_tools": [
+        "evaluate_matlab_code"
+      ],
+      "native_execution": "deferred"
+    }
+  ],
+  "rules": [
+    "Select a skill from the approved C model's actual needs; no fixed number of hierarchy layers",
+    "Do not copy whole upstream API guides into local phase modules",
+    "Toolkit library loading, installed products and documentation availability do not establish build qualification",
+    "Preserve unknown required parameters as gates; do not assign default physics or parse arbitrary equations"
+  ]
+}

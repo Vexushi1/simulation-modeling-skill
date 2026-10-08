@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.3.0
+version: 0.4.0
 modules:
   environment_assurance:
     phase: A
@@ -35,8 +35,25 @@ modules:
     required_operations: []
   simulink_build:
     phase: D
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/03_domain_mapping.md
+    - core/domain_mapping.schema.yaml
+    - core/parameter_provenance.schema.yaml
+    - core/implementation_assurance_contract.yaml
+    - scripts/probe_implementation.py
+    - scripts/validate_implementation_profile.py
+    - scripts/run_implementation.py
+    - scripts/validate_implementation_receipt.py
+    - scripts/matlab/probe_implementation.m
+    - templates/simulink/README.md
+    required_operations:
+    - matlab.basic_execution
+    - simulink.library_load
+    - simulink.core_build_structure
+    execution_scope: implementation_execution
+    qualification_scope: controlled Inport/Outport/Constant/Gain/Sum/Integrator constructor;
+      no simulation
   simscape_build:
     phase: D
     status: deferred
@@ -125,3 +142,19 @@ modules:
     phase: J
     status: deferred
     resources: []
+  domain_mapping:
+    phase: D
+    status: implemented
+    resources:
+    - modules/03_domain_mapping.md
+    - core/domain_mapping.schema.yaml
+    - core/parameter_provenance.schema.yaml
+    - scripts/validate_domain_mapping.py
+    - scripts/validate_parameter_provenance.py
+    - templates/contracts/domain_mapping.yaml
+    - templates/contracts/parameter_provenance.yaml
+    - adapters/mathworks/skill_mapping.yaml
+    - adapters/mathworks/compatibility.yaml
+    - adapters/mathworks/simulink_agentic_toolkit.md
+    - adapters/mathworks/upstream_pin.yaml
+    required_operations: []

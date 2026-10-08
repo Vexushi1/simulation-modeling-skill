@@ -1,0 +1,54 @@
+schema_version: 1
+phase: D
+target:
+  matlab_release: R2025b
+  simulink_version: '25.2'
+operation_id: simulink.core_build_structure
+scope: controlled flat Inport Outport Constant Gain Sum Integrator structure build update save reopen readback only
+execution_channel: matlab_batch
+validity_seconds: 86400
+business_simulation_allowed: false
+supported_blocks:
+  Inport: {source: 'simulink/Sources/In1', parameters: [Port]}
+  Outport: {source: 'simulink/Sinks/Out1', parameters: [Port]}
+  Constant: {source: 'simulink/Sources/Constant', parameters: [Value]}
+  Gain: {source: 'simulink/Math Operations/Gain', parameters: [Gain]}
+  Sum: {source: 'simulink/Math Operations/Sum', parameters: [Inputs]}
+  Integrator: {source: 'simulink/Continuous/Integrator', parameters: [InitialCondition]}
+required_functions: [new_system, load_system, add_block, add_line, set_param, get_param, find_system, save_system, close_system, bdIsLoaded, Simulink.Parameter, Simulink.fileGenControl]
+source_files:
+  - core/implementation_assurance_contract.yaml
+  - scripts/probe_implementation.py
+  - scripts/validate_implementation_profile.py
+  - scripts/validate_implementation_receipt.py
+  - scripts/run_implementation.py
+  - scripts/matlab/probe_implementation.m
+  - scripts/runtime_common.py
+  - scripts/probe_environment.py
+  - scripts/validate_environment.py
+  - core/domain_mapping.schema.yaml
+  - core/parameter_provenance.schema.yaml
+  - scripts/validate_domain_mapping.py
+  - scripts/validate_parameter_provenance.py
+  - scripts/validate_model_contract.py
+  - scripts/validate_problem_contract.py
+  - core/model_contract.schema.yaml
+  - core/model_approval_contract.yaml
+  - core/problem_contract.schema.yaml
+  - core/capability_taxonomy.yaml
+evidence:
+  input: inputs.json
+  raw: raw-implementation.json
+  log: matlab-batch.log
+  profile: implementation-profile.json
+  receipt: implementation-profile-receipt.json
+  structure_receipt: implementation-receipt.json
+qualification_cases: [static, feedback, invalid_port]
+invariants:
+  - no simulation or arbitrary MATLAB expressions
+  - new directory and owned models only
+  - no custom callbacks masks references dictionaries or base workspace model parameters
+  - profile qualified only after two successful different structures and expected bad port rejection
+  - current execution consumes independent current A and D profiles
+  - historical receipt validates qualification at execution time without current TTL expiry
+deferred: [Simscape execution, Stateflow execution, System Composer execution, other blocks, hierarchical builders, numerical verification, business simulation]
