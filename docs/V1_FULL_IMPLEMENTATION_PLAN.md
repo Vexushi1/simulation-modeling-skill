@@ -1461,7 +1461,9 @@ SIMULATION_PROTOCOL_FROZEN 要求当前完整冻结协议及有效 B/C/D 绑定�
 
 受控 solver 先实现 variable-step ode45 与 fixed-step ode4；ode15s 作为单独案例候选，只有实际 R2025b stiff 资格案例和对应断言通过才开放其操作。每种 solver 按各自实际资格裁决；某一项失败不得由其他 solver 的成功提升成 qualified，也不得自动切换 solver 或改数学模型。记录 continuous/discrete、stiffness、DAE、event/zero-crossing、algebraic loop、multirate、fixed-step、real-time/codegen 的分类、判断依据、风险与适用性，不把声明或图更新当作这些复杂能力的证明。
 
-solver 值以 typed、有界有限数据登记，记录 StartTime/StopTime、Solver/SolverType、适用的步长、容差和 zero-crossing 设置及理由。不适用参数显式 null/理由，不能给 fixed-step 填无意义容差或给 variable-step 默填固定步长。要求 start < stop、步长/容差处于对应 API 的合法范围以及适用字段一致；例如 MinStep 的合法零下限不能机械拒绝为非正值。实际运行保存有效 solver/readback，而非只回显请求。期望指标、阈值和 claim_limit 在冻结前确定，实际结果不反向修改这些条件。
+solver 值以 typed、有界有限数据登记，记录 StartTime/StopTime、Solver/SolverType、适用的步长、容差和 zero-crossing 设置及理由。不适用参数显式 null/理由，不能给 fixed-step 填无意义容差或给 variable-step 默填固定步长。要求 start < stop、步长/容差处于对应 API 的合法范围以及适用字段一致。实际运行保存有效 solver/readback，而非只回显请求。期望指标、阈值和 claim_limit 在冻结前确定，实际结果不反向修改这些条件。
+
+第二轮真实 R2025b 探测证明此前允许 MinStep=0 的审查判断错误：变量步长案例实际返回 Simulink:ConfigSet:BdInvSimParam，固定 ode4 与受控错误/早停案例则按预期通过。R2025b MinStep 文档也规定 auto 或正标量。E 当前范围使用显式有限数值，因此 variable-step 的 MinStep 必须严格为正，并与 InitialStep/MaxStep 一致；不将零暗改为 auto。先修订计划、协议与运行器共同拒绝零值，然后显式重新审查新的正值协议，保留原冻结协议和失败运行。该错误不构成 solver 或工具箱不可用的结论。
 
 独立复核补充：协议与运行器必须使用一致的时间和容差边界。R2025b StartTime 允许有限负起点，RelTol 要求正标量，没有通用的非负起点或不大于 1 限制；不能在运行器暗加这两项约束。固定步长的起点必须是步长的整数倍，以浮点表示误差范围检查，冻结前拒绝会被引擎自动调整的起点，不把这种调整当成已审查工况。StopTime 不凭空要求整数倍，但实际输出仍必须覆盖冻结终点。实际公开 SolverInfo 的名称、类型和适用的固定步长或 MaxStep 必须存在且与协议一致；缺失或矛盾不能凭配置回显通过。warning_policy=reject 同时检查实际 WarningDiagnostics 与 lastwarn 消息/标识，不能因诊断数组为空而忽略已经观测到的警告。
 
