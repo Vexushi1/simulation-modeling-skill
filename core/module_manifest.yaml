@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.5.0
+version: 0.6.0
 modules:
   environment_assurance:
     phase: A
@@ -99,16 +99,74 @@ modules:
     execution_scope: simulation_review
   parameter_identification:
     phase: F
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/05_identification_calibration_optimization.md
+    - core/parameter_study.schema.yaml
+    - core/parameter_study_assurance_contract.yaml
+    - templates/contracts/parameter_study.yaml
+    - scripts/validate_parameter_study.py
+    - scripts/parameter_study_route.py
+    - scripts/parameter_study_state.py
+    - scripts/parameter_study_common.py
+    - scripts/probe_parameter_study.py
+    - scripts/run_parameter_study.py
+    - scripts/validate_parameter_study_profile.py
+    - scripts/validate_parameter_study_receipt.py
+    - scripts/matlab/run_parameter_study.m
+    - packs/task/parameter_identification.md
+    required_operations:
+    - matlab.basic_execution
+    - identification.arx_111
+    execution_scope: parameter_trial
+    qualification_scope: bounded reviewed candidate study; adoption requires new C approval and D/E verification
   calibration:
     phase: F
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/05_identification_calibration_optimization.md
+    - core/parameter_study.schema.yaml
+    - core/parameter_study_assurance_contract.yaml
+    - templates/contracts/parameter_study.yaml
+    - scripts/validate_parameter_study.py
+    - scripts/parameter_study_route.py
+    - scripts/parameter_study_state.py
+    - scripts/parameter_study_common.py
+    - scripts/probe_parameter_study.py
+    - scripts/run_parameter_study.py
+    - scripts/validate_parameter_study_profile.py
+    - scripts/validate_parameter_study_receipt.py
+    - scripts/matlab/run_parameter_study.m
+    - packs/task/calibration.md
+    required_operations:
+    - matlab.basic_execution
+    - simulink.library_load
+    - calibration.simulink_gain
+    execution_scope: parameter_trial
+    qualification_scope: bounded reviewed candidate study; adoption requires new C approval and D/E verification
   optimization:
     phase: F
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/05_identification_calibration_optimization.md
+    - core/parameter_study.schema.yaml
+    - core/parameter_study_assurance_contract.yaml
+    - templates/contracts/parameter_study.yaml
+    - scripts/validate_parameter_study.py
+    - scripts/parameter_study_route.py
+    - scripts/parameter_study_state.py
+    - scripts/parameter_study_common.py
+    - scripts/probe_parameter_study.py
+    - scripts/run_parameter_study.py
+    - scripts/validate_parameter_study_profile.py
+    - scripts/validate_parameter_study_receipt.py
+    - scripts/matlab/run_parameter_study.m
+    - packs/task/optimization.md
+    required_operations:
+    - matlab.basic_execution
+    - optimization.quadratic_sqp
+    execution_scope: parameter_trial
+    qualification_scope: bounded reviewed candidate study; adoption requires new C approval and D/E verification
   parameter_sweep:
     phase: G
     status: deferred
@@ -196,4 +254,27 @@ modules:
     - templates/contracts/simulation_protocol.yaml
     - scripts/simulation_route.py
     - scripts/simulation_state.py
+    required_operations: []
+  parameter_study:
+    phase: F
+    status: implemented
+    resources: &id001
+    - modules/05_identification_calibration_optimization.md
+    - core/parameter_study.schema.yaml
+    - core/parameter_study_assurance_contract.yaml
+    - templates/contracts/parameter_study.yaml
+    - scripts/validate_parameter_study.py
+    - scripts/parameter_study_route.py
+    - scripts/parameter_study_state.py
+    - scripts/parameter_study_common.py
+    - scripts/probe_parameter_study.py
+    - scripts/run_parameter_study.py
+    - scripts/validate_parameter_study_profile.py
+    - scripts/validate_parameter_study_receipt.py
+    - scripts/matlab/run_parameter_study.m
+    required_operations: []
+  parameter_candidate_review:
+    phase: F
+    status: implemented
+    resources: *id001
     required_operations: []

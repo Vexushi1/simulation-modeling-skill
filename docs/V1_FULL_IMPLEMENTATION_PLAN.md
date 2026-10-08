@@ -1,11 +1,11 @@
 # Simulation Modeling Skill v1.0.0 全流程实施计划
 
-> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-08 Phase E实施前审查修订）**
+> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-08 Phase F实施前审查修订）**
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
-> 已完成阶段：A–D；D PR #5 合并基线 `91e6e1eb357511cf53562bac2055038ad68e3617`
-> 当前下一阶段：E；实施分支 `phase-e/simulation-runtime`，未通过出口前不登记为已实现
+> 已完成阶段：A–E；E PR #6 合并基线 `6c8cbbf84364c49b85dce62db15aba9b11f55e53`
+> 当前实施阶段：F；实施分支 `phase-f/parameter-studies`，未通过全部出口前不登记为阶段完成
 > 核心纪律：先冻结计划，再按阶段实施；任何阶段不得脱离本计划直接堆功能。
 
 ---
@@ -1623,6 +1623,60 @@ J
 - optimization evidence schema
 - templates
 - tests
+
+## 10.8 2026-10-08 实施前审查与初版边界
+
+用户授权继续下一阶段，先修订计划再实施及独立复核。E 已由 PR #6 合并为 main `6c8cbbf84364c49b85dce62db15aba9b11f55e53`，精确候选独立 938 项回归、实际九案例及三个项目、候选与 main 双平台 CI、合并回读均有分离记录；本机失败进程仍保留。三份独立 F 审查确认原 §10 缺少可执行合同，并与 C/D/E 的精确批准值绑定冲突。给参数覆盖贴 `trial` 标签不能产生执行权限。
+
+初版版本 0.6.0 实现以下三个独立、有限串行操作，按任务条件选择，不因工具箱安装而全部激活：
+
+- `identification.arx_111`：System Identification Toolbox 的实数稠密 SISO `iddata`/`arx`，固定阶次及单样本延迟 `[1 1 1]`、均匀采样、一阶预测损失。参数对应批准离散方程 `y[k]=a*y[k-1]+b*u[k-1]`，不自动改写为连续物理参数。训练回归矩阵实际满秩及条件数可接受；holdout 一阶预测使用其已声明的实测滞后输出，不能冒充零初态自由运行、统计独立证明或现实验证。
+- `calibration.simulink_gain`：单个实数增益 `y=k*u` 的有界 `lsqnonlin`，`trust-region-reflective`、串行残差向量；每次目标计算实际运行本次拥有的 Inport→Gain→Outport 试验模型。使用同运行环境的独立 E `ode4` 资格、固定均匀测量网格及临时根端口采样，分别核验时间、实际参数、输出、solver 和恢复；任何仿真失败、提前停止、非有限值或违反诊断政策都停止本次研究，不能替换旧输出、零残差或任意罚数。
+- `optimization.quadratic_sqp`：一至二维、正权重及正尺度的显式平方项目标、有限边界及有限线性不等式，`fmincon` 的串行 SQP。目标组成、目标值、尺度、单位及约束须来自批准数学表示和当前研究来源。独立重算目标及可行性，并记录实际终止/一阶最优性；算法收敛不自动证明全局最优。纯设计优化不虚构观测、训练/holdout 或参数可辨识性结果。
+
+任意其它表达式、高阶/非线性/非均匀采样辨识、任意六块动态模型标定、Simscape/Stateflow/System Composer、SDO/MBC、Global Optimization、并行/全局/代理/多目标路由仍 deferred。`fitlm` 是静态回归候选，本轮不把它冒充 ARX 动态辨识。若后续确实使用它，仍必须把 `statistics.fitlm` 明列为 A 必需操作。复杂模型的候选与失效证据可以保留为草稿，不伪造可执行性。
+
+实施中独立审查补充：三个受限内核不消费额外 C 初始/边界协议。被选择的 C 模型初始条件和边界条件必须明确为 `not_applicable`；ARX 仅由声明数据中的实测 lag 条件化。存在 specified、未知或其它非适用状态时保留研究草稿并阻断 trial，不得静默丢弃批准条件或改作自由运行。扩展条件支持需另行设计与资格。
+
+## 10.9 独立研究与试验权限
+
+新增 `core/parameter_study.schema.yaml`、模块 05、三个按需 task packs、合法未知草稿模板及只读 validator。研究区分 `draft` 与 `reviewed`，绑定项目、当前 frozen B 与完整 approved C、design/model/参数变量身份、实际来源、方法/精确方程及变量映射、候选参数单位与来源角色、初始化/边界、数据选择、loss/weights、诊断及预算、先验标准、适用性与可辨识性限制。已有 given/derived 值不能被当作未知待估参数或设计变量；准许的目标必须是当前 C 中明确提出 identified/calibrated/optimized/assumed 且具相应研究计划的参数。不要求未知参数先有 D build_ready 或 E primary_ready，也不填默认值。
+
+研究审查决定绑定完整语义 digest、当前研究文件/来源及明确的 `action=review`；合法草稿保留未知，完整的 source-backed review 才允许该限定 trial。实际 C 人员批准是独立必要上游，F 研究审查不能代替它。研究可显式登记经来源支持的 finite 初值，不写回 C。执行只在新目录、新进程及本次拥有的模型内做已审查范围的有限候选；此 F 构造/覆盖权限仅属于已独立资格化的增益试验内核，不能开放 D 构建或 E primary 参数覆盖。
+
+所有 F 产物是 candidate/trial。结果写入新的建议及原始证据，validator/resolver 从不修改 C、locked specification、D 参数/SLX、E 协议或项目状态。候选正式采纳必须由显式调用者准备当前新 C 设计/Brief 和实际人员批准，随后重新取得 D 实现、最终 E 冻结/主运行及后续 H 验证。F 完成不能记录 PRIMARY_RUN_COMPLETE、EVIDENCE_ACCEPTED、数值验证、真实系统有效或论文接受。
+
+## 10.10 数据、可辨识性、目标与预算
+
+辨识/标定使用有限实数 CSV 的明确列、单位、时间列与半开数据行范围，绑定当前 B/C 登记的实际来源 path/SHA 和数据角色。至少登记训练/标定与 holdout 两个选择；检查同路径、相同原始字节副本及原始行范围的重叠，不随机打乱时序，不自行插值/重采样或清洗缺失值。ARX 的 lag 范围也计入来源使用，训练与 holdout 不共用原始行。角色及范围闭合只能检查声明与可见重叠，不能认证真实统计独立性。
+
+ARX 实际检查 `[y[k-1],u[k-1]]` 的秩及条件数，登记固定阶次、采样延迟、训练/预测 residual 和指标限制。增益标定实际检查输入激励不全为零、有限权重、参数范围与初值；heldout 仅在候选确定后评估，不能影响目标/参数选择。记录 identifiability 的具体依据与限制，不能从低拟合损失推断任意模型参数唯一。
+
+优化须显式说明每个目标平方项的物理/任务含义、中心、尺度、单位、权重和线性约束；不只写“最小误差”。预算包含有限迭代/目标调用数、总进程和单次仿真超时。全部目标调用按顺序保留实际 theta、残差/目标、实际输出、错误、终止与计数；失败调用与预算终止不能丢弃或改为最优结果。
+实际 R2025b 资格审查补充：受控 `lsqnonlin` trust-region-reflective 将配置 `MaxIterations=0/1` 分别报告为 `output.iterations=1/2`，因此直接把研究上限透传为 solver 设置会越过研究的实际计数预算。研究 `max_iterations` 仍约束原样记录的实际 `output.iterations`；本受限增益内核保守配置 `MaxIterations=max(0,max_iterations-1)`，不修改原始返回计数，也不放宽消费者。原有迭代/目标调用上限与负例继续严格检查，新的当前源码资格须实际覆盖正例和预算终止。该转换仅属于强目标 R2025b 的已测增益内核，不能推广到 SQP 或其它未资格化算法。保留所有旧源码与失败证据。正 exitflag、有限值、边界/约束、先验标准和实际诊断分别检查。候选输出不带“全局最优”“现实有效”或数值收敛接受旗标。
+
+## 10.11 操作资格及回执
+
+新增独立 `core/parameter_study_assurance_contract.yaml`、原生 MATLAB producer、Python qualification/study runners、profile 与 trial receipt 的只读消费者。按每个 operation 分开记录实际函数解析、产品/许可证诊断、调用、数值断言与 qualified；某个操作成功不能使其它操作 qualified。产品安装/原有 A 统计烟雾资格不能替代 ARX、优化算法或实际 Simulink 标定组合资格。原生 raw、process、log、MAT v7 数值及规范化 JSON/receipt 分别绑定；MAT MATLAB 类/实数/形状及精确数值必须独立核对，不以默认紧凑存储 dtype 误判 MATLAB double，也不吞 complex。
+
+新 trial 要求当前同宿主/runtime/channel 的 A 与所选独立 F operation；增益标定另要求当前同 runtime E `ode4`。A 所需项取方法、研究及调用者的并集，必需项缺失/失败在启动 MATLAB 或创建产物目录前阻断。历史回执消费执行时资格及现时不可变源/数据/产物身份，当前 TTL 只控制新执行。默认时效 24 小时，未来时间、身份变化、异常/未完成进程、非零退出及字节变化均不得 qualified。某分支失败的诊断保留，不能用整体核心 green 放行。
+
+资格至少实际执行：已知离散递推 ARX 与不同 holdout；已知增益真实 Simulink+lsqnonlin 及 heldout；已知受约束二维平方目标 fmincon；秩不足、标定仿真错误、预算终止和非法设置的正常拒绝。预设独立解析/线性代数真值及判据；负例预期通过不计为成功候选。项目 study 生产与合成 qualification 分开；手填成功标志和测试 factory 不是真实资格。
+
+实际失败证据审查补充：原生 JSON checkpoint 必须先完成编码，再向同目录唯一临时文件写入完整 UTF-8 字节，检查写入长度和关闭结果，最后检查目标文件替换成功；目标不能是目录。先截断旧报告再编码会在编码错误或原生退出时丢失已完成的 cases/ledger，已由保留的失败进程定位此顺序风险。失败时保留上一次完整 running 报告和临时/部分 MAT，不伪造 completed，也不放宽 process/status/source Gate。这是受控写入顺序与证据保全要求，不宣称跨平台替换或物理断电的绝对耐久性。修复后必须重新取得最终源码的 F 资格、研究试验和独立复核；旧源码回归和失败记录分别保留。
+## 10.12 路由、状态、来源保护及失效
+
+增加参数研究文字入口、parameter_identification/calibration/optimization 条件执行及候选只读复核；每次只加载相应方法的合同/module/pack。独立 `parameter_study` state scope 检查 B/C/F、历史候选及其 accepted-trial 依赖；文字范围不评估当前 runtime，all 范围另核验相应新执行 readiness。新增 PARAMETER_STUDY_REVIEWED 与 PARAMETER_CANDIDATE_COMPLETE 属于 C→F→新 C 采纳的可选分支，不插入所有项目的必经主状态链。仅显式调用者写入状态，当前研究/来源/review/候选回执缺失或改变传播依赖失效，较早范围留下 F unassessed。
+
+保持 A 七个 source identity 文件、B schema/validator 与 D 十九个 source-bound 文件逐字节不变，包括已有 taxonomy（其中 F 名称已登记，不需要增加第二套 taxonomy）。为接入 F 修改共享 bootstrap/router/manifest/state/output/resolver 会使原 E critical-source identity 失效。必须保留旧 E 资格/运行历史，显式记录为旧源码；最终 F 源码重新取得 E 九案例及其当前资格下的三个真实项目回执，再用于新执行和合并回读。不能通过放宽 E source closure 或沿用旧绿色回执绕过。
+
+当前 B/C 是保守完整内容绑定：研究数据一旦改变，也可能使当前 C 和下游全部 stale；本轮不宣称已实现 §18 的细粒度 validation-only 失效图。F review/status/candidate hash 是证据身份，不是人类认证、数学等价或现实独立性证明。
+
+## 10.13 开发出口
+
+退出项：parameter_study_checks、review_and_candidate_binding、data_split_and_identifiability、native_method_qualification、trial_receipt_and_numeric_outputs、required_operation_propagation、parameter_route_and_state、source_and_stale_checks、upstream_compatibility_and_authority、authority_and_indexes。覆盖合法未知草稿、approved null 参数、未经批准/审查、错误符号/关系/来源/单位、数据泄漏与 rank 不足、非法 bounds/预算/目标、原生错误/提前停止/不收敛/预算耗尽、缺失或被篡改输出、时效与历史分离、缺失回执的 accepted-trial stale、部分状态范围及无写入。所有 A–E 回归必需，不能删旧测试来迁就新能力。
+
+正式阶段完成要求精确最终 commit 独立审查、从最少原始材料进入流程的独立行为测试、最终源版本真实 F 方法及单研究试验、源版本对应 E 重新资格/三项目、Windows/Ubuntu CI、单主题 PR、合并及 main 实际回读与 CI。正常/失败记录和声明范围全部保留。所有开发 decision-shaped 记录明确 SYNTHETIC INFRASTRUCTURE TEST，不冒充真实用户模型批准、现实测量、数值验证、全局最优或论文接受。G–K 不开放；本阶段不创建 Release/tag 或安装技能。
 
 ---
 

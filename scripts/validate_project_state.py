@@ -7,6 +7,8 @@ from pathlib import Path
 from runtime_common import contained_path, emit, load_contract, load_document, schema_errors, sha256_file
 from simulation_state import STAGES as E_STAGES, HISTORICAL_ROLES as E_HISTORICAL_ROLES, CURRENT_ROLES as E_CURRENT_ROLES
 
+from parameter_study_state import STAGES as F_STAGES, HISTORICAL_ROLES as F_HISTORICAL_ROLES, CURRENT_ROLES as F_CURRENT_ROLES
+
 D_EVIDENCE_ROLES = {"mapping_contract", "parameter_provenance", "implementation_model", "structure_evidence"}
 
 
@@ -22,6 +24,7 @@ def affected_artefacts(artefacts: list[dict], changed_ids: set[str]) -> set[str]
 def validate_project_state(state_path: Path, *, profile_path: Path | None = None,
                            implementation_profile_path: Path | None = None,
                            simulation_profile_path: Path | None = None,
+                           parameter_study_profile_path: Path | None = None,
                            scope: str = "all") -> dict:
     """Partial scopes validate only declared evidence, never the whole project."""
     errors = []
@@ -33,14 +36,15 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
               "stage_assessment": {"all": "all_implemented_evidence", "problem": "problem_only",
                                    "model": "problem_and_model_only",
                                    "implementation": "problem_model_and_implementation_only",
-                                   "simulation": "problem_model_implementation_and_simulation_only"}.get(scope),
+                                   "simulation": "problem_model_implementation_and_simulation_only",
+                                   "parameter_study": "problem_model_and_parameter_study_only"}.get(scope),
               "problem_path": None, "problem_contract_sha256": None,
               "model_path": None, "model_contract_sha256": None,
               "approval_path": None, "approval_sha256": None, "model_approved": False,
               "mapping_path": None, "mapping_contract_sha256": None,
               "environment_path": None, "implementation_environment_path": None,
               "project_root": None}
-    if scope not in ("all", "problem", "model", "implementation", "simulation"):
+    if scope not in ("all", "problem", "model", "implementation", "simulation", "parameter_study"):
         return {**result, "valid": False, "errors": [f"unknown validation scope: {scope}"],
                 "stale_artefacts": [], "current_stage": None}
     try:
@@ -106,7 +110,7 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
         bound_problem = None
         problem_report = None
         problem_status = None
-        model_stages = {"MODEL_PROPOSED", "MODEL_CHALLENGED", "MODEL_APPROVED", "IMPLEMENTATION_READY"} | E_STAGES
+        model_stages = {"MODEL_PROPOSED", "MODEL_CHALLENGED", "MODEL_APPROVED", "IMPLEMENTATION_READY"} | E_STAGES | F_STAGES
         if problem:
             from validate_problem_contract import validate_problem_contract
 
@@ -155,7 +159,7 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                 bound_model, project_root=project_root, problem_path=bound_problem,
                 approval_path=bound_approval, require_proposed=stage == "MODEL_PROPOSED",
                 require_challenged=stage == "MODEL_CHALLENGED",
-                require_approved=stage in {"MODEL_APPROVED", "IMPLEMENTATION_READY"} | E_STAGES)
+                require_approved=stage in {"MODEL_APPROVED", "IMPLEMENTATION_READY"} | E_STAGES | F_STAGES)
             result["model_validation"] = model_report
             result["model_contract_sha256"] = model_report["contract_sha256"]
             result["approval_path"] = model_report.get("approval_path")
@@ -196,7 +200,7 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                 "MODEL_APPROVED": {"approved"},
                 "IMPLEMENTATION_READY": {"approved"},
             }
-            required_statuses.update({item: {"approved"} for item in E_STAGES})
+            required_statuses.update({item: {"approved"} for item in E_STAGES | F_STAGES})
             if stage in required_statuses and model_status not in required_statuses[stage]:
                 errors.append(f"{stage} requires the corresponding declared model status")
                 stale.add("model")
@@ -241,29 +245,33 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
 
         from simulation_state import validate_bindings, validate_artifact
         validate_bindings(state, project_root, result, errors, stale, scope, simulation_profile_path)
+        from parameter_study_state import validate_bindings as validate_f_bindings, validate_artifact as validate_f_artifact
+        validate_f_bindings(state, project_root, result, errors, stale, scope, parameter_study_profile_path)
         artefacts = state["artefacts"]
         by_id = {item["id"]: item for item in artefacts}
         if len(by_id) != len(artefacts):
             errors.append("artefact IDs must be unique")
         for item in artefacts:
             contained_path(project_root, item["path"])
-        environment_ids = {"environment", "implementation_environment", "simulation_environment"} | {
+        environment_ids = {"environment", "implementation_environment", "simulation_environment", "parameter_environment"} | {
             item["id"] for item in artefacts if item["role"] in
-            ("environment_profile", "route_decision", "implementation_profile", "implementation_route_decision", "simulation_profile", "simulation_route_decision")}
+            ("environment_profile", "route_decision", "implementation_profile", "implementation_route_decision", "simulation_profile", "simulation_route_decision", "parameter_study_profile", "parameter_study_route_decision")}
         environment_dependents = affected_artefacts(artefacts, environment_ids)
         anchors = ({"environment"} if environment else set()) | ({"problem"} if problem else set())
         anchors |= ({"model"} if model else set()) | ({"approval"} if approval else set())
         anchors |= ({"mapping"} if mapping else set())
         anchors |= ({"implementation_environment"} if implementation_environment else set())
-        anchors |= {anchor for anchor in ("protocol", "primary_run", "simulation_environment") if state.get(anchor)}
+        anchors |= {anchor for anchor in ("protocol", "primary_run", "simulation_environment", "study", "parameter_trial", "parameter_environment") if state.get(anchor)}
         known = set(by_id) | anchors
         scoped_roles = {"problem_contract"}
-        if scope in {"model", "implementation", "simulation"}:
+        if scope in {"model", "implementation", "simulation", "parameter_study"}:
             scoped_roles |= {"model_contract", "model_approval"}
         if scope in {"implementation", "simulation"}:
             scoped_roles |= D_EVIDENCE_ROLES
         if scope == "simulation":
             scoped_roles |= E_HISTORICAL_ROLES
+        if scope == "parameter_study":
+            scoped_roles |= F_HISTORICAL_ROLES
         checked_ids = set(by_id) if scope == "all" else {
             item["id"] for item in artefacts if item["role"] in scoped_roles}
         if scope != "all":
@@ -409,6 +417,15 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                         errors.extend(f"{item['id']}: {error}" for error in invalid)
                         stale.add(item["id"])
                     continue
+                if item["role"] in F_HISTORICAL_ROLES | F_CURRENT_ROLES:
+                    if scope != "all" and item["role"] in F_CURRENT_ROLES:
+                        continue
+                    invalid = validate_f_artifact(item, state=state, result=result, root=project_root,
+                        environment_dependents=environment_dependents, ancestor_roles=ancestor_roles)
+                    if invalid:
+                        errors.extend(f"{item['id']}: {error}" for error in invalid)
+                        stale.add(item["id"])
+                    continue
                 if item["role"] in E_HISTORICAL_ROLES | E_CURRENT_ROLES:
                     if scope != "all" and item["role"] in E_CURRENT_ROLES:
                         continue
@@ -505,6 +522,16 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
             result["primary_run_complete"] = False
         if "primary_run" in stale or any(item["id"] in stale and item["role"] in E_HISTORICAL_ROLES for item in artefacts):
             result["primary_run_complete"] = False
+        if {"study", "model", "approval", "problem"} & stale:
+            result["study_reviewed"] = False
+            result["candidate_complete"] = False
+        if "parameter_trial" in stale or any(item["id"] in stale and item["role"] in F_HISTORICAL_ROLES for item in artefacts):
+            result["candidate_complete"] = False
+        if stage in F_STAGES and scope in {"all", "parameter_study"}:
+            if not result["study_reviewed"]:
+                errors.append("reviewed parameter-study stage cannot retain stale dependencies")
+            if stage == "PARAMETER_CANDIDATE_COMPLETE" and not result["candidate_complete"]:
+                errors.append("PARAMETER_CANDIDATE_COMPLETE cannot retain stale trial dependencies")
         if stage in E_STAGES and scope in {"all", "simulation"}:
             if not result["protocol_frozen"]:
                 errors.append("frozen simulation stage cannot retain stale protocol dependencies")
@@ -531,11 +558,13 @@ def main() -> int:
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--implementation-profile", type=Path)
     parser.add_argument("--simulation-profile", type=Path)
-    parser.add_argument("--scope", choices=["all", "problem", "model", "implementation", "simulation"], default="all")
+    parser.add_argument("--parameter-study-profile", type=Path)
+    parser.add_argument("--scope", choices=["all", "problem", "model", "implementation", "simulation", "parameter_study"], default="all")
     args = parser.parse_args()
     result = validate_project_state(args.state, profile_path=args.profile,
                                     implementation_profile_path=args.implementation_profile,
-                                    simulation_profile_path=args.simulation_profile, scope=args.scope)
+                                    simulation_profile_path=args.simulation_profile,
+                                    parameter_study_profile_path=args.parameter_study_profile, scope=args.scope)
     emit(result)
     return 0 if result["valid"] else 1
 

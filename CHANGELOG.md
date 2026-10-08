@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 — Phase F parameter studies
+
+- Add source-bound draft/reviewed studies, explicit restricted mathematics, parameter provenance, data splits, bounds, budgets and candidate criteria.
+- Add independent operation qualification and native ARX [1 1 1], scalar owned Simulink-gain least squares, and bounded quadratic SQP trials with failure ledgers and MAT/JSON evidence.
+- Add read-only routes and optional B/C/F state scope; preserve approved C/D/E bytes and require new C approval for adoption.
+- Preserve A/B/D source contracts, requalify E after shared-source changes, and keep G–K deferred. Validation and merge evidence belong to the development PR.
+
+
 ## 0.5.0 — Phase E
 
 - Add reviewed frozen protocols and independently qualified normal serial core simulation with individually gated solvers.

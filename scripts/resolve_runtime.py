@@ -1,4 +1,4 @@
-"""Resolve A through E gates without writing project state."""
+"""Resolve A through F gates without writing project state."""
 from __future__ import annotations
 
 import argparse
@@ -156,7 +156,8 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
                     required_operations=None, expected_root=None, problem_path=None,
                     model_path=None, approval_path=None, mapping_path=None,
                     implementation_profile_path=None, protocol_path=None,
-                    simulation_profile_path=None, run_receipt_path=None) -> dict:
+                    simulation_profile_path=None, run_receipt_path=None, study_path=None,
+                    parameter_study_profile_path=None, parameter_trial_receipt_path=None) -> dict:
     router = load_contract("core/workflow_router.yaml")
     taxonomy = load_contract(router["capability_taxonomy"])["capabilities"]
     manifest = load_contract(router["module_manifest"])["modules"]
@@ -168,6 +169,7 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         "business_execution_allowed": False,
         "simulation_execution_allowed": False,
         "implementation_execution_allowed": False,
+        "parameter_study_execution_allowed": False,
         "execution_scope": "none",
         "activated_modules": [],
         "activated_resources": [],
@@ -214,6 +216,9 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         known_operations.add(IMPLEMENTATION_OPERATION)
     if intent == "simulation_execution":
         known_operations.add("simulink.core_simulation")
+    if intent in {"parameter_identification", "calibration", "optimization"}:
+        from parameter_study_route import OPERATIONS
+        known_operations.update(OPERATIONS)
     unknown_operations = [op for op in requested if op not in known_operations]
     if unknown_operations:
         result["errors"] = [f"unknown operation: {op}" for op in unknown_operations]
@@ -227,7 +232,8 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         scope = router["intents"].get(intent, {}).get("state_validation_scope", "all")
         state_result = validate_project_state(state_path, profile_path=profile_path,
                                               implementation_profile_path=implementation_profile_path,
-                                              simulation_profile_path=simulation_profile_path, scope=scope)
+                                              simulation_profile_path=simulation_profile_path,
+                                              parameter_study_profile_path=parameter_study_profile_path, scope=scope)
         result["state_validation"] = state_result
         if not state_result["valid"]:
             result.update(status="blocked", missing_gates=["project_state_valid"],
@@ -282,6 +288,15 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         result.update(status="inspected", activated_modules=[module_id],
                       activated_resources=list(resources))
         return result
+
+    if intent in {"parameter_study", "parameter_candidate_review", "parameter_identification", "calibration", "optimization"}:
+        from parameter_study_route import parameter_study_route
+        return parameter_study_route(result, router=router, resources=resources,
+            state_result=state_result, state_path=state_path, study_path=study_path,
+            problem_path=problem_path, model_path=model_path, approval_path=approval_path,
+            profile_path=profile_path, parameter_study_profile_path=parameter_study_profile_path,
+            simulation_profile_path=simulation_profile_path, parameter_trial_receipt_path=parameter_trial_receipt_path,
+            requested=requested, expected_root=expected_root)
 
     if intent in {"simulation_protocol", "simulation_execution", "solver_diagnostics"}:
         from simulation_route import simulation_route
@@ -461,6 +476,9 @@ def main() -> int:
     parser.add_argument("--protocol", type=Path)
     parser.add_argument("--simulation-profile", type=Path)
     parser.add_argument("--run-receipt", type=Path)
+    parser.add_argument("--study", type=Path)
+    parser.add_argument("--parameter-study-profile", type=Path)
+    parser.add_argument("--parameter-trial-receipt", type=Path)
     parser.add_argument("--require-operation", action="append", default=[])
     parser.add_argument("--matlab-root", type=Path)
     args = parser.parse_args()
@@ -471,7 +489,9 @@ def main() -> int:
                                  model_path=args.model, approval_path=args.approval, mapping_path=args.mapping,
                                  implementation_profile_path=args.implementation_profile,
                                  protocol_path=args.protocol, simulation_profile_path=args.simulation_profile,
-                                 run_receipt_path=args.run_receipt)
+                                 run_receipt_path=args.run_receipt, study_path=args.study,
+                                 parameter_study_profile_path=args.parameter_study_profile,
+                                 parameter_trial_receipt_path=args.parameter_trial_receipt)
     except (OSError, ValueError, KeyError, TypeError) as error:
         result = {"status": "blocked", "execution_allowed": False,
                   "business_execution_allowed": False, "simulation_execution_allowed": False,

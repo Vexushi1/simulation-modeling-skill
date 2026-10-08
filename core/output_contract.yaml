@@ -1,6 +1,6 @@
 schema_version: 1
-version: 0.5.0
-phase: E
+version: 0.6.0
+phase: F
 runtime_evidence:
   producer: scripts/probe_environment.py
   consumer: scripts/validate_environment.py
@@ -11,7 +11,8 @@ route_decision:
   producer: scripts/resolve_runtime.py
   output: json_stdout
   mutates_project_state: false
-  business_execution_allowed: only simulation_execution after all E gates
+  business_execution_allowed: simulation_execution or parameter_trial only after their distinct required
+    gates
 project_state:
   schema: core/project_state.schema.yaml
   validator: scripts/validate_project_state.py
@@ -36,6 +37,13 @@ project_state:
     primary_run:
     - sha256
     simulation_environment:
+    - profile_sha256
+    - receipt_sha256
+    study:
+    - sha256
+    parameter_trial:
+    - sha256
+    parameter_environment:
     - profile_sha256
     - receipt_sha256
   artefact_paths: inside_declared_project_root
@@ -183,3 +191,18 @@ simulation_evidence:
   - JSON
   - CSV
   claim_limit: PRIMARY_RUN_COMPLETE is not NUMERICALLY_VERIFIED or VALIDATED
+parameter_study:
+  schema: core/parameter_study.schema.yaml
+  consumer: scripts/validate_parameter_study.py
+  template: templates/contracts/parameter_study.yaml
+  decision: external current semantic review; never a validator-generated approval
+  trial_authority: bounded standalone candidates; no C/D/E parameter writeback
+parameter_study_evidence:
+  contract: core/parameter_study_assurance_contract.yaml
+  producer: scripts/run_parameter_study.py
+  consumer: scripts/validate_parameter_study_receipt.py
+  directory_policy: new_directory_per_invocation
+  candidate_acceptance: trial candidate only; actual adoption returns to C then D/E/H
+  primary_run_complete: false
+  numerical_verification: false
+  physical_validation: false

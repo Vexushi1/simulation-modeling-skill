@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-title: Phase A through E project state
+title: Phase A through F project state with optional parameter-study branch
 type: object
 additionalProperties: false
 required:
@@ -30,6 +30,8 @@ properties:
     - IMPLEMENTATION_READY
     - SIMULATION_PROTOCOL_FROZEN
     - PRIMARY_RUN_COMPLETE
+    - PARAMETER_STUDY_REVIEWED
+    - PARAMETER_CANDIDATE_COMPLETE
   implementation_environment:
     $ref: '#/$defs/environment_binding'
   environment:
@@ -99,6 +101,9 @@ properties:
             - protocol
             - primary_run
             - simulation_environment
+            - study
+            - parameter_trial
+            - parameter_environment
         role:
           enum:
           - environment_profile
@@ -117,6 +122,11 @@ properties:
           - simulation_run
           - simulation_output
           - simulation_route_decision
+          - parameter_study
+          - parameter_trial
+          - parameter_candidate
+          - parameter_study_profile
+          - parameter_study_route_decision
         path:
           type: string
           minLength: 1
@@ -140,6 +150,12 @@ properties:
     $ref: '#/$defs/contract_binding'
   primary_run:
     $ref: '#/$defs/contract_binding'
+  study:
+    $ref: '#/$defs/contract_binding'
+  parameter_trial:
+    $ref: '#/$defs/contract_binding'
+  parameter_environment:
+    $ref: '#/$defs/environment_binding'
 allOf:
 - if:
     properties:
@@ -161,6 +177,8 @@ allOf:
         - IMPLEMENTATION_READY
         - SIMULATION_PROTOCOL_FROZEN
         - PRIMARY_RUN_COMPLETE
+        - PARAMETER_STUDY_REVIEWED
+        - PARAMETER_CANDIDATE_COMPLETE
   then:
     required:
     - problem
@@ -177,6 +195,8 @@ allOf:
         - IMPLEMENTATION_READY
         - SIMULATION_PROTOCOL_FROZEN
         - PRIMARY_RUN_COMPLETE
+        - PARAMETER_STUDY_REVIEWED
+        - PARAMETER_CANDIDATE_COMPLETE
   then:
     required:
     - model
@@ -191,6 +211,8 @@ allOf:
         - IMPLEMENTATION_READY
         - SIMULATION_PROTOCOL_FROZEN
         - PRIMARY_RUN_COMPLETE
+        - PARAMETER_STUDY_REVIEWED
+        - PARAMETER_CANDIDATE_COMPLETE
   then:
     required:
     - approval
@@ -232,6 +254,29 @@ allOf:
     - primary_run
     properties:
       primary_run:
+        type: object
+- if:
+    properties:
+      current_stage:
+        enum:
+        - PARAMETER_STUDY_REVIEWED
+        - PARAMETER_CANDIDATE_COMPLETE
+  then:
+    required:
+    - study
+    properties:
+      study:
+        type: object
+- if:
+    properties:
+      current_stage:
+        enum:
+        - PARAMETER_CANDIDATE_COMPLETE
+  then:
+    required:
+    - parameter_trial
+    properties:
+      parameter_trial:
         type: object
 $defs:
   environment_binding:
