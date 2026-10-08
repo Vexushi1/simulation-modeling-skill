@@ -1,5 +1,5 @@
 schema_version: 1
-phase: C
+phase: D
 module_manifest: core/module_manifest.yaml
 capability_taxonomy: core/capability_taxonomy.yaml
 runtime_contract: core/runtime_assurance_contract.yaml
@@ -7,6 +7,9 @@ project_state_schema: core/project_state.schema.yaml
 problem_contract_schema: core/problem_contract.schema.yaml
 model_contract_schema: core/model_contract.schema.yaml
 model_approval_contract: core/model_approval_contract.yaml
+domain_mapping_schema: core/domain_mapping.schema.yaml
+parameter_provenance_schema: core/parameter_provenance.schema.yaml
+implementation_assurance_contract: core/implementation_assurance_contract.yaml
 
 intents:
   inspect:
@@ -68,6 +71,37 @@ intents:
       - model_challenge_review
       - model_approval_brief
     next_step: Develop and challenge the mathematical model, preserve unknown parameters and proposed checks, then request a human decision on the current brief; no implementation or numerical execution is authorized.
+  domain_mapping:
+    phase: D
+    mode: read_only
+    module: domain_mapping
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: implementation
+    required_gates:
+      - model_design_approved
+      - mapping_sources_current_if_supplied
+      - mapping_contract_valid_if_supplied
+      - implementation_state_valid_if_supplied
+    expected_artefacts: [domain_mapping_draft, parameter_provenance, mapping_review]
+    next_step: Trace the current approved mathematical design to implementation objects and preserve unresolved parameters; no native construction or simulation is authorized.
+  simulink_build:
+    phase: D
+    mode: implementation_only
+    module: simulink_build
+    profile_required: true
+    implementation_profile_required: true
+    execution_allowed: true
+    state_validation_scope: implementation
+    required_gates:
+      - model_design_approved
+      - mapping_contract_build_ready
+      - capability_profile_current
+      - implementation_profile_current
+      - simulink_core_build_structure_qualified
+      - implementation_state_valid_if_supplied
+    expected_artefacts: [implementation_receipt, implementation_model, structure_report, process_log]
+    next_step: Build only the declared supported core Simulink structure in a new directory and capture actual save/reopen/update evidence; do not run simulation.
 
 operation_selection:
   defaults_from: module_manifest.modules.environment_assurance.required_operations
@@ -92,7 +126,7 @@ future_capabilities:
     H: [accepted_simulation_evidence]
     I: [accepted_verification_evidence, validation_target_approved]
     J: [accepted_claim_evidence, evidence_package_valid]
-  next_step_template: Complete the implementation and reviewed exit gates for Phase {phase}; the current Phase A/B/C router grants no business execution permission.
+  next_step_template: Complete the implementation and reviewed exit gates for Phase {phase}; the current Phase A/B/C/D router grants no simulation or business execution permission.
 
 fallback:
   missing_or_stale_profile:
@@ -114,6 +148,12 @@ fallback:
   model_contract_invalid:
     action: review_model_sources_and_design
     reason: Re-read the frozen problem and design sources, repair the mathematical design and exact bindings, and preserve pending or blocked reviews. Do not generate a human approval or lock a model without an actual decision.
+  mapping_contract_invalid:
+    action: review_mapping_and_parameter_bindings
+    reason: Review the current approved design, trace coverage, parameters and implementation evidence; preserve unknown values and return to model design when mathematical semantics change.
+  implementation_profile_invalid:
+    action: reprobe_supported_implementation_operations
+    reason: Obtain current independent qualification for the declared core build/structure operation on the same A-qualified R2025b runtime; library loading does not qualify construction.
 
 invariants:
   - inspect_never_grants_execution_or_advances_state
@@ -130,4 +170,9 @@ invariants:
   - model_design_requires_current_frozen_problem_without_runtime_permission
   - model_scope_does_not_assess_environment_and_problem_scope_does_not_assess_model
   - human_model_approval_is_never_generated_by_a_validator_or_resolver
-  - model_approval_never_activates_deferred_implementation_or_execution
+  - model_approval_alone_never_grants_native_or_simulation_execution
+  - domain_mapping_requires_current_model_approval_without_runtime_permission
+  - implementation_scope_assesses_b_c_d_without_current_environment_permission
+  - native_build_requires_current_a_and_d_profiles_and_supported_mapping
+  - implementation_execution_never_grants_simulation_or_business_permission
+  - historical_structure_evidence_is_not_expired_by_current_runtime_ttl

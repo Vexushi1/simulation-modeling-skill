@@ -1,7 +1,7 @@
 schema_version: 1
 name: simulation-modeling-skill
-version: 0.3.0
-status: phase_c_implementation
+version: 0.4.0
+status: phase_d_implementation
 primary_runtime:
   product: MATLAB
   release: R2025b
@@ -19,24 +19,30 @@ paper_strategy:
   mode: delegate_when_available
   preferred_authority: Vexushi1/mathmodel-skill
 active_authorities:
-  - SKILL.md
-  - core/bootstrap.yaml
-  - core/runtime_assurance_contract.yaml
-  - core/workflow_router.yaml
-  - core/module_manifest.yaml
-  - core/project_state.schema.yaml
-  - core/output_contract.yaml
-  - core/capability_profile.schema.yaml
-  - core/problem_contract.schema.yaml
-  - modules/01_problem_audit.md
-  - core/model_contract.schema.yaml
-  - core/model_approval_contract.yaml
-  - modules/02_model_design.md
-  - docs/V1_FULL_IMPLEMENTATION_PLAN.md
-  - docs/CANONICAL_ARCHITECTURE.md
-  - docs/V1_IMPLEMENTATION_ROADMAP.md
-  - core/environment_baseline.yaml
-  - core/capability_taxonomy.yaml
-  - core/upstream_integration_policy.md
-  - DEVELOPMENT_GOVERNANCE.md
-  - AGENTS.md
+- SKILL.md
+- core/bootstrap.yaml
+- core/runtime_assurance_contract.yaml
+- core/workflow_router.yaml
+- core/module_manifest.yaml
+- core/project_state.schema.yaml
+- core/output_contract.yaml
+- core/capability_profile.schema.yaml
+- core/problem_contract.schema.yaml
+- modules/01_problem_audit.md
+- core/model_contract.schema.yaml
+- core/model_approval_contract.yaml
+- modules/02_model_design.md
+- docs/V1_FULL_IMPLEMENTATION_PLAN.md
+- docs/CANONICAL_ARCHITECTURE.md
+- docs/V1_IMPLEMENTATION_ROADMAP.md
+- core/environment_baseline.yaml
+- core/capability_taxonomy.yaml
+- core/upstream_integration_policy.md
+- DEVELOPMENT_GOVERNANCE.md
+- AGENTS.md
+- core/domain_mapping.schema.yaml
+- core/parameter_provenance.schema.yaml
+- core/implementation_assurance_contract.yaml
+- modules/03_domain_mapping.md
+- adapters/mathworks/skill_mapping.yaml
+- adapters/mathworks/compatibility.yaml

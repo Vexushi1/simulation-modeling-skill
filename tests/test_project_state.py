@@ -73,13 +73,18 @@ def test_accepted_profile_and_route_bind_the_same_environment(tmp_path):
 
 
 @pytest.mark.parametrize("mutation", ["business_permission", "different_profile", "deferred", "missing_core", "unknown_operation",
-                                     "business_module", "upstream_skill", "missing_gate", "state_mutation"])
+                                     "business_module", "upstream_skill", "missing_gate", "state_mutation",
+                                     "implementation_permission", "simulation_permission"])
 def test_accepted_route_cannot_claim_unbound_or_business_qualification(tmp_path, mutation):
     profile = make_profile(tmp_path)
     path = write_route(tmp_path, profile)
     route = json.loads(path.read_text())
     if mutation == "business_permission":
         route["business_execution_allowed"] = True
+    elif mutation == "implementation_permission":
+        route["implementation_execution_allowed"] = True
+    elif mutation == "simulation_permission":
+        route["simulation_execution_allowed"] = True
     elif mutation == "different_profile":
         route["profile_sha256"] = "0" * 64
     elif mutation == "deferred":
@@ -112,6 +117,17 @@ def test_accepted_evidence_requires_dependency_and_current_file(tmp_path):
     path.write_text("{}", encoding="utf-8")
     result = validate_project_state(state)
     assert not result["valid"] and "route" in result["stale_artefacts"]
+
+
+def test_pre_d_environment_route_without_new_false_permissions_remains_valid(tmp_path):
+    profile = make_profile(tmp_path)
+    path = write_route(tmp_path, profile)
+    route = json.loads(path.read_text())
+    route.pop("implementation_execution_allowed")
+    route.pop("simulation_execution_allowed")
+    path.write_text(json.dumps(route), encoding="utf-8")
+    state = write_state(tmp_path, profile=profile, artefacts=[artifact(path, tmp_path)])
+    assert validate_project_state(state)["valid"]
 
 
 @pytest.mark.parametrize("status", ["draft", "stale", "accepted"])

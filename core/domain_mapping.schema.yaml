@@ -1,0 +1,163 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Phase D mathematical to engineering implementation mapping
+type: object
+additionalProperties: false
+required: [schema_version, project_id, status, model, parameters, sources, targets, reviews, implementation]
+properties:
+  schema_version: {const: 1}
+  project_id: {$ref: '#/$defs/id'}
+  status: {enum: [draft, mapped, ready]}
+  model: {$ref: '#/$defs/nullable_file'}
+  parameters: {$ref: '#/$defs/nullable_file'}
+  sources:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, path, sha256, purpose]
+      properties:
+        id: {$ref: '#/$defs/id'}
+        path: {$ref: '#/$defs/text'}
+        sha256: {$ref: '#/$defs/sha'}
+        purpose: {$ref: '#/$defs/text'}
+  targets: {type: array, items: {$ref: '#/$defs/target'}}
+  reviews:
+    type: object
+    additionalProperties: false
+    required: [mathematical_semantics, interfaces_units, initial_boundary_events, scope_and_defaults]
+    properties:
+      mathematical_semantics: {$ref: '#/$defs/review'}
+      interfaces_units: {$ref: '#/$defs/review'}
+      initial_boundary_events: {$ref: '#/$defs/review'}
+      scope_and_defaults: {$ref: '#/$defs/review'}
+  implementation: {$ref: '#/$defs/nullable_file'}
+$defs:
+  id: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'}
+  text: {type: string, pattern: '\S'}
+  sha: {type: string, pattern: '^[a-f0-9]{64}$'}
+  file:
+    type: object
+    additionalProperties: false
+    required: [path, sha256]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+  nullable_file:
+    anyOf:
+      - {type: 'null'}
+      - {$ref: '#/$defs/file'}
+  reference:
+    type: object
+    additionalProperties: false
+    required: [design_id, model_id, variable_id]
+    properties:
+      design_id: {$ref: '#/$defs/id'}
+      model_id: {$ref: '#/$defs/id'}
+      variable_id: {$ref: '#/$defs/id'}
+  value_reference:
+    type: object
+    additionalProperties: false
+    required: [design_id, model_id, field, selector]
+    properties:
+      design_id: {$ref: '#/$defs/id'}
+      model_id: {$ref: '#/$defs/id'}
+      field: {enum: [initial_conditions, boundary_conditions]}
+      selector:
+        type: array
+        items:
+          oneOf:
+            - {$ref: '#/$defs/text'}
+            - {type: integer, minimum: 0}
+  binding:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        required: [parameter_ref]
+        properties:
+          parameter_ref: {$ref: '#/$defs/reference'}
+      - type: object
+        additionalProperties: false
+        required: [value_ref]
+        properties:
+          value_ref: {$ref: '#/$defs/value_reference'}
+      - type: object
+        additionalProperties: false
+        required: [setting]
+        properties:
+          setting:
+            type: object
+            additionalProperties: false
+            required: [kind, value]
+            properties:
+              kind: {enum: [enum, port]}
+              value: {type: [string, integer]}
+  block:
+    type: object
+    additionalProperties: false
+    required: [id, path, type, purpose, parameters]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      path: {$ref: '#/$defs/text'}
+      type: {$ref: '#/$defs/text'}
+      purpose: {$ref: '#/$defs/text'}
+      parameters:
+        type: object
+        additionalProperties: {$ref: '#/$defs/binding'}
+  endpoint:
+    type: object
+    additionalProperties: false
+    required: [block_id, port]
+    properties:
+      block_id: {$ref: '#/$defs/id'}
+      port: {type: integer, minimum: 1}
+  connection:
+    type: object
+    additionalProperties: false
+    required: [source, destination]
+    properties:
+      source: {$ref: '#/$defs/endpoint'}
+      destination: {$ref: '#/$defs/endpoint'}
+  trace:
+    type: object
+    additionalProperties: false
+    required: [kind, subject_id, block_ids, disposition, reason]
+    properties:
+      kind: {enum: [relation, variable, input, output, initial_conditions, boundary_conditions, mechanism, assumption]}
+      subject_id: {type: [string, 'null']}
+      block_ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+      disposition: {enum: [mapped, not_applicable]}
+      reason: {$ref: '#/$defs/text'}
+  review:
+    type: object
+    additionalProperties: false
+    required: [status, conclusion, reason, source_ids]
+    properties:
+      status: {enum: [reviewed, pending, blocked, not_applicable]}
+      conclusion: {$ref: '#/$defs/text'}
+      reason: {$ref: '#/$defs/text'}
+      source_ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+  domain: {enum: [simulink, simscape, stateflow, system_composer, matlab]}
+  target:
+    type: object
+    additionalProperties: false
+    required: [id, design_id, model_id, domain, reason, alternatives, coupling, model_name, blocks, connections, traces]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      design_id: {$ref: '#/$defs/id'}
+      model_id: {$ref: '#/$defs/id'}
+      domain: {$ref: '#/$defs/domain'}
+      reason: {$ref: '#/$defs/text'}
+      alternatives:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [domain, reason]
+          properties:
+            domain: {$ref: '#/$defs/domain'}
+            reason: {$ref: '#/$defs/text'}
+      coupling: {$ref: '#/$defs/text'}
+      model_name: {type: string, pattern: '^[A-Za-z][A-Za-z0-9_]{0,62}$'}
+      blocks: {type: array, items: {$ref: '#/$defs/block'}}
+      connections: {type: array, items: {$ref: '#/$defs/connection'}}
+      traces: {type: array, items: {$ref: '#/$defs/trace'}}

@@ -1,4 +1,4 @@
-"""Resolve Phase A/B/C intents without writing files or granting business execution."""
+"""Resolve A/B/C/D gates without writing state or granting simulation permission."""
 from __future__ import annotations
 
 import argparse
@@ -6,10 +6,156 @@ from pathlib import Path
 
 from runtime_common import ROOT, emit, load_contract, load_document
 
+IMPLEMENTATION_OPERATION = "simulink.core_build_structure"
+
+
+def _implementation_route(result, *, router, module_id, resources, state_result, state_path,
+                          profile_path, implementation_profile_path, problem_path, model_path,
+                          approval_path, mapping_path, requested, expected_root):
+    """Text review and native construction have separate evidence and permissions."""
+    intent = result["intent"]
+    fallback = router["fallback"]["mapping_contract_invalid"]
+    if intent == "domain_mapping":
+        result.update(execution_scope="domain_mapping", activated_modules=[module_id],
+                      activated_resources=list(resources))
+
+    def block(gates, errors, *, selected_fallback=None):
+        selected_fallback = selected_fallback or fallback
+        result.update(status="blocked", missing_gates=gates, errors=errors,
+                      fallback=selected_fallback, next_step=selected_fallback["reason"])
+        return result
+
+    selected = {}
+    for supplied, label in ((problem_path, "problem"), (model_path, "model"),
+                            (approval_path, "approval"), (mapping_path, "mapping")):
+        bound = state_result.get(f"{label}_path") if state_result else None
+        if bound and supplied is not None and Path(supplied).resolve() != Path(bound):
+            return block([f"{label}_state_binding_matches"],
+                         [f"requested {label} differs from project-state binding"])
+        selected[label] = supplied if supplied is not None else bound
+    project_root = state_result.get("project_root") if state_result else None
+    mapping_report = None
+    if selected["mapping"] is not None:
+        from validate_domain_mapping import validate_domain_mapping
+
+        mapping_report = validate_domain_mapping(selected["mapping"], project_root=project_root)
+        result.update(mapping_validation=mapping_report,
+                      mapping_path=str(Path(selected["mapping"]).resolve()),
+                      mapping_contract_sha256=mapping_report["contract_sha256"],
+                      mapping_semantic_sha256=mapping_report.get("semantic_sha256"),
+                      parameters_sha256=mapping_report.get("parameters_sha256"),
+                      build_spec_sha256=mapping_report.get("build_spec_sha256"))
+        if not mapping_report["valid"]:
+            return block(mapping_report["missing_gates"] or ["mapping_contract_valid"],
+                         mapping_report["errors"] or ["mapping contract is invalid"])
+        mapped_model = mapping_report.get("model_path")
+        if mapped_model:
+            if selected["model"] is not None and Path(selected["model"]).resolve() != Path(mapped_model):
+                return block(["model_mapping_binding_matches"],
+                             ["requested model differs from the mapping binding"])
+            selected["model"] = mapped_model
+    if selected["model"] is None:
+        return block(["model_design_approved"], ["D requires the current complete approved model contract"],
+                     selected_fallback=router["fallback"]["model_contract_invalid"])
+    from validate_model_contract import validate_model_contract
+
+    model_report = validate_model_contract(
+        selected["model"], project_root=project_root, problem_path=selected["problem"],
+        approval_path=selected["approval"], require_approved=True)
+    result.update(model_validation=model_report,
+                  model_contract_sha256=model_report["contract_sha256"],
+                  model_approval_sha256=model_report.get("approval_sha256"),
+                  problem_contract_sha256=model_report.get("problem_sha256"))
+    if "problem_validation" in model_report:
+        result["problem_validation"] = model_report["problem_validation"]
+    if not model_report["valid"] or not model_report["approved"]:
+        return block(["model_design_approved"], model_report["errors"] or ["current human model approval is missing"],
+                     selected_fallback=router["fallback"]["model_contract_invalid"])
+    if state_path is not None and model_report["project_id"] != load_document(Path(state_path))["project_id"]:
+        return block(["model_project_id_matches"], ["model project_id differs from project state"])
+    if mapping_report is not None:
+        if (mapping_report["project_id"] != model_report["project_id"] or
+                (mapping_report.get("model_path") and
+                 mapping_report.get("model_sha256") != model_report["contract_sha256"])):
+            return block(["mapping_model_binding_matches"], ["mapping differs from the current approved model identity"])
+    if intent == "domain_mapping":
+        if mapping_report is None:
+            result.update(status="allowed", missing_gates=["mapping_contract_supplied", "mapping_complete"],
+                          next_step="Prepare a mapping and parameter draft from the current approved design; preserve unknown values and unsupported domains.")
+        else:
+            result.update(status="inspected", missing_gates=list(mapping_report["missing_gates"]))
+        return result
+    if mapping_report is None or not mapping_report["build_ready"]:
+        missing = ["mapping_contract_build_ready"]
+        if mapping_report is not None:
+            missing += list(mapping_report["missing_gates"])
+        return block(list(dict.fromkeys(missing)),
+                     ["native construction requires a complete mapping within the supported core block and parameter scope"])
+
+    # A and D qualification are independent; neither can replace the other.
+    selected_profiles = {}
+    for supplied, label in ((profile_path, "environment"),
+                            (implementation_profile_path, "implementation_environment")):
+        bound = state_result.get(f"{label}_path") if state_result else None
+        if bound and supplied is not None and Path(supplied).resolve() != Path(bound):
+            return block([f"{label}_state_binding_matches"],
+                         [f"requested {label} profile differs from project-state binding"])
+        selected_profiles[label] = supplied if supplied is not None else bound
+    profile_path = selected_profiles["environment"]
+    implementation_profile_path = selected_profiles["implementation_environment"]
+    operations = list(dict.fromkeys(load_contract("core/runtime_assurance_contract.yaml")["core_operations"]
+                                   + [IMPLEMENTATION_OPERATION] + requested))
+    result["selected_operations"] = operations
+    if profile_path is None:
+        return block(["capability_profile_current"], ["a current A runtime profile is required for native construction"],
+                     selected_fallback=router["fallback"]["missing_or_stale_profile"])
+    from validate_environment import _path, validate_environment
+
+    assurance = validate_environment(profile_path, expected_root=expected_root,
+                                     required_operations=[op for op in operations if op != IMPLEMENTATION_OPERATION])
+    result["environment_validation"] = assurance
+    if not (assurance["valid"] and assurance["runtime_assured"] and assurance["profile_current"]):
+        return block(["capability_profile_current", "requested_operations_qualified"], assurance["errors"],
+                     selected_fallback=router["fallback"]["missing_or_stale_profile"])
+    if implementation_profile_path is None:
+        return block(["implementation_profile_current"], ["the independent D operation profile is required"],
+                     selected_fallback=router["fallback"]["implementation_profile_invalid"])
+    from validate_implementation_profile import validate_implementation_profile
+
+    native = validate_implementation_profile(implementation_profile_path, expected_root=expected_root)
+    result["implementation_environment_validation"] = native
+    if not (native["valid"] and native["profile_current"] and native["implementation_assured"] and
+            IMPLEMENTATION_OPERATION in native["qualified_operations"]):
+        return block(["implementation_profile_current", "simulink_core_build_structure_qualified"], native["errors"],
+                     selected_fallback=router["fallback"]["implementation_profile_invalid"])
+    runtime_fields = ("release", "version", "matlabroot", "executable", "executable_sha256",
+                      "version_file_sha256", "platform")
+    a_runtime = load_document(Path(profile_path))["runtime"]
+    if any((_path(a_runtime[key]) != _path(native["runtime"][key])
+            if key in {"matlabroot", "executable"} else a_runtime.get(key) != native["runtime"].get(key))
+           for key in runtime_fields):
+        return block(["implementation_runtime_matches"], ["A and D profiles describe different runtime installations"],
+                     selected_fallback=router["fallback"]["implementation_profile_invalid"])
+    if state_path is not None:
+        state = load_document(Path(state_path))
+        for label, validation in (("environment", assurance), ("implementation_environment", native)):
+            binding = state.get(label)
+            if binding and any(binding[key] != validation.get(key) for key in ("profile_sha256", "receipt_sha256")):
+                return block([f"{label}_state_binding_matches"], [f"{label} evidence differs from project-state SHA bindings"])
+    result.update(status="allowed", missing_gates=[], execution_allowed=True,
+                  implementation_execution_allowed=True, execution_scope="implementation_execution",
+                  activated_modules=[module_id], activated_resources=list(resources),
+                  profile_sha256=assurance["profile_sha256"], receipt_sha256=assurance["receipt_sha256"],
+                  implementation_profile_path=str(Path(implementation_profile_path).resolve()),
+                  implementation_profile_sha256=native["profile_sha256"],
+                  implementation_receipt_sha256=native["receipt_sha256"])
+    return result
+
 
 def resolve_runtime(intent, *, profile_path=None, state_path=None,
                     required_operations=None, expected_root=None, problem_path=None,
-                    model_path=None, approval_path=None) -> dict:
+                    model_path=None, approval_path=None, mapping_path=None,
+                    implementation_profile_path=None) -> dict:
     router = load_contract("core/workflow_router.yaml")
     taxonomy = load_contract(router["capability_taxonomy"])["capabilities"]
     manifest = load_contract(router["module_manifest"])["modules"]
@@ -19,6 +165,8 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         "status": "invalid",
         "execution_allowed": False,
         "business_execution_allowed": False,
+        "simulation_execution_allowed": False,
+        "implementation_execution_allowed": False,
         "execution_scope": "none",
         "activated_modules": [],
         "activated_resources": [],
@@ -37,10 +185,20 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         "problem_contract_sha256": None,
         "model_contract_sha256": None,
         "model_approval_sha256": None,
+        "mapping_path": None,
+        "mapping_contract_sha256": None,
+        "mapping_semantic_sha256": None,
+        "parameters_sha256": None,
+        "build_spec_sha256": None,
+        "implementation_profile_path": None,
+        "implementation_profile_sha256": None,
+        "implementation_receipt_sha256": None,
     }
     if not isinstance(intent, str) or (intent not in router["intents"] and intent not in taxonomy):
         result["errors"] = [f"unknown intent: {intent}"]
         return result
+    result["phase"] = (router["intents"][intent].get("phase", "A")
+                       if intent in router["intents"] else taxonomy[intent]["phase"])
 
     if required_operations is not None and (
         not isinstance(required_operations, (list, tuple)) or
@@ -50,8 +208,10 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         return result
     requested = list(required_operations or [])
     runtime_contract = load_contract(router["runtime_contract"])
-    unknown_operations = [op for op in requested
-                          if not isinstance(op, str) or op not in runtime_contract["operations"]]
+    known_operations = set(runtime_contract["operations"])
+    if intent == "simulink_build":
+        known_operations.add(IMPLEMENTATION_OPERATION)
+    unknown_operations = [op for op in requested if op not in known_operations]
     if unknown_operations:
         result["errors"] = [f"unknown operation: {op}" for op in unknown_operations]
         return result
@@ -62,7 +222,8 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         from validate_project_state import validate_project_state
 
         scope = router["intents"].get(intent, {}).get("state_validation_scope", "all")
-        state_result = validate_project_state(state_path, profile_path=profile_path, scope=scope)
+        state_result = validate_project_state(state_path, profile_path=profile_path,
+                                              implementation_profile_path=implementation_profile_path, scope=scope)
         result["state_validation"] = state_result
         if not state_result["valid"]:
             result.update(status="blocked", missing_gates=["project_state_valid"],
@@ -87,12 +248,16 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
                 state_result.get("model_approved") and
                 state_result.get("model_validation", {}).get("approved")):
             satisfied.add("model_design_approved")
+        if (state_result and state_result.get("implementation_checked") and
+                state_result.get("implementation_ready") and
+                state_result.get("mapping_validation", {}).get("structure_checked")):
+            satisfied.add("model_structure_checked")
         missing = [gate for gate in gates if gate not in satisfied]
         result.update(status="deferred", phase=phase, required_gates=gates,
                       missing_gates=missing,
                       fallback=router["fallback"]["future_capability"],
                       next_step=policy["next_step_template"].format(phase=phase),
-                      errors=[f"{intent} is not implemented in Phase A/B/C (declared Phase {phase})"])
+                      errors=[f"{intent} is not implemented in Phase A/B/C/D (declared Phase {phase})"])
         return result
 
     route = router["intents"][intent]
@@ -113,6 +278,14 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         result.update(status="inspected", activated_modules=[module_id],
                       activated_resources=list(resources))
         return result
+
+    if intent in {"domain_mapping", "simulink_build"}:
+        return _implementation_route(
+            result, router=router, module_id=module_id, resources=resources,
+            state_result=state_result, state_path=state_path, profile_path=profile_path,
+            implementation_profile_path=implementation_profile_path, problem_path=problem_path,
+            model_path=model_path, approval_path=approval_path, mapping_path=mapping_path,
+            requested=requested, expected_root=expected_root)
 
     if intent == "problem_audit":
         result.update(execution_scope="problem_audit", activated_modules=[module_id],
@@ -270,6 +443,8 @@ def main() -> int:
     parser.add_argument("--problem", type=Path)
     parser.add_argument("--model", type=Path)
     parser.add_argument("--approval", type=Path)
+    parser.add_argument("--mapping", type=Path)
+    parser.add_argument("--implementation-profile", type=Path)
     parser.add_argument("--require-operation", action="append", default=[])
     parser.add_argument("--matlab-root", type=Path)
     args = parser.parse_args()
@@ -277,10 +452,12 @@ def main() -> int:
         result = resolve_runtime(args.intent, profile_path=args.profile, state_path=args.state,
                                  required_operations=args.require_operation,
                                  expected_root=args.matlab_root, problem_path=args.problem,
-                                 model_path=args.model, approval_path=args.approval)
+                                 model_path=args.model, approval_path=args.approval, mapping_path=args.mapping,
+                                 implementation_profile_path=args.implementation_profile)
     except (OSError, ValueError, KeyError, TypeError) as error:
         result = {"status": "blocked", "execution_allowed": False,
-                  "business_execution_allowed": False, "errors": [str(error)]}
+                  "business_execution_allowed": False, "simulation_execution_allowed": False,
+                  "implementation_execution_allowed": False, "errors": [str(error)]}
     emit(result)
     return 0 if result["status"] in ("inspected", "allowed", "deferred") else 1
 

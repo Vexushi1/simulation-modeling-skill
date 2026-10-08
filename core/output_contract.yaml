@@ -1,6 +1,6 @@
 schema_version: 1
-version: 0.3.0
-phase: C
+version: 0.4.0
+phase: D
 runtime_evidence:
   producer: scripts/probe_environment.py
   consumer: scripts/validate_environment.py
@@ -17,30 +17,54 @@ project_state:
   validator: scripts/validate_project_state.py
   writes: explicit_caller_only
   evidence_binding:
-    environment: [profile_sha256, receipt_sha256]
-    problem: [sha256]
-    model: [sha256]
-    approval: [sha256]
+    environment:
+    - profile_sha256
+    - receipt_sha256
+    problem:
+    - sha256
+    model:
+    - sha256
+    approval:
+    - sha256
+    mapping:
+    - sha256
+    implementation_environment:
+    - profile_sha256
+    - receipt_sha256
   artefact_paths: inside_declared_project_root
   stale_propagation: transitive_dependents_of_changed_ids
   preserve_history: true
   validation_scopes:
     all: validate every implemented evidence role and current runtime requirements
-    problem: validate problem identity and dependencies; environment and model readiness are unassessed
-    model: validate problem and model identity and dependencies; environment readiness is unassessed
+    problem: validate problem identity and dependencies; environment, model and implementation
+      readiness are unassessed
+    model: validate problem/model identity and dependencies; environment and implementation
+      readiness are unassessed
+    implementation: validate B/C/D including historical model structure; current environment
+      readiness is unassessed
 problem_contract:
   schema: core/problem_contract.schema.yaml
   consumer: scripts/validate_problem_contract.py
   template: templates/contracts/problem_contract.yaml
   writer: caller performing the authorized audit; validator and resolver never write
-  statuses: [draft, audited, frozen]
+  statuses:
+  - draft
+  - audited
+  - frozen
   literal_offsets: Unicode codepoints; start inclusive and end exclusive
-  original_and_text_identity: exact file SHA-256 values; reviewed extraction required for non-text statements
-  semantic_digest_excludes: [status, freeze]
-  review_decision: independently byte-bound text and exact quote; cannot be manufactured by the validator
-  freshness: source, contract and decision identities; runtime TTL does not expire unchanged problem meaning
-  acceptance: current source and role/DAG/coverage checks; frozen additionally requires closed critical ambiguities and matching review decision
-  claim_limit: mechanical completeness and traceability do not prove interpretation or real-system validity
+  original_and_text_identity: exact file SHA-256 values; reviewed extraction required
+    for non-text statements
+  semantic_digest_excludes:
+  - status
+  - freeze
+  review_decision: independently byte-bound text and exact quote; cannot be manufactured
+    by the validator
+  freshness: source, contract and decision identities; runtime TTL does not expire
+    unchanged problem meaning
+  acceptance: current source and role/DAG/coverage checks; frozen additionally requires
+    closed critical ambiguities and matching review decision
+  claim_limit: mechanical completeness and traceability do not prove interpretation
+    or real-system validity
 model_contract:
   schema: core/model_contract.schema.yaml
   approval_contract: core/model_approval_contract.yaml
@@ -48,15 +72,90 @@ model_contract:
   template: templates/contracts/model_contract.yaml
   brief_template: templates/contracts/model_approval_brief.md
   writer: explicit caller; validator and resolver never create approval or write state
-  statuses: [draft, proposed, challenged, approved]
-  validation_results: [schema_valid, valid, proposal_complete, challenge_complete, ready_for_approval, approved]
-  prerequisite: current frozen Problem for proposed or later status and model_design route
-  mathematical_identity: mathematical body only; no solver, validator, implementation, parameter values or approval
-  semantic_digest_excludes: [status, approval]
-  brief_binding: exact current file SHA; Brief must not embed the semantic digest that includes its SHA
-  approval_binding: independent current human decision, project, Problem SHA and semantic digest
-  locked_model_spec: exact snapshot of current semantic content and digest; explicit caller creates it after actual approval
-  freshness: current source, Problem, model, Brief, decision and locked bytes; independent of runtime TTL
-  stale_limit: whole Problem binding is conservative; not the future fine-grained validation-data graph
+  statuses:
+  - draft
+  - proposed
+  - challenged
+  - approved
+  validation_results:
+  - schema_valid
+  - valid
+  - proposal_complete
+  - challenge_complete
+  - ready_for_approval
+  - approved
+  prerequisite: current frozen Problem for proposed or later status and model_design
+    route
+  mathematical_identity: mathematical body only; no solver, validator, implementation,
+    parameter values or approval
+  semantic_digest_excludes:
+  - status
+  - approval
+  brief_binding: exact current file SHA; Brief must not embed the semantic digest
+    that includes its SHA
+  approval_binding: independent current human decision, project, Problem SHA and semantic
+    digest
+  locked_model_spec: exact snapshot of current semantic content and digest; explicit
+    caller creates it after actual approval
+  freshness: current source, Problem, model, Brief, decision and locked bytes; independent
+    of runtime TTL
+  stale_limit: whole Problem binding is conservative; not the future fine-grained
+    validation-data graph
   execution_allowed: false
-  claim_limit: mechanical checks do not prove math, physics, review authenticity or real human approval
+  claim_limit: mechanical checks do not prove math, physics, review authenticity or
+    real human approval
+domain_mapping:
+  schema: core/domain_mapping.schema.yaml
+  consumer: scripts/validate_domain_mapping.py
+  template: templates/contracts/domain_mapping.yaml
+  module: modules/03_domain_mapping.md
+  statuses:
+  - draft
+  - mapped
+  - ready
+  validation_results:
+  - schema_valid
+  - valid
+  - mapping_complete
+  - build_ready
+  - built
+  - structure_checked
+  - implementation_ready
+  prerequisite: current C human approval
+  semantic_digest_excludes:
+  - status
+  - implementation
+  writer: explicit caller; validator and resolver never write
+  freshness: current C/parameters/sources/mapping/native files/producer identities;
+    historical evidence retains its execution-time qualification
+  claim_limit: structural trace/readback does not prove mathematical equivalence,
+    physical validity or numerical correctness
+parameter_provenance:
+  schema: core/parameter_provenance.schema.yaml
+  consumer: scripts/validate_parameter_provenance.py
+  template: templates/contracts/parameter_provenance.yaml
+  statuses:
+  - draft
+  - bound
+  exact_binding: typed C design/model/variable value, unit, provenance and source
+    references
+  unknown_policy: preserve null; necessary native values block build readiness
+  scope: explicit model-file workspace owner and distinct legal code_name
+  estimation_execution: false
+implementation_evidence:
+  contract: core/implementation_assurance_contract.yaml
+  producer: scripts/run_implementation.py
+  qualification_producer: scripts/probe_implementation.py
+  qualification_consumer: scripts/validate_implementation_profile.py
+  directory_policy: new_directory_per_invocation
+  profile_role: implementation_profile
+  historical_roles:
+  - implementation_model
+  - structure_evidence
+  execution_scope: implementation_execution
+  business_execution_allowed: false
+  simulation_execution_allowed: false
+  acceptance: actual qualified create/connect/assign/update/save/close/reload/readback
+    and complete input/source/runtime/SLX/receipt bindings
+  freshness: current A and D profiles for new mutation; historical receipts checked
+    against bound execution-time qualification

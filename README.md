@@ -2,11 +2,11 @@
 
 Competition simulation methodology and evidence orchestration for **MATLAB R2025b + Simulink 25.2**.
 
-Version **0.3.0** adds Phase C text model design, challenge, and human approval checks to the merged Phase A/B infrastructure. Local checks, CI, independent review, merge, and release are separate results recorded in the relevant development PR.
+Version **0.4.0** adds Phase D approved-model mapping, exact parameter provenance, and qualified core Simulink construction to the merged Phase A/B/C infrastructure. Local checks, CI, independent review, merge, and release are separate results recorded in the relevant development PR.
 
 ## Current behavior
 
-Start from [SKILL.md](SKILL.md) and [core/bootstrap.yaml](core/bootstrap.yaml). Active routes support environment inspection and assurance, [problem audit](modules/01_problem_audit.md), and [text model design](modules/02_model_design.md). Implementation, simulation, numerical verification, and paper workflows in Phases D–K remain deferred.
+Start from [SKILL.md](SKILL.md) and [core/bootstrap.yaml](core/bootstrap.yaml). Active routes support environment inspection and assurance, [problem audit](modules/01_problem_audit.md), [text model design](modules/02_model_design.md), and [approved mapping and core construction](modules/03_domain_mapping.md). Simscape/Stateflow/System Composer construction and simulation, numerical verification, and paper workflows in Phases E–K remain deferred.
 
 Problem audit binds the original materials and review text, maps literal requirements, records variable and data roles, and checks the question dependency graph. The [Problem Contract](core/problem_contract.schema.yaml) distinguishes a legal draft, an audit-complete result, readiness to freeze, and a frozen contract with a current review decision. Text review and validation need no MATLAB profile. A freeze decision follows the actual task authorization and resolution of critical ambiguities; it does not require separate repeated approval of every question. Validators and the resolver do not freeze a contract or write project state.
 
@@ -18,7 +18,7 @@ The [Model Approval contract](core/model_approval_contract.yaml) requires an act
 
 Structural digests identify registered expressions and do not prove symbolic equivalence. Equivalent rewritten equations or renamed variables can change a digest; a meaningful structural comparator still requires review of actual mechanisms, abstraction, or mathematical differences.
 
-Text design requires no runtime profile. Model-scoped state validation checks B/C and reports environment readiness as unassessed; problem-scoped validation does not assess the model. Validators and routing never write approvals, locked specifications, or state. Model approval does not activate Phases D–K or qualify numerical execution.
+Text design requires no runtime profile. Model-scoped state validation checks B/C and reports environment readiness as unassessed; problem-scoped validation does not assess the model. Validators and routing never write approvals, locked specifications, or state. Model approval is required for formal D mapping but does not qualify native mutation or numerical execution. Simscape/Stateflow/System Composer construction and Phases E–K remain deferred.
 
 Phase C conservatively binds the entire Problem and its current source evidence. Changed statements, attachments, Briefs, decisions, or locked files invalidate the relevant bindings and accepted dependents. It does not claim fine-grained source impact analysis. Runtime expiry alone does not invalidate unchanged text design.
 
@@ -32,10 +32,18 @@ For local development commands and a fresh qualification run, see [AGENTS.md](AG
 
 The [full implementation plan](docs/V1_FULL_IMPLEMENTATION_PLAN.md) is the sole detailed development authority. The [roadmap](docs/V1_IMPLEMENTATION_ROADMAP.md) summarizes it; the [canonical architecture](docs/CANONICAL_ARCHITECTURE.md) explains ownership and target layers. Read the full plan, [governance](DEVELOPMENT_GOVERNANCE.md), and affected contracts before changing active behavior.
 
-Development Phase A–K gates are distinct from a user's project states. Phase A/B's merged qualification is recorded in the full plan; each new runtime request still requires appropriate current operation evidence. Phase C's exit requires its contract, human approval binding, route/state, source/stale, and authority/index checks, followed by independent original-material review, final CI, merge, and post-merge read-back. Passing repository fixtures does not freeze another task or approve its model. Later phases cannot be activated because they appear in the taxonomy or target architecture.
+Development Phase A–K gates are distinct from a user's project states. Phase A/B/C are merged; each new runtime request still requires appropriate current operation evidence. D's exit requires mapping/parameter checks, native operation qualification, route/state/source/stale/adapter/authority checks, all earlier regressions, independent original-material review, final CI, merge, and post-merge read-back. Passing repository fixtures does not freeze another task or approve its model. Later phases cannot be activated because they appear in the taxonomy or target architecture.
 
 ## v1 target and integrations
 
-The target workflow continues from text model design and approval to implementation, simulation protocols, identification or optimization when needed, numerical verification, model comparison decisions, validation, and scientific evidence for paper handoff. The stages after model approval are planned, not active in 0.3.0.
+The target workflow continues from text model design and approval to implementation, simulation protocols, identification or optimization when needed, numerical verification, model comparison decisions, validation, and scientific evidence for paper handoff. Phase D mapping and a qualified bounded core Simulink constructor are active in 0.4.0; simulation and subsequent stages are planned.
 
-This repository owns competition methodology, routing, evidence, and claim boundaries. Future execution adapters prefer `matlab/simulink-agentic-toolkit` and `matlab/matlab-agentic-toolkit`, subject to operation and composition qualification. `Vexushi1/mathmodel-skill` is a methodology and paper-writing reference, not a core runtime dependency. Integration ownership and admission rules live in [core/upstream_integration_policy.md](core/upstream_integration_policy.md).
+This repository owns competition methodology, routing, evidence, and claim boundaries. Execution adapters prefer `matlab/simulink-agentic-toolkit` and `matlab/matlab-agentic-toolkit`, subject to operation and composition qualification. `Vexushi1/mathmodel-skill` is a methodology and paper-writing reference, not a core runtime dependency. Integration ownership and admission rules live in [core/upstream_integration_policy.md](core/upstream_integration_policy.md).
+
+## Approved-model mapping and core construction
+
+Read [the D module](modules/03_domain_mapping.md), [mapping schema](core/domain_mapping.schema.yaml), [parameter schema](core/parameter_provenance.schema.yaml), and [implementation assurance contract](core/implementation_assurance_contract.yaml). Current C human approval is required for formal mapping. Exact approved values/units/provenance are preserved, with unknown parameters blocking only native operations that need them. Mapping and parameter validators remain read-only.
+
+The local constructor accepts explicit reviewed Inport/Outport/Constant/Gain/Sum/Integrator instructions and model-file workspace bindings. New construction requires current A and independent D operation profiles and produces actual saved/reopened SLX and structure receipts. Library loading and installed toolboxes do not qualify it. Other blocks and Simscape/Stateflow/System Composer construction require future operation qualifications. Historical structure freshness binds actual sources, input semantics, producer code and model bytes; current environment TTL controls new execution.
+
+An explicit caller alone can bind successful receipts and set IMPLEMENTATION_READY. Implementation-scoped state checks B/C/D while leaving current runtime unassessed. Structural consistency grants no simulation, mathematical equivalence, physical validity, or numerical V&V. The [MathWorks adapter](adapters/mathworks/simulink_agentic_toolkit.md) records pinned official resource compatibility without claiming they are installed.

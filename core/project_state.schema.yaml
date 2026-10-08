@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-title: Phase A, B and C project state
+title: Phase A, B, C and D project state
 type: object
 additionalProperties: false
 required: [schema_version, project_id, project_root, current_stage, environment, artefacts]
@@ -13,7 +13,9 @@ properties:
     type: string
     minLength: 1
   current_stage:
-    enum: [NEW, ENVIRONMENT_ASSURED, PROBLEM_AUDITED, PROBLEM_FROZEN, MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED]
+    enum: [NEW, ENVIRONMENT_ASSURED, PROBLEM_AUDITED, PROBLEM_FROZEN, MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED, IMPLEMENTATION_READY]
+  implementation_environment:
+    $ref: '#/$defs/environment_binding'
   environment:
     oneOf:
       - type: 'null'
@@ -47,6 +49,8 @@ properties:
     $ref: '#/$defs/contract_binding'
   approval:
     $ref: '#/$defs/contract_binding'
+  mapping:
+    $ref: '#/$defs/contract_binding'
   artefacts:
     type: array
     items:
@@ -58,9 +62,9 @@ properties:
           type: string
           minLength: 1
           not:
-            enum: [environment, problem, model, approval]
+            enum: [environment, implementation_environment, problem, model, approval, mapping]
         role:
-          enum: [environment_profile, route_decision, problem_contract, model_contract, model_approval]
+          enum: [environment_profile, route_decision, problem_contract, model_contract, model_approval, implementation_profile, mapping_contract, parameter_provenance, implementation_model, structure_evidence, implementation_route_decision]
         path:
           type: string
           minLength: 1
@@ -87,7 +91,7 @@ allOf:
   - if:
       properties:
         current_stage:
-          enum: [PROBLEM_AUDITED, PROBLEM_FROZEN, MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED]
+          enum: [PROBLEM_AUDITED, PROBLEM_FROZEN, MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED, IMPLEMENTATION_READY]
     then:
       required: [problem]
       properties:
@@ -96,7 +100,7 @@ allOf:
   - if:
       properties:
         current_stage:
-          enum: [MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED]
+          enum: [MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED, IMPLEMENTATION_READY]
     then:
       required: [model]
       properties:
@@ -105,13 +109,32 @@ allOf:
   - if:
       properties:
         current_stage:
-          const: MODEL_APPROVED
+          enum: [MODEL_APPROVED, IMPLEMENTATION_READY]
     then:
       required: [approval]
       properties:
         approval:
           type: object
+  - if:
+      properties:
+        current_stage:
+          const: IMPLEMENTATION_READY
+    then:
+      required: [mapping]
+      properties:
+        mapping:
+          type: object
 $defs:
+  environment_binding:
+    oneOf:
+      - type: 'null'
+      - type: object
+        additionalProperties: false
+        required: [profile_path, profile_sha256, receipt_sha256]
+        properties:
+          profile_path: {type: string, minLength: 1}
+          profile_sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
+          receipt_sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
   contract_binding:
     oneOf:
       - type: 'null'

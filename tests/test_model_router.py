@@ -153,7 +153,7 @@ def test_challenged_design_does_not_satisfy_future_human_approval_gate(tmp_path)
     model = make_model_contract(tmp_path, status="challenged")
     state = write_model_state(tmp_path, model, stage="MODEL_CHALLENGED")
     route = resolve_runtime("simulink_build", state_path=state)
-    assert route["status"] == "deferred"
+    assert route["status"] == "blocked"
     assert "model_design_approved" in route["missing_gates"]
     assert not route["execution_allowed"]
 

@@ -48,6 +48,8 @@ capabilities:
     phase: B
   model_design:
     phase: C
+  domain_mapping:
+    phase: D
   simulink_build:
     phase: D
   simscape_build:
@@ -103,3 +105,5 @@ routing_invariants:
   - model_comparison_requires_structural_difference
   - optional_toolboxes_are_task_activated
   - callable_runtime_capability_overrides_license_only_signal
+  - domain_selection_does_not_qualify_native_operations
+  - implementation_permission_does_not_authorize_simulation

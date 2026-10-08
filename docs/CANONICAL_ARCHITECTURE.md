@@ -1,12 +1,12 @@
 # Canonical Architecture — Simulation Modeling Skill
 
-> Scope: v0.3.0 Phase C implementation, based on merged Phase A/B infrastructure
+> Scope: v0.4.0 Phase D implementation, based on merged Phase A/B/C infrastructure
 > Primary runtime baseline: MATLAB R2025b + Simulink  
 > Target: competition-oriented simulation modeling with engineering-grade reproducibility and paper-ready evidence.
 
 [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md) is the detailed development authority. [V1_IMPLEMENTATION_ROADMAP.md](V1_IMPLEMENTATION_ROADMAP.md) summarizes it. This architecture describes the target layers; the active contracts begin at [../core/bootstrap.yaml](../core/bootstrap.yaml).
 
-Current implementation covers environment inspection and assurance, problem audit, and text model design with challenge and human approval checks. Layers D–J below are deferred targets; the full plan's Phases D–K remain deferred. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Phase A/B's merged qualification is recorded in the full plan; later qualification, CI, merge, and release results are recorded separately in their development PRs.
+Current implementation covers environment inspection and assurance, problem audit, and text model design with challenge and human approval checks. Phase D adds approved-model mapping and qualified bounded core construction. Layers E–J and Phases E–K remain deferred; other D domains have no native construction qualification. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Phase A/B's merged qualification is recorded in the full plan; later qualification, CI, merge, and release results are recorded separately in their development PRs.
 
 ## 1. Scope
 
@@ -66,7 +66,7 @@ The validator separately reports `schema_valid`, `valid`, `audit_complete`, `fre
 
 The `problem_audit` route is read-only, selects no runtime operations, and can start from `NEW` without an environment profile. It cannot grant numerical execution. State recording is a separate explicit caller update: `PROBLEM_AUDITED` requires the current audit-complete contract declared `audited` or `frozen`, and `PROBLEM_FROZEN` requires the current frozen contract with matching project identity. Problem-scoped validation leaves runtime readiness unassessed.
 
-Problem evidence and accepted dependents become stale when their actual contract, material, extraction review, or decision identities change. Environment expiry does not expire unchanged problem meaning. Mechanical coverage and traceability do not prove semantic interpretation or real-system validity. Formal model design is implemented in Layer C; Simulink implementation remains deferred.
+Problem evidence and accepted dependents become stale when their actual contract, material, extraction review, or decision identities change. Environment expiry does not expire unchanged problem meaning. Mechanical coverage and traceability do not prove semantic interpretation or real-system validity. Formal model design is implemented in Layer C; Formal D implementation consumes the current C approval and its own operation evidence.
 
 ### Layer C — System & model design (Phase C infrastructure)
 
@@ -101,11 +101,13 @@ Actual Human Model Approval binds the current project, Problem, full design, exa
 
 `MODEL_PROPOSED`, `MODEL_CHALLENGED`, and `MODEL_APPROVED` require the current frozen Problem and corresponding declared contract/gates. Accepted model/approval artefacts bind their current anchors and must not depend on environment evidence. Model-scoped state checks assess B/C while leaving environment readiness unassessed; problem scope leaves C unassessed and cannot establish overall model approval. Default all-scope behavior retains A/B checks.
 
-Phase C binds the entire Problem and its current source evidence conservatively. Changed attachments can invalidate a model even when they were registered for independent validation; a finer-grained source impact graph remains future work. Contract, Brief, human decision, or locked-file changes invalidate their actual bindings and accepted dependents. Runtime TTL alone does not expire unchanged text design. Model approval grants no numerical execution and cannot activate Layers D–J.
+Phase C binds the entire Problem and its current source evidence conservatively. Changed attachments can invalidate a model even when they were registered for independent validation; a finer-grained source impact graph remains future work. Contract, Brief, human decision, or locked-file changes invalidate their actual bindings and accepted dependents. Runtime TTL alone does not expire unchanged text design. Model approval grants no numerical execution and does not grant native construction qualification or activate Layers E–J.
 
-### Layer D — Execution adapter (deferred)
+### Layer D — Approved mapping and qualified construction (Phase D infrastructure)
 
-Use upstream capabilities instead of copying their implementation rules.
+The [D module](../modules/03_domain_mapping.md) consumes current C approval, exact [parameter provenance](../core/parameter_provenance.schema.yaml), reviewed [domain mapping](../core/domain_mapping.schema.yaml), and [operation assurance](../core/implementation_assurance_contract.yaml). Text mapping preserves unknowns and does not require runtime evidence. The bounded local six-block Simulink constructor fills the reproducible structure-receipt gap and requires current A plus independent D profiles. It creates owned new models, updates/saves/closes/reopens them and checks actual structure/parameter persistence. Simscape, Stateflow, System Composer and unqualified blocks remain explicit deferred construction routes.
+
+IMPLEMENTATION_READY requires current B/C/D and actual bound SLX/structure evidence; callers alone advance state. Implementation scope leaves current environment unassessed. Historical receipts retain their complete execution-time qualifications while current source/semantic/model identities are checked; new mutation requires fresh profiles. Structure/readback does not prove mathematical equivalence, physical validity, or numerical accuracy. Prefer pinned official execution resources without copying their manuals or claiming an untested composition is qualified.
 
 Primary upstream:
 

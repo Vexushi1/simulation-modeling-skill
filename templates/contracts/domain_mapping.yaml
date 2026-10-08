@@ -1,0 +1,31 @@
+# Read modules/03_domain_mapping.md and both D schemas first.
+# Legal draft only. Bind current approved C and parameters before mapping.
+schema_version: 1
+project_id: new-project
+status: draft
+model: null
+parameters: null
+sources: []
+targets: []
+reviews:
+  mathematical_semantics:
+    status: pending
+    conclusion: No relation-to-implementation review recorded.
+    reason: Await current approved model and explicit engineering trace.
+    source_ids: []
+  interfaces_units:
+    status: pending
+    conclusion: Interface and dimension checks are unassessed.
+    reason: No current target graph or parameter registry is bound.
+    source_ids: []
+  initial_boundary_events:
+    status: pending
+    conclusion: Initial, boundary and event implementation is unassessed.
+    reason: Bind the applicable current approved conditions without implicit defaults.
+    source_ids: []
+  scope_and_defaults:
+    status: pending
+    conclusion: Execution surface and defaults are unassessed.
+    reason: Choose an explicit supported implementation and review its settings.
+    source_ids: []
+implementation: null

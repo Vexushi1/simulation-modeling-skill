@@ -1,0 +1,7 @@
+# Read modules/03_domain_mapping.md and the parameter schema first.
+# Each actual parameter must preserve current approved C value/unit/provenance.
+schema_version: 1
+project_id: new-project
+status: draft
+model: null
+parameters: []
