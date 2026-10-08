@@ -379,3 +379,32 @@ def test_trial_function_bytes_must_match_qualified_selected_method(tmp_path,monk
     monkeypatch.setattr(consumer,'observed_runtime',changed_after_qualification)
     result=consumer.validate_parameter_study_receipt(path)
     assert not result['valid'] and any('function-file bytes' in error for error in result['errors']),result
+
+
+def test_gain_controlled_budget_uses_positive_reviewed_iteration_limit(tmp_path):
+    case=next(c for c in producer.qualification_cases([METHODS[1]]) if c['expectation']=='budget')
+    assert case['native_spec']['budget']['max_iterations']==1
+    actual=synthetic_case(case,tmp_path,'synthetic-run'); actual['iterations']=1
+    assert not assert_case(actual,case,tmp_path,'synthetic-run')['candidate_complete']
+    actual['iterations']=2
+    with pytest.raises(ValueError): assert_case(actual,case,tmp_path,'synthetic-run')
+
+
+@pytest.mark.parametrize('split',['train','holdout'])
+@pytest.mark.parametrize('mutation',['truncate_both','prediction_value','residual_value'])
+def test_arx_rejected_holdout_preserves_complete_final_arrays_bound_to_verified_ledger(tmp_path,split,mutation):
+    case=next(c for c in producer.qualification_cases([METHODS[0]]) if c['expectation']=='criterion')
+    actual=synthetic_case(case,tmp_path,'synthetic-run')
+    if mutation=='truncate_both':
+        fields=[split+'_prediction',split+'_residual']
+        for field in fields: actual[field]=actual[field][:1]
+    else:
+        field=split+('_prediction' if mutation=='prediction_value' else '_residual')
+        fields=[field]; actual[field]=list(actual[field]); actual[field][0]+=0.1
+    data=load_document(tmp_path/actual['data_file'])
+    mat=loadmat(tmp_path/actual['mat_file']); mat={k:v for k,v in mat.items() if not k.startswith('__')}
+    for field in fields:
+        data[field]=actual[field]; mat[field]=np.asarray(actual[field],dtype=np.float64).reshape(-1,1)
+    write_json(tmp_path/actual['data_file'],data); savemat(tmp_path/actual['mat_file'],mat)
+    with pytest.raises(ValueError,match='complete verified split ledger'):
+        assert_case(actual,case,tmp_path,'synthetic-run')

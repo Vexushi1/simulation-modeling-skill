@@ -58,7 +58,7 @@ def qualification_cases(operations=None):
     if METHODS[1] in operations:
         add('gain_positive', gain, truth=[1.75])
         add('gain_simulation_error', gain, 'simulation_error')['control'] = 'invalid_gain_expression'
-        add('gain_budget', gain, 'budget')['native_spec']['budget']['max_iterations'] = 0
+        add('gain_budget', gain, 'budget')['native_spec']['budget']['max_iterations'] = 1
         failed = add('gain_invalid_bounds', gain, 'error')
         failed['native_spec']['lower'] = [4.0]
     if METHODS[2] in operations:

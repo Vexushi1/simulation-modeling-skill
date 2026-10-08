@@ -213,6 +213,11 @@ def assert_case(actual, case, directory, run_id):
         elif case['expectation'] == 'criterion':
             if actual['error_identifier'] != 'PhaseF:HoldoutCriterion' or len(actual['theta']) != 2 or [item['phase'] for item in ledger] != ['train', 'holdout'] or any(item['error'] or item['theta'] != actual['theta'] for item in ledger) or not np.allclose(actual['theta'], case['expected_theta'], rtol=0, atol=1e-6) or not actual['train_prediction'] or not actual['holdout_prediction']:
                 raise ValueError('failed ARX holdout must preserve actual fitted theta and both call records')
+            for split, call in zip(('train', 'holdout'), ledger):
+                expected = predictions(spec, actual['theta'], split)
+                prediction, residual = actual[split+'_prediction'], actual[split+'_residual']
+                if len(prediction) != len(expected) or len(residual) != len(expected) or prediction != call['prediction'] or residual != call['residual']:
+                    raise ValueError('failed ARX final predictions/residuals must preserve complete verified split ledger values')
             r = residuals(spec, actual['holdout_prediction'], 'holdout')
             if math.sqrt(sum(v*v for v in r)/sum(spec['holdout']['weights'][1:])) <= spec['criteria']['max_holdout_rmse']:
                 raise ValueError('controlled holdout rejection requires an actual failed criterion')
