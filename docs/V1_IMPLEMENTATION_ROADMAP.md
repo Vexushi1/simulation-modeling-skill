@@ -1,6 +1,6 @@
 # v1.0.0 Implementation Roadmap
 
-> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. Version 0.4.0 implements Phase D approved-model mapping, exact parameter provenance and qualified core Simulink construction on the merged A/B/C base. Other D domains and Phases E–K remain deferred; qualification and merge evidence are recorded separately in the development PR.
+> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. Version 0.6.0 implements the optional bounded Phase F parameter-study branch on A–E. Other D domains and Phases G–K remain deferred; qualification and merge evidence are recorded separately in the development PR.
 
 ## Phase A — Runtime, governance, and trusted root
 
@@ -75,7 +75,6 @@ Exit checks: domain_mapping_checks, parameter_binding_checks, native_simulink_st
 
 | Phase | Planned scope |
 |---|---|
-| F | Parameter provenance, identification, calibration, and optimization when required |
 | G | Experiment design, campaigns, uncertainty sampling, and parallel simulation |
 | H | Primary numerical verification, sensitivity/robustness decisions, and structural/solver comparison |
 | I | Verification and claim-scoped validation, including applicable test and safety tools |
@@ -92,4 +91,12 @@ The v1.0.0 gate remains the full plan's release definition: all phases qualified
 
 The full plan §9.9 is the detailed Authority. Version 0.5.0 adds a source-bound draft/frozen protocol, independent A/E operation and individual solver qualification, normal serial scalar core execution, actual Dataset root outputs, cross-format MAT/JSON/CSV numeric receipts and SIMULATION_PROTOCOL_FROZEN/PRIMARY_RUN_COMPLETE. Original C/D evidence and all nineteen D source identities remain unchanged. Optional Statistics diagnostics are distinct from explicit operation requirements.
 
-E success does not grant numerical V&V or publication claims. Read-only consumers never freeze or update state. Historical qualification and current TTL are separate. Exit requires real R2025b positive/negative/cardinality cases, all prior regressions, independent behavior/final-source review, dual-platform CI, merge and readback. Advanced solver/domain and F–K workflows remain deferred.
+E success does not grant numerical V&V or publication claims. Read-only consumers never freeze or update state. Historical qualification and current TTL are separate. Exit requires real R2025b positive/negative/cardinality cases, all prior regressions, independent behavior/final-source review, dual-platform CI, merge and readback. Advanced solver/domain and G–K workflows remain deferred.
+
+## Phase F — Optional reviewed parameter studies
+
+The detailed Authority is the full plan §10.8–10.13. Read [the F module](../modules/05_identification_calibration_optimization.md). A source-bound study records the selected current approved C mathematics, parameter provenance, numeric bounds and initialization sources, observation roles and half-open train/holdout ranges where applicable, loss, budgets, warning and acceptance rules. A separate semantic review authorizes bounded candidate trials. Unknown C values remain null; given/derived constants cannot silently become search variables.
+
+Three operations are conditional: dense uniformly sampled SISO ARX [1 1 1] with one-step holdout prediction; bounded single-gain Simulink least squares with an actual owned model per objective evaluation; and bounded one/two-variable positive quadratic SQP with explicit linear inequalities. New execution requires current same-runtime A/F operation evidence and the union of actual required A operations. Gain trials also require current E ode4 evidence. Neither toolbox installation nor core environment success qualifies a method. Pure design optimization invents no observations or holdout data.
+
+The separate trial ledger, raw/process evidence and cross-checked MAT/JSON candidate outputs establish a candidate within the reviewed criteria. They never overwrite C/D/E evidence, advance state, adopt parameters or prove physical validity or a general global optimum. Adoption returns to new actual C human approval, then new D/E evidence and later H verification. PARAMETER_STUDY_REVIEWED and PARAMETER_CANDIDATE_COMPLETE form an optional branch; the `parameter_study` scope assesses B/C/F history without current runtime or D/E readiness. Earlier partial scopes leave F unassessed. Repository qualification, independent review, CI and merge remain separate development evidence.

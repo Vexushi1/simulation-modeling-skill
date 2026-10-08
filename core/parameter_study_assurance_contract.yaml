@@ -1,0 +1,100 @@
+schema_version: 1
+phase: F
+target: {matlab_release: R2025b, simulink_version: '25.2'}
+execution_channel: matlab_batch
+validity_seconds: 86400
+scope: source-bound finite serial candidate parameter studies; no adoption or primary evidence
+operations:
+  identification.arx_111:
+    product: System Identification Toolbox
+    license_feature: Identification_Toolbox
+    functions: [iddata, arx, arxOptions]
+    cases: [arx_positive, arx_rank_deficient, arx_invalid_time]
+    required_A_operations: [matlab.basic_execution, simulink.library_load]
+  calibration.simulink_gain:
+    product: Optimization Toolbox
+    license_feature: Optimization_Toolbox
+    functions: [lsqnonlin, optimoptions, Simulink.SimulationInput, Simulink.SimulationData.Dataset, Simulink.Parameter, timeseries, sim, new_system, add_block, add_line, set_param, get_param, close_system, bdIsLoaded, Simulink.fileGenControl, save_system, load_system]
+    cases: [gain_positive, gain_simulation_error, gain_budget, gain_invalid_bounds]
+    required_A_operations: [matlab.basic_execution, simulink.library_load]
+  optimization.quadratic_sqp:
+    product: Optimization Toolbox
+    license_feature: Optimization_Toolbox
+    functions: [fmincon, optimoptions]
+    cases: [quadratic_positive, quadratic_budget, quadratic_invalid_bounds]
+    required_A_operations: [matlab.basic_execution, simulink.library_load]
+source_files:
+  - core/parameter_study_assurance_contract.yaml
+  - core/parameter_study.schema.yaml
+  - scripts/parameter_study_common.py
+  - scripts/probe_parameter_study.py
+  - scripts/run_parameter_study.py
+  - scripts/validate_parameter_study.py
+  - scripts/validate_parameter_study_profile.py
+  - scripts/validate_parameter_study_receipt.py
+  - scripts/matlab/run_parameter_study.m
+  - modules/05_identification_calibration_optimization.md
+  - packs/task/parameter_identification.md
+  - packs/task/calibration.md
+  - packs/task/optimization.md
+  - adapters/mathworks/parameter_study_methods.md
+  - core/bootstrap.yaml
+  - core/workflow_router.yaml
+  - core/module_manifest.yaml
+  - core/project_state.schema.yaml
+  - core/output_contract.yaml
+  - scripts/resolve_runtime.py
+  - scripts/validate_project_state.py
+  - scripts/parameter_study_route.py
+  - scripts/parameter_study_state.py
+  - requirements.txt
+  - scripts/runtime_common.py
+  - scripts/probe_environment.py
+  - scripts/validate_environment.py
+  - core/runtime_assurance_contract.yaml
+  - core/capability_profile.schema.yaml
+  - scripts/validate_model_contract.py
+  - scripts/validate_problem_contract.py
+  - core/model_contract.schema.yaml
+  - core/model_approval_contract.yaml
+  - core/problem_contract.schema.yaml
+  - core/capability_taxonomy.yaml
+  - scripts/validate_implementation_receipt.py
+  - scripts/validate_simulation_profile.py
+  - core/simulation_assurance_contract.yaml
+  - core/simulation_protocol.schema.yaml
+  - scripts/validate_simulation_protocol.py
+  - scripts/probe_simulation.py
+  - scripts/run_simulation.py
+  - scripts/validate_simulation_receipt.py
+  - scripts/matlab/run_simulation.m
+  - modules/04_simulation_protocol.md
+  - scripts/simulation_route.py
+  - scripts/simulation_state.py
+  - scripts/matlab/probe_environment.m
+  - core/implementation_assurance_contract.yaml
+  - scripts/probe_implementation.py
+  - scripts/validate_implementation_profile.py
+  - scripts/run_implementation.py
+  - scripts/matlab/probe_implementation.m
+  - core/domain_mapping.schema.yaml
+  - core/parameter_provenance.schema.yaml
+  - scripts/validate_domain_mapping.py
+  - scripts/validate_parameter_provenance.py
+evidence:
+  input: parameter-study-inputs.json
+  raw: raw-parameter-study.json
+  process: process.json
+  log: matlab-parameter-study.log
+  profile: parameter-study-profile.json
+  profile_receipt: parameter-study-profile-receipt.json
+  run_receipt: parameter-study-receipt.json
+invariants:
+  - every selected method requires independent actual operation qualification
+  - actual process, MATLAB class, numeric readback, ledger, criteria and completion are separate checks
+  - no validator writes state, approved parameters, locked model, D implementation or E protocol
+  - all project results are candidate/trial and never primary, accepted, verified or adopted
+  - a failed simulation stops the study without fabricated penalties or replacement output
+  - new executions require current A/F and gain additionally same-runtime E ode4
+  - historical consumers use execution-time qualifications and current immutable bytes
+deferred: [fitlm parameter study, nonlinear identification, arbitrary expressions, dynamic model calibration, global optimization, parallel execution, multiobjective optimization, SDO, MBC, candidate adoption, numerical verification, physical validation]

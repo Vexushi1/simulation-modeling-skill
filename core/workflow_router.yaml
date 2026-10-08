@@ -1,5 +1,5 @@
 schema_version: 1
-phase: E
+phase: F
 module_manifest: core/module_manifest.yaml
 capability_taxonomy: core/capability_taxonomy.yaml
 runtime_contract: core/runtime_assurance_contract.yaml
@@ -159,6 +159,92 @@ intents:
     expected_artefacts:
     - solver_diagnostics
     next_step: Review the current protocol and actual recorded diagnostics; do not advance state.
+  parameter_study:
+    phase: F
+    mode: read_only
+    module: parameter_study
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: parameter_study
+    required_gates:
+    - model_design_approved
+    - parameter_study_reviewed
+    expected_artefacts:
+    - parameter_study_review
+    next_step: Review current source-bound study or candidate evidence; preserve unresolved gates and
+      record state only through an explicit caller.
+  parameter_candidate_review:
+    phase: F
+    mode: read_only
+    module: parameter_candidate_review
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: parameter_study
+    required_gates:
+    - model_design_approved
+    - parameter_study_reviewed
+    - current_parameter_trial_receipt
+    expected_artefacts:
+    - parameter_study_review
+    next_step: Review current source-bound study or candidate evidence; preserve unresolved gates and
+      record state only through an explicit caller.
+  parameter_identification:
+    phase: F
+    mode: parameter_trial_only
+    module: parameter_identification
+    profile_required: true
+    execution_allowed: true
+    state_validation_scope: parameter_study
+    required_gates:
+    - model_design_approved
+    - parameter_study_reviewed
+    - capability_profile_current
+    - parameter_study_profile_current
+    - required_operations_qualified
+    expected_artefacts:
+    - parameter_trial_receipt
+    - candidate_outputs
+    - process_log
+    next_step: Run only the reviewed bounded study in a fresh directory; review the candidate and return
+      to C for actual adoption.
+  calibration:
+    phase: F
+    mode: parameter_trial_only
+    module: calibration
+    profile_required: true
+    execution_allowed: true
+    state_validation_scope: parameter_study
+    required_gates:
+    - model_design_approved
+    - parameter_study_reviewed
+    - capability_profile_current
+    - parameter_study_profile_current
+    - required_operations_qualified
+    expected_artefacts:
+    - parameter_trial_receipt
+    - candidate_outputs
+    - process_log
+    next_step: Run only the reviewed bounded study in a fresh directory; review the candidate and return
+      to C for actual adoption.
+  optimization:
+    phase: F
+    mode: parameter_trial_only
+    module: optimization
+    profile_required: true
+    execution_allowed: true
+    state_validation_scope: parameter_study
+    required_gates:
+    - model_design_approved
+    - parameter_study_reviewed
+    - capability_profile_current
+    - parameter_study_profile_current
+    - required_operations_qualified
+    expected_artefacts:
+    - parameter_trial_receipt
+    - candidate_outputs
+    - process_log
+    next_step: Run only the reviewed bounded study in a fresh directory; review the candidate and return
+      to C for actual adoption.
 operation_selection:
   defaults_from: module_manifest.modules.environment_assurance.required_operations
   optional_policy: explicit_request_only
@@ -180,9 +266,6 @@ future_capabilities:
     E:
     - model_structure_checked
     - simulation_protocol_approved
-    F:
-    - simulation_protocol_approved
-    - calibration_data_roles_approved
     G:
     - simulation_protocol_approved
     - experiment_design_approved
@@ -239,6 +322,14 @@ fallback:
     action: reprobe_simulation_operations
     reason: Obtain current A and independent E operation qualification on the same runtime, including
       the chosen solver and actual required optional operations.
+  parameter_study_invalid:
+    action: review_parameter_study
+    reason: Review current C approval, source roles, restricted method, trial bounds, data split, budget
+      and acceptance criteria; preserve unknowns.
+  parameter_study_profile_invalid:
+    action: reprobe_parameter_study
+    reason: Obtain current independent A/F qualification for every required operation on the same runtime;
+      gain calibration also requires current E ode4 qualification.
 invariants:
 - inspect_never_grants_execution_or_advances_state
 - current_profile_and_requested_operations_required_for_environment_execution
@@ -264,5 +355,11 @@ invariants:
 - protocol_required_operations_cannot_be_replaced_by_core_runtime_assured
 - simulation_success_does_not_grant_numerical_verification_or_validation
 - historical_simulation_receipts_do_not_grant_new_execution_permission
+- parameter_trial_never_overrides_approved_c_d_e_artifacts
+- candidate_adoption_requires_new_human_c_approval_and_new_d_e_evidence
+- parameter_study_scope_leaves_current_runtime_and_d_e_unassessed
+- f_method_qualification_is_operation_specific_not_toolbox_inventory
 simulation_protocol_schema: core/simulation_protocol.schema.yaml
 simulation_assurance_contract: core/simulation_assurance_contract.yaml
+parameter_study_schema: core/parameter_study.schema.yaml
+parameter_study_assurance_contract: core/parameter_study_assurance_contract.yaml

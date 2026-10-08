@@ -1,0 +1,215 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Phase F reviewed candidate parameter study
+type: object
+additionalProperties: false
+required: [schema_version, project_id, status, model, selection, method, sources, parameters, data, sample_time, objective, budget, criteria, identifiability, warning_policy, required_A_operations, review_record]
+properties:
+  schema_version: {const: 1}
+  project_id: {$ref: '#/$defs/id'}
+  status: {enum: [draft, reviewed]}
+  model: {$ref: '#/$defs/nullable_file'}
+  selection:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [design_id, model_id, relation_id, input_variable_id, output_variable_id, constraint_relation_ids]
+        properties:
+          design_id: {$ref: '#/$defs/id'}
+          model_id: {$ref: '#/$defs/id'}
+          relation_id: {$ref: '#/$defs/id'}
+          input_variable_id: {type: [string, 'null']}
+          output_variable_id: {$ref: '#/$defs/id'}
+          constraint_relation_ids: {$ref: '#/$defs/ids'}
+  method: {enum: [null, identification.arx_111, calibration.simulink_gain, optimization.quadratic_sqp]}
+  sources:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, path, sha256, purpose, model_source_id, problem_source_id]
+      properties:
+        id: {$ref: '#/$defs/id'}
+        path: {$ref: '#/$defs/text'}
+        sha256: {$ref: '#/$defs/sha'}
+        purpose: {$ref: '#/$defs/text'}
+        model_source_id: {type: [string, 'null']}
+        problem_source_id: {type: [string, 'null']}
+  parameters:
+    type: array
+    maxItems: 2
+    items:
+      type: object
+      additionalProperties: false
+      required: [variable_id, symbol, unit, role, initial, lower, upper, numerical_basis, source_ids, reason]
+      properties:
+        variable_id: {$ref: '#/$defs/id'}
+        symbol: {$ref: '#/$defs/text'}
+        unit: {type: [string, 'null']}
+        role: {enum: [identified, calibrated, optimized]}
+        initial: {type: [number, 'null']}
+        lower: {type: [number, 'null']}
+        upper: {type: [number, 'null']}
+        numerical_basis: {$ref: '#/$defs/nullable_source_ref'}
+        source_ids: {$ref: '#/$defs/ids'}
+        reason: {$ref: '#/$defs/text'}
+  data:
+    type: array
+    maxItems: 2
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, source_id, problem_data_use_id, role, start, end, columns, units, weights]
+      properties:
+        id: {$ref: '#/$defs/id'}
+        source_id: {$ref: '#/$defs/id'}
+        problem_data_use_id: {$ref: '#/$defs/id'}
+        role: {enum: [train, holdout]}
+        start: {type: integer, minimum: 0}
+        end: {type: integer, minimum: 1}
+        columns:
+          type: object
+          additionalProperties: false
+          required: [time, input, output]
+          properties:
+            time: {$ref: '#/$defs/text'}
+            input: {$ref: '#/$defs/text'}
+            output: {$ref: '#/$defs/text'}
+        units:
+          type: object
+          additionalProperties: false
+          required: [time, input, output]
+          properties:
+            time: {const: s}
+            input: {type: [string, 'null']}
+            output: {type: [string, 'null']}
+        weights: {type: array, items: {type: number, exclusiveMinimum: 0}}
+  sample_time: {type: [number, 'null'], exclusiveMinimum: 0}
+  objective:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [terms, constraints, meaning]
+        properties:
+          meaning: {$ref: '#/$defs/text'}
+          terms:
+            type: array
+            minItems: 1
+            maxItems: 2
+            items:
+              type: object
+              additionalProperties: false
+              required: [variable_id, center, weight, scale, unit, source_ref, meaning]
+              properties:
+                variable_id: {$ref: '#/$defs/id'}
+                center: {type: number}
+                weight: {type: number, exclusiveMinimum: 0}
+                scale: {type: number, exclusiveMinimum: 0}
+                unit: {type: [string, 'null']}
+                source_ref: {$ref: '#/$defs/source_ref'}
+                meaning: {$ref: '#/$defs/text'}
+          constraints:
+            type: array
+            items:
+              type: object
+              additionalProperties: false
+              required: [coefficients, rhs, relation_id, source_ref]
+              properties:
+                coefficients: {type: array, minItems: 1, maxItems: 2, items: {type: number}}
+                rhs: {type: number}
+                relation_id: {$ref: '#/$defs/id'}
+                source_ref: {$ref: '#/$defs/source_ref'}
+  budget:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [max_iterations, max_evaluations, process_timeout, simulation_timeout]
+        properties:
+          max_iterations: {type: integer, minimum: 1, maximum: 100000}
+          max_evaluations: {type: integer, minimum: 1, maximum: 1000000}
+          process_timeout: {type: number, exclusiveMinimum: 0}
+          simulation_timeout: {type: [number, 'null'], exclusiveMinimum: 0}
+  criteria:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [max_train_rmse, max_holdout_rmse, max_condition_number, feasibility_tolerance, reason, source_ids]
+        properties:
+          max_train_rmse: {type: [number, 'null'], minimum: 0}
+          max_holdout_rmse: {type: [number, 'null'], minimum: 0}
+          max_condition_number: {type: [number, 'null'], minimum: 1}
+          feasibility_tolerance: {type: [number, 'null'], exclusiveMinimum: 0}
+          reason: {$ref: '#/$defs/text'}
+          source_ids: {$ref: '#/$defs/ids'}
+  identifiability:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [reason, limitations, source_ids]
+        properties:
+          reason: {$ref: '#/$defs/text'}
+          limitations: {$ref: '#/$defs/text'}
+          source_ids: {$ref: '#/$defs/ids'}
+  warning_policy: {enum: [null, record, reject]}
+  required_A_operations:
+    type: array
+    uniqueItems: true
+    items:
+      enum: [matlab.basic_execution, simulink.library_load, statistics.normcdf, statistics.fitlm, statistics.lhsdesign]
+  review_record: {$ref: '#/$defs/nullable_file'}
+$defs:
+  id: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'}
+  text: {type: string, pattern: '\S'}
+  sha: {type: string, pattern: '^[a-f0-9]{64}$'}
+  ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+  file:
+    type: object
+    additionalProperties: false
+    required: [path, sha256]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+  nullable_file:
+    anyOf:
+      - {type: 'null'}
+      - {$ref: '#/$defs/file'}
+  source_ref:
+    type: object
+    additionalProperties: false
+    required: [source_id, selector]
+    properties:
+      source_id: {$ref: '#/$defs/id'}
+      selector:
+        type: array
+        items:
+          oneOf:
+            - {$ref: '#/$defs/text'}
+            - {type: integer, minimum: 0}
+  nullable_source_ref:
+    anyOf:
+      - {type: 'null'}
+      - {$ref: '#/$defs/source_ref'}
+  review_record:
+    type: object
+    additionalProperties: false
+    required: [schema_version, project_id, study_semantic_sha256, decision]
+    properties:
+      schema_version: {const: 1}
+      project_id: {$ref: '#/$defs/id'}
+      study_semantic_sha256: {$ref: '#/$defs/sha'}
+      decision:
+        type: object
+        additionalProperties: false
+        required: [path, sha256, start, end, quote, reviewed_by, action]
+        properties:
+          path: {$ref: '#/$defs/text'}
+          sha256: {$ref: '#/$defs/sha'}
+          start: {type: integer, minimum: 0}
+          end: {type: integer, minimum: 1}
+          quote: {$ref: '#/$defs/text'}
+          reviewed_by: {$ref: '#/$defs/text'}
+          action: {const: review}

@@ -1,0 +1,11 @@
+# Fixed SISO ARX identification
+
+Use operation `identification.arx_111` only for the current approved relation `y[k]=a*y[k-1]+b*u[k-1]`, substituting the exact C symbols. Select the ordered C parameter references `[a,b]`; their identified/assumed research provenance and units remain current. This estimates discrete coefficients directly. It does not convert them to continuous physical constants, select model order/delay or qualify general System Identification Toolbox behavior.
+
+Bind training and holdout CSV sources already registered in current B/C. Each selection declares its B data-use ID, distinct time/input/output columns, exact units, original zero-based half-open row interval and positive weights for all selected rows. Initial scope requires explicit unit weights; no weighted ARX estimator is implemented. Each interval contains at least three rows, its first row is the lag row, and train/holdout share no original row. Data must be finite, ordered and uniformly sampled at the declared positive `sample_time`. Training uses `[y[k-1],u[k-1]]`, checks actual rank two and a finite condition number under `max_condition_number` before execution. A disjoint interval alone does not prove statistical independence.
+
+Record null initial/lower/upper/numerical_basis for both ARX parameters and null objective/simulation_timeout/feasibility_tolerance. Supply finite positive process/iteration/evaluation budgets, prior nonnegative training/holdout RMSE limits, a condition-number criterion of at least one, warning policy and current source-backed identifiability reasons/limits. Keep `constraint_relation_ids` empty. The actual ARX `[1 1 1]` representation has `A=[1,-a]`, `B=[0,b]`; wrong sign or delay changes the candidate meaning.
+
+Actual F qualification and project evidence must contain the real `iddata`/`arx` calls, fitted coefficients, training residuals, diagnostics and separately evaluated held-out one-step predictions. Holdout prediction uses declared measured lagged outputs and inputs; it is not a zero-state free-run test or real-system validation. Keep rank failure, operation failure and insufficient-budget records without presenting them as successful coefficients.
+
+Candidate transfer returns to C review and actual human approval. Do not replace approved nulls automatically or mark the identification run as E primary evidence.

@@ -38,6 +38,8 @@ def lint(root: Path = ROOT) -> list[str]:
             "implementation_assurance": "core/implementation_assurance_contract.yaml",
             "simulation_protocol": "core/simulation_protocol.schema.yaml",
             "simulation_assurance": "core/simulation_assurance_contract.yaml",
+            "parameter_study": "core/parameter_study.schema.yaml",
+            "parameter_study_assurance": "core/parameter_study_assurance_contract.yaml",
         }
         if bootstrap["runtime_entry"] != bindings:
             errors.append("bootstrap runtime entry differs from implemented consumers")
@@ -56,6 +58,8 @@ def lint(root: Path = ROOT) -> list[str]:
         router_bindings["implementation_assurance_contract"] = bindings["implementation_assurance"]
         router_bindings["simulation_protocol_schema"] = bindings["simulation_protocol"]
         router_bindings["simulation_assurance_contract"] = bindings["simulation_assurance"]
+        router_bindings["parameter_study_schema"] = bindings["parameter_study"]
+        router_bindings["parameter_study_assurance_contract"] = bindings["parameter_study_assurance"]
         if any(router.get(key) != value for key, value in router_bindings.items()):
             errors.append("router Authority references differ from implemented consumers")
         upstream = {"simulink_execution": "matlab/simulink-agentic-toolkit",
@@ -101,7 +105,8 @@ def lint(root: Path = ROOT) -> list[str]:
             if module["status"] == "implemented":
                 expected_phases = {"environment_assurance": "A", "problem_audit": "B", "model_design": "C",
                                    "domain_mapping": "D", "simulink_build": "D",
-                                   "simulation_protocol": "E", "simulation_execution": "E", "solver_diagnostics": "E"}
+                                   "simulation_protocol": "E", "simulation_execution": "E", "solver_diagnostics": "E", "parameter_study": "F", "parameter_candidate_review": "F",
+                                   "parameter_identification": "F", "calibration": "F", "optimization": "F"}
                 if identity not in expected_phases or module["phase"] != expected_phases[identity]:
                     errors.append(f"business capability activated before implementation: {identity}")
                 for path in module["resources"]:
@@ -110,7 +115,7 @@ def lint(root: Path = ROOT) -> list[str]:
             elif module["status"] != "deferred" or module["resources"]:
                 errors.append(f"invalid deferred module: {identity}")
         for identity, item in taxonomy["capabilities"].items():
-            expected_status = "implemented" if identity in ("problem_audit", "model_design", "domain_mapping", "simulink_build", "simulation_execution", "solver_diagnostics") else "deferred"
+            expected_status = "implemented" if identity in ("problem_audit", "model_design", "domain_mapping", "simulink_build", "simulation_execution", "solver_diagnostics", "parameter_identification", "calibration", "optimization") else "deferred"
             if identity not in modules or modules[identity]["status"] != expected_status or modules[identity]["phase"] != item["phase"]:
                 errors.append(f"taxonomy availability mismatch: {identity}")
         if router["intents"]["inspect"]["execution_allowed"] is not False:
@@ -215,6 +220,29 @@ def lint(root: Path = ROOT) -> list[str]:
             errors.append("E execution omits protocol, runtime, required operation or solver gates")
         if not set(bindings[key] for key in ("simulation_protocol", "simulation_assurance")) <= set(manifest["active_authorities"]):
             errors.append("E contracts are not active Authorities")
+
+        study = load_document(root / bindings['parameter_study_assurance'])
+        f_operations = {'parameter_identification':'identification.arx_111',
+                        'calibration':'calibration.simulink_gain', 'optimization':'optimization.quadratic_sqp'}
+        if set(study.get('operations',{})) != set(f_operations.values()) or study.get('target',{}).get('matlab_release') != 'R2025b':
+            errors.append('F native methods or target differ from the bounded baseline')
+        for name in study.get('source_files',[]):
+            path = (root / name).resolve()
+            if not path.is_relative_to(root.resolve()) or not path.is_file():
+                errors.append(f'invalid F native source binding: {name}')
+        for intent,operation in f_operations.items():
+            route = router['intents'][intent]
+            if not route['execution_allowed'] or not route['profile_required'] or route['state_validation_scope'] != 'parameter_study':
+                errors.append(f'{intent} requires F scoped operation gates')
+            if operation not in modules[intent]['required_operations'] or modules[intent].get('execution_scope') != 'parameter_trial':
+                errors.append(f'{intent} lacks its distinct candidate operation scope')
+        for intent in ('parameter_study','parameter_candidate_review'):
+            if router['intents'][intent]['execution_allowed'] or modules[intent]['required_operations']:
+                errors.append(f'{intent} must remain a read-only text route')
+        if not {bindings['parameter_study'],bindings['parameter_study_assurance']} <= set(manifest['active_authorities']):
+            errors.append('F contracts are not active Authorities')
+        if output['parameter_study_evidence'].get('primary_run_complete') is not False:
+            errors.append('F candidate evidence cannot complete a primary simulation')
 
         graph = bootstrap["authority_graph"]
         edges = {node: [] for node in graph["nodes"]}

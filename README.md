@@ -2,11 +2,11 @@
 
 Competition simulation methodology and evidence orchestration for **MATLAB R2025b + Simulink 25.2**.
 
-Version **0.5.0** adds Phase E frozen protocols, individual solver qualification and non-destructive core Simulink execution to A–D. Local checks, CI, independent review, merge, and release are separate results recorded in the relevant development PR.
+Version **0.6.0** adds reviewed standalone parameter studies and operation-specific ARX, scalar Simulink-gain calibration and bounded quadratic optimization to A–E. Local checks, CI, independent review, merge, and release are separate results recorded in the relevant development PR.
 
 ## Current behavior
 
-Start from [SKILL.md](SKILL.md) and [core/bootstrap.yaml](core/bootstrap.yaml). Active routes support environment inspection and assurance, [problem audit](modules/01_problem_audit.md), [text model design](modules/02_model_design.md), and [approved mapping and core construction](modules/03_domain_mapping.md). [Frozen protocols and core simulation](modules/04_simulation_protocol.md) are now active. Advanced domains, numerical V&V and paper workflows in Phases F–K remain deferred.
+Start from [SKILL.md](SKILL.md) and [core/bootstrap.yaml](core/bootstrap.yaml). Active routes support environment inspection and assurance, [problem audit](modules/01_problem_audit.md), [text model design](modules/02_model_design.md), and [approved mapping and core construction](modules/03_domain_mapping.md). [Frozen protocols and core simulation](modules/04_simulation_protocol.md) are now active. Advanced domains, numerical V&V and paper workflows in Phases G–K remain deferred.
 
 Problem audit binds the original materials and review text, maps literal requirements, records variable and data roles, and checks the question dependency graph. The [Problem Contract](core/problem_contract.schema.yaml) distinguishes a legal draft, an audit-complete result, readiness to freeze, and a frozen contract with a current review decision. Text review and validation need no MATLAB profile. A freeze decision follows the actual task authorization and resolution of critical ambiguities; it does not require separate repeated approval of every question. Validators and the resolver do not freeze a contract or write project state.
 
@@ -18,7 +18,7 @@ The [Model Approval contract](core/model_approval_contract.yaml) requires an act
 
 Structural digests identify registered expressions and do not prove symbolic equivalence. Equivalent rewritten equations or renamed variables can change a digest; a meaningful structural comparator still requires review of actual mechanisms, abstraction, or mathematical differences.
 
-Text design requires no runtime profile. Model-scoped state validation checks B/C and reports environment readiness as unassessed; problem-scoped validation does not assess the model. Validators and routing never write approvals, locked specifications, or state. Model approval is required for formal D mapping but does not qualify native mutation or numerical execution. Simscape/Stateflow/System Composer construction and Phases F–K remain deferred.
+Text design requires no runtime profile. Model-scoped state validation checks B/C and reports environment readiness as unassessed; problem-scoped validation does not assess the model. Validators and routing never write approvals, locked specifications, or state. Model approval is required for formal D mapping but does not qualify native mutation or numerical execution. Simscape/Stateflow/System Composer construction and Phases G–K remain deferred.
 
 Phase C conservatively binds the entire Problem and its current source evidence. Changed statements, attachments, Briefs, decisions, or locked files invalidate the relevant bindings and accepted dependents. It does not claim fine-grained source impact analysis. Runtime expiry alone does not invalidate unchanged text design.
 
@@ -36,7 +36,7 @@ Development Phase A–K gates are distinct from a user's project states. Phase A
 
 ## v1 target and integrations
 
-The target workflow continues from text model design and approval to implementation, simulation protocols, identification or optimization when needed, numerical verification, model comparison decisions, validation, and scientific evidence for paper handoff. A–E infrastructure is active in 0.5.0; calibration, campaigns, numerical V&V and subsequent stages remain planned.
+The target workflow continues from text model design and approval to implementation, simulation protocols, identification or optimization when needed, numerical verification, model comparison decisions, validation, and scientific evidence for paper handoff. A–F infrastructure is active in 0.6.0 within the declared method boundaries; campaigns, numerical V&V and subsequent stages remain planned.
 
 This repository owns competition methodology, routing, evidence, and claim boundaries. Execution adapters prefer `matlab/simulink-agentic-toolkit` and `matlab/matlab-agentic-toolkit`, subject to operation and composition qualification. `Vexushi1/mathmodel-skill` is a methodology and paper-writing reference, not a core runtime dependency. Integration ownership and admission rules live in [core/upstream_integration_policy.md](core/upstream_integration_policy.md).
 
@@ -53,3 +53,11 @@ An explicit caller alone can bind successful receipts and set IMPLEMENTATION_REA
 Read [the E module](modules/04_simulation_protocol.md), [protocol schema](core/simulation_protocol.schema.yaml) and [simulation assurance](core/simulation_assurance_contract.yaml). Only a complete current frozen protocol with valid B/C/D bindings and current same-runtime A/E qualification can run. Parameters and approved initial/boundary conditions remain exact; scenario inputs bind reviewed structured sources. Each solver is qualified independently. Process exit 0 cannot replace complete finite outputs, expected termination, warnings review and prior metrics. Actual MAT v7, JSON and CSV numeric fields are cross-checked. Only explicit callers register receipts and PRIMARY_RUN_COMPLETE; numerical verification and real-system validation remain later gates.
 
 `--include-statistics` expands optional diagnostics; it does not make Statistics operations mandatory. If a model needs fitlm, lhsdesign or normcdf, explicitly require the corresponding operation and inspect its actual result. E propagates its frozen protocol requirements into execution gates. See [operation qualification commands and result interpretation](docs/OPERATION_QUALIFICATION.md).
+
+## Phase F — Optional reviewed parameter studies
+
+The detailed Authority is the full plan §10.8–10.13. Read [the F module](modules/05_identification_calibration_optimization.md). A source-bound study records the selected current approved C mathematics, parameter provenance, numeric bounds and initialization sources, observation roles and half-open train/holdout ranges where applicable, loss, budgets, warning and acceptance rules. A separate semantic review authorizes bounded candidate trials. Unknown C values remain null; given/derived constants cannot silently become search variables.
+
+Three operations are conditional: dense uniformly sampled SISO ARX [1 1 1] with one-step holdout prediction; bounded single-gain Simulink least squares with an actual owned model per objective evaluation; and bounded one/two-variable positive quadratic SQP with explicit linear inequalities. New execution requires current same-runtime A/F operation evidence and the union of actual required A operations. Gain trials also require current E ode4 evidence. Neither toolbox installation nor core environment success qualifies a method. Pure design optimization invents no observations or holdout data.
+
+The separate trial ledger, raw/process evidence and cross-checked MAT/JSON candidate outputs establish a candidate within the reviewed criteria. They never overwrite C/D/E evidence, advance state, adopt parameters or prove physical validity or a general global optimum. Adoption returns to new actual C human approval, then new D/E evidence and later H verification. PARAMETER_STUDY_REVIEWED and PARAMETER_CANDIDATE_COMPLETE form an optional branch; the `parameter_study` scope assesses B/C/F history without current runtime or D/E readiness. Earlier partial scopes leave F unassessed. Repository qualification, independent review, CI and merge remain separate development evidence.

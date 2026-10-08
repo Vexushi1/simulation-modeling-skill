@@ -1,12 +1,12 @@
 # Canonical Architecture — Simulation Modeling Skill
 
-> Scope: v0.5.0 Phase E implementation, based on A–D infrastructure
+> Scope: v0.6.0 Phase F implementation, based on A–E infrastructure
 > Primary runtime baseline: MATLAB R2025b + Simulink  
 > Target: competition-oriented simulation modeling with engineering-grade reproducibility and paper-ready evidence.
 
 [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md) is the detailed development authority. [V1_IMPLEMENTATION_ROADMAP.md](V1_IMPLEMENTATION_ROADMAP.md) summarizes it. This architecture describes the target layers; the active contracts begin at [../core/bootstrap.yaml](../core/bootstrap.yaml).
 
-Current implementation covers environment inspection and assurance, problem audit, and text model design with challenge and human approval checks. Phase D adds approved-model mapping and qualified bounded core construction. Phase E adds frozen protocols and bounded core execution; experiment campaigns and numerical/evidence layers remain deferred, as do Phases F–K. Other D domains have no native construction qualification. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Phase A/B's merged qualification is recorded in the full plan; later qualification, CI, merge, and release results are recorded separately in their development PRs.
+Current implementation covers environment inspection and assurance, problem audit, and text model design with challenge and human approval checks. Phase D adds approved-model mapping and qualified bounded core construction. Phase E adds frozen protocols and bounded core execution; experiment campaigns and numerical/evidence layers remain deferred, as do Phases G–K. Other D domains have no native construction qualification. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Phase A/B's merged qualification is recorded in the full plan; later qualification, CI, merge, and release results are recorded separately in their development PRs.
 
 ## 1. Scope
 
@@ -291,3 +291,11 @@ v1.0.0 is reached only when:
 ## Current Phase E execution boundary
 
 The [E module](../modules/04_simulation_protocol.md) and its independent contracts govern frozen source-bound execution, current per-operation/per-solver qualification and actual output receipts. It preserves C approval/parameters/conditions and D source/model bytes. The implemented PRIMARY_RUN_COMPLETE state records a reviewed run awaiting later numerical verification. Repository development qualification, actual user approval, current runtime permission, historical evidence, CI, merge and release remain distinct.
+
+## Phase F — Optional reviewed parameter studies
+
+The detailed Authority is the full plan §10.8–10.13. Read [the F module](../modules/05_identification_calibration_optimization.md). A source-bound study records the selected current approved C mathematics, parameter provenance, numeric bounds and initialization sources, observation roles and half-open train/holdout ranges where applicable, loss, budgets, warning and acceptance rules. A separate semantic review authorizes bounded candidate trials. Unknown C values remain null; given/derived constants cannot silently become search variables.
+
+Three operations are conditional: dense uniformly sampled SISO ARX [1 1 1] with one-step holdout prediction; bounded single-gain Simulink least squares with an actual owned model per objective evaluation; and bounded one/two-variable positive quadratic SQP with explicit linear inequalities. New execution requires current same-runtime A/F operation evidence and the union of actual required A operations. Gain trials also require current E ode4 evidence. Neither toolbox installation nor core environment success qualifies a method. Pure design optimization invents no observations or holdout data.
+
+The separate trial ledger, raw/process evidence and cross-checked MAT/JSON candidate outputs establish a candidate within the reviewed criteria. They never overwrite C/D/E evidence, advance state, adopt parameters or prove physical validity or a general global optimum. Adoption returns to new actual C human approval, then new D/E evidence and later H verification. PARAMETER_STUDY_REVIEWED and PARAMETER_CANDIDATE_COMPLETE form an optional branch; the `parameter_study` scope assesses B/C/F history without current runtime or D/E readiness. Earlier partial scopes leave F unassessed. Repository qualification, independent review, CI and merge remain separate development evidence.
