@@ -36,6 +36,8 @@ def lint(root: Path = ROOT) -> list[str]:
             "domain_mapping": "core/domain_mapping.schema.yaml",
             "parameter_provenance": "core/parameter_provenance.schema.yaml",
             "implementation_assurance": "core/implementation_assurance_contract.yaml",
+            "simulation_protocol": "core/simulation_protocol.schema.yaml",
+            "simulation_assurance": "core/simulation_assurance_contract.yaml",
         }
         if bootstrap["runtime_entry"] != bindings:
             errors.append("bootstrap runtime entry differs from implemented consumers")
@@ -52,6 +54,8 @@ def lint(root: Path = ROOT) -> list[str]:
         router_bindings["domain_mapping_schema"] = bindings["domain_mapping"]
         router_bindings["parameter_provenance_schema"] = bindings["parameter_provenance"]
         router_bindings["implementation_assurance_contract"] = bindings["implementation_assurance"]
+        router_bindings["simulation_protocol_schema"] = bindings["simulation_protocol"]
+        router_bindings["simulation_assurance_contract"] = bindings["simulation_assurance"]
         if any(router.get(key) != value for key, value in router_bindings.items()):
             errors.append("router Authority references differ from implemented consumers")
         upstream = {"simulink_execution": "matlab/simulink-agentic-toolkit",
@@ -96,7 +100,8 @@ def lint(root: Path = ROOT) -> list[str]:
         for identity, module in modules.items():
             if module["status"] == "implemented":
                 expected_phases = {"environment_assurance": "A", "problem_audit": "B", "model_design": "C",
-                                   "domain_mapping": "D", "simulink_build": "D"}
+                                   "domain_mapping": "D", "simulink_build": "D",
+                                   "simulation_protocol": "E", "simulation_execution": "E", "solver_diagnostics": "E"}
                 if identity not in expected_phases or module["phase"] != expected_phases[identity]:
                     errors.append(f"business capability activated before implementation: {identity}")
                 for path in module["resources"]:
@@ -105,7 +110,7 @@ def lint(root: Path = ROOT) -> list[str]:
             elif module["status"] != "deferred" or module["resources"]:
                 errors.append(f"invalid deferred module: {identity}")
         for identity, item in taxonomy["capabilities"].items():
-            expected_status = "implemented" if identity in ("problem_audit", "model_design", "domain_mapping", "simulink_build") else "deferred"
+            expected_status = "implemented" if identity in ("problem_audit", "model_design", "domain_mapping", "simulink_build", "simulation_execution", "solver_diagnostics") else "deferred"
             if identity not in modules or modules[identity]["status"] != expected_status or modules[identity]["phase"] != item["phase"]:
                 errors.append(f"taxonomy availability mismatch: {identity}")
         if router["intents"]["inspect"]["execution_allowed"] is not False:
@@ -186,6 +191,30 @@ def lint(root: Path = ROOT) -> list[str]:
             errors.append("D output contract cannot grant simulation")
         if "phase_b_exit_reviewed" in router["future_capabilities"]["common_missing_gates"]:
             errors.append("completed repository gates cannot be missing project requirements")
+
+        simulation = load_document(root / bindings["simulation_assurance"])
+        if simulation.get("operation_id") != "simulink.core_simulation":
+            errors.append("E simulation operation differs from the controlled baseline")
+        if simulation.get("target", {}).get("matlab_release") != "R2025b":
+            errors.append("E simulation target must be R2025b")
+        for name in simulation.get("source_files", []):
+            path = (root / name).resolve()
+            if not path.is_relative_to(root.resolve()) or not path.is_file():
+                errors.append(f"invalid E simulation source binding: {name}")
+        for intent in ("simulation_protocol", "solver_diagnostics"):
+            if router["intents"][intent]["execution_allowed"] or modules[intent]["required_operations"]:
+                errors.append(f"{intent} cannot grant execution or require a runtime profile")
+        execution = router["intents"]["simulation_execution"]
+        if (not execution["execution_allowed"] or not execution["profile_required"] or
+                execution["state_validation_scope"] != "simulation" or
+                modules["simulation_execution"]["required_operations"] != core_operations + ["simulink.core_simulation"]):
+            errors.append("E execution requires separate operation qualification and scoped state gates")
+        gates = {"simulation_protocol_frozen", "capability_profile_current", "simulation_profile_current",
+                 "required_operations_qualified", "requested_solver_qualified"}
+        if not gates <= set(execution["required_gates"]):
+            errors.append("E execution omits protocol, runtime, required operation or solver gates")
+        if not set(bindings[key] for key in ("simulation_protocol", "simulation_assurance")) <= set(manifest["active_authorities"]):
+            errors.append("E contracts are not active Authorities")
 
         graph = bootstrap["authority_graph"]
         edges = {node: [] for node in graph["nodes"]}

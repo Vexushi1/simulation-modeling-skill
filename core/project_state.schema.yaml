@@ -1,8 +1,14 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-title: Phase A, B, C and D project state
+title: Phase A through E project state
 type: object
 additionalProperties: false
-required: [schema_version, project_id, project_root, current_stage, environment, artefacts]
+required:
+- schema_version
+- project_id
+- project_root
+- current_stage
+- environment
+- artefacts
 properties:
   schema_version:
     const: 1
@@ -13,38 +19,53 @@ properties:
     type: string
     minLength: 1
   current_stage:
-    enum: [NEW, ENVIRONMENT_ASSURED, PROBLEM_AUDITED, PROBLEM_FROZEN, MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED, IMPLEMENTATION_READY]
+    enum:
+    - NEW
+    - ENVIRONMENT_ASSURED
+    - PROBLEM_AUDITED
+    - PROBLEM_FROZEN
+    - MODEL_PROPOSED
+    - MODEL_CHALLENGED
+    - MODEL_APPROVED
+    - IMPLEMENTATION_READY
+    - SIMULATION_PROTOCOL_FROZEN
+    - PRIMARY_RUN_COMPLETE
   implementation_environment:
     $ref: '#/$defs/environment_binding'
   environment:
     oneOf:
-      - type: 'null'
-      - type: object
-        additionalProperties: false
-        required: [profile_path, profile_sha256, receipt_sha256]
-        properties:
-          profile_path:
-            type: string
-            minLength: 1
-          profile_sha256:
-            type: string
-            pattern: '^[a-f0-9]{64}$'
-          receipt_sha256:
-            type: string
-            pattern: '^[a-f0-9]{64}$'
+    - type: 'null'
+    - type: object
+      additionalProperties: false
+      required:
+      - profile_path
+      - profile_sha256
+      - receipt_sha256
+      properties:
+        profile_path:
+          type: string
+          minLength: 1
+        profile_sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        receipt_sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
   problem:
     oneOf:
-      - type: 'null'
-      - type: object
-        additionalProperties: false
-        required: [path, sha256]
-        properties:
-          path:
-            type: string
-            minLength: 1
-          sha256:
-            type: string
-            pattern: '^[a-f0-9]{64}$'
+    - type: 'null'
+    - type: object
+      additionalProperties: false
+      required:
+      - path
+      - sha256
+      properties:
+        path:
+          type: string
+          minLength: 1
+        sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
   model:
     $ref: '#/$defs/contract_binding'
   approval:
@@ -56,95 +77,194 @@ properties:
     items:
       type: object
       additionalProperties: false
-      required: [id, role, path, sha256, status, depends_on]
+      required:
+      - id
+      - role
+      - path
+      - sha256
+      - status
+      - depends_on
       properties:
         id:
           type: string
           minLength: 1
           not:
-            enum: [environment, implementation_environment, problem, model, approval, mapping]
+            enum:
+            - environment
+            - implementation_environment
+            - problem
+            - model
+            - approval
+            - mapping
+            - protocol
+            - primary_run
+            - simulation_environment
         role:
-          enum: [environment_profile, route_decision, problem_contract, model_contract, model_approval, implementation_profile, mapping_contract, parameter_provenance, implementation_model, structure_evidence, implementation_route_decision]
+          enum:
+          - environment_profile
+          - route_decision
+          - problem_contract
+          - model_contract
+          - model_approval
+          - implementation_profile
+          - mapping_contract
+          - parameter_provenance
+          - implementation_model
+          - structure_evidence
+          - implementation_route_decision
+          - simulation_protocol
+          - simulation_profile
+          - simulation_run
+          - simulation_output
+          - simulation_route_decision
         path:
           type: string
           minLength: 1
         sha256:
           type: string
-          pattern: '^[a-f0-9]{64}$'
+          pattern: ^[a-f0-9]{64}$
         status:
-          enum: [draft, accepted, stale]
+          enum:
+          - draft
+          - accepted
+          - stale
         depends_on:
           type: array
           uniqueItems: true
           items:
             type: string
             minLength: 1
+  simulation_environment:
+    $ref: '#/$defs/environment_binding'
+  protocol:
+    $ref: '#/$defs/contract_binding'
+  primary_run:
+    $ref: '#/$defs/contract_binding'
 allOf:
-  - if:
-      properties:
-        current_stage:
-          const: ENVIRONMENT_ASSURED
-    then:
-      properties:
-        environment:
-          type: object
-  - if:
-      properties:
-        current_stage:
-          enum: [PROBLEM_AUDITED, PROBLEM_FROZEN, MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED, IMPLEMENTATION_READY]
-    then:
-      required: [problem]
-      properties:
-        problem:
-          type: object
-  - if:
-      properties:
-        current_stage:
-          enum: [MODEL_PROPOSED, MODEL_CHALLENGED, MODEL_APPROVED, IMPLEMENTATION_READY]
-    then:
-      required: [model]
-      properties:
-        model:
-          type: object
-  - if:
-      properties:
-        current_stage:
-          enum: [MODEL_APPROVED, IMPLEMENTATION_READY]
-    then:
-      required: [approval]
-      properties:
-        approval:
-          type: object
-  - if:
-      properties:
-        current_stage:
-          const: IMPLEMENTATION_READY
-    then:
-      required: [mapping]
-      properties:
-        mapping:
-          type: object
+- if:
+    properties:
+      current_stage:
+        const: ENVIRONMENT_ASSURED
+  then:
+    properties:
+      environment:
+        type: object
+- if:
+    properties:
+      current_stage:
+        enum:
+        - PROBLEM_AUDITED
+        - PROBLEM_FROZEN
+        - MODEL_PROPOSED
+        - MODEL_CHALLENGED
+        - MODEL_APPROVED
+        - IMPLEMENTATION_READY
+        - SIMULATION_PROTOCOL_FROZEN
+        - PRIMARY_RUN_COMPLETE
+  then:
+    required:
+    - problem
+    properties:
+      problem:
+        type: object
+- if:
+    properties:
+      current_stage:
+        enum:
+        - MODEL_PROPOSED
+        - MODEL_CHALLENGED
+        - MODEL_APPROVED
+        - IMPLEMENTATION_READY
+        - SIMULATION_PROTOCOL_FROZEN
+        - PRIMARY_RUN_COMPLETE
+  then:
+    required:
+    - model
+    properties:
+      model:
+        type: object
+- if:
+    properties:
+      current_stage:
+        enum:
+        - MODEL_APPROVED
+        - IMPLEMENTATION_READY
+        - SIMULATION_PROTOCOL_FROZEN
+        - PRIMARY_RUN_COMPLETE
+  then:
+    required:
+    - approval
+    properties:
+      approval:
+        type: object
+- if:
+    properties:
+      current_stage:
+        enum:
+        - IMPLEMENTATION_READY
+        - SIMULATION_PROTOCOL_FROZEN
+        - PRIMARY_RUN_COMPLETE
+  then:
+    required:
+    - mapping
+    properties:
+      mapping:
+        type: object
+- if:
+    properties:
+      current_stage:
+        enum:
+        - SIMULATION_PROTOCOL_FROZEN
+        - PRIMARY_RUN_COMPLETE
+  then:
+    required:
+    - protocol
+    properties:
+      protocol:
+        type: object
+- if:
+    properties:
+      current_stage:
+        enum:
+        - PRIMARY_RUN_COMPLETE
+  then:
+    required:
+    - primary_run
+    properties:
+      primary_run:
+        type: object
 $defs:
   environment_binding:
     oneOf:
-      - type: 'null'
-      - type: object
-        additionalProperties: false
-        required: [profile_path, profile_sha256, receipt_sha256]
-        properties:
-          profile_path: {type: string, minLength: 1}
-          profile_sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
-          receipt_sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
+    - type: 'null'
+    - type: object
+      additionalProperties: false
+      required:
+      - profile_path
+      - profile_sha256
+      - receipt_sha256
+      properties:
+        profile_path:
+          type: string
+          minLength: 1
+        profile_sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        receipt_sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
   contract_binding:
     oneOf:
-      - type: 'null'
-      - type: object
-        additionalProperties: false
-        required: [path, sha256]
-        properties:
-          path:
-            type: string
-            minLength: 1
-          sha256:
-            type: string
-            pattern: '^[a-f0-9]{64}$'
+    - type: 'null'
+    - type: object
+      additionalProperties: false
+      required:
+      - path
+      - sha256
+      properties:
+        path:
+          type: string
+          minLength: 1
+        sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$

@@ -33,3 +33,18 @@ def test_adapter_range_and_native_fallback_do_not_claim_toolkit_installation():
     assert compatibility["active_native_operation"] == "simulink.core_build_structure"
     assert compatibility["active_native_operation"] != "simulink.library_load"
     assert not compatibility["license"]["redistributed_upstream_code"]
+
+
+def test_simulation_adapter_requires_current_a_e_and_individually_qualified_solver():
+    compatibility = load_document(ROOT / "adapters/mathworks/compatibility.yaml")
+    assert set(compatibility["active_native_operations"]) == {"simulink.core_build_structure", "simulink.core_simulation"}
+    simulation = compatibility["simulation_fallback"]
+    assert simulation["operation"] == "simulink.core_simulation"
+    assert simulation["current_required_independent_profiles"] == ["phase_a_required_operations", "phase_e_core_simulation"]
+    assert simulation["baseline_solvers"] == ["ode45", "ode4"]
+    assert simulation["candidate_solvers"] == ["ode15s"]
+    assert not simulation["toolkit_execution_qualified"]
+    mapping = load_document(ROOT / "adapters/mathworks/skill_mapping.yaml")
+    by_id = {item["id"]: item for item in mapping["skills"]}
+    assert by_id["simulating-simulink-models"]["skill_path"] == "skills-catalog/model-based-design-core/simulating-simulink-models/SKILL.md"
+    assert by_id["authoring-simulink-inputs"]["skill_path"] == "skills-catalog/simulink-simulation/authoring-simulink-inputs/SKILL.md"

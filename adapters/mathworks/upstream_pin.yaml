@@ -101,6 +101,30 @@
           "git_blob_sha1": "bf0a11d48524de9a26b551b1dae6cad78cedaa6f",
           "sha256": "6ab0b83dc029711b97e23c8388118931a8ddb5546d241c1538a526eebdfc1c2e",
           "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/building-simulink-models/references/simscape.md"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/simulating-simulink-models/SKILL.md",
+          "git_blob_sha1": "450a6bdd808e06ed6c5194cc37aabc915ff1276f",
+          "sha256": "cb02886afb11b1109291a8860f7e71604a4fcf8a1bf911d78d97c3cc8c13765b",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/simulating-simulink-models/SKILL.md"
+        },
+        {
+          "path": "skills-catalog/model-based-design-core/simulating-simulink-models/manifest.yaml",
+          "git_blob_sha1": "032be400dd034135659eb8f7cd5b21d0b845ddc1",
+          "sha256": "2fd7d3916e0c038d923e69449e1e1a29163eb48be71ce6a788de43de0ee8dd96",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/model-based-design-core/simulating-simulink-models/manifest.yaml"
+        },
+        {
+          "path": "skills-catalog/simulink-simulation/authoring-simulink-inputs/SKILL.md",
+          "git_blob_sha1": "5b350319661a2d67c05510a0550b3b6dd030745c",
+          "sha256": "5389d2135a7a82336b4daa290eec4520e7b789bf951ae8dd931e987524fc1986",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/simulink-simulation/authoring-simulink-inputs/SKILL.md"
+        },
+        {
+          "path": "skills-catalog/simulink-simulation/authoring-simulink-inputs/manifest.yaml",
+          "git_blob_sha1": "72fc82c1e9e5dfcb7df14fac230c69dc334b9a6c",
+          "sha256": "c1fafa7233db2c807fd87349771b11313302d045b8b0b1a13b995c6eb93e1725",
+          "url": "https://github.com/matlab/simulink-agentic-toolkit/blob/c58e6aec7b904769ae43536e169d747feda95416/skills-catalog/simulink-simulation/authoring-simulink-inputs/manifest.yaml"
         }
       ],
       "version": "2026.10.a"

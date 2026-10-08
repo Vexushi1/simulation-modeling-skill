@@ -103,7 +103,7 @@ def test_unknown_native_operations_and_arbitrary_simulation_intent_are_not_selec
     assert not route["implementation_execution_allowed"]
     for intent in ("simulation_execution", "simscape_build", "stateflow_build"):
         route = resolve_runtime(intent)
-        assert route["status"] == "deferred"
+        assert route["status"] == ("blocked" if intent == "simulation_execution" else "deferred")
         assert not route["execution_allowed"] and not route["implementation_execution_allowed"]
         assert not route["activated_modules"] and not route["upstream_skills"]
 
@@ -227,9 +227,9 @@ def test_implementation_ready_does_not_activate_simulation_or_unqualified_domain
     mapping, profile, native_profile, receipt, state = ready_native_project(tmp_path)
     for intent in ("simulation_execution", "simscape_build", "stateflow_build"):
         route = resolve_runtime(intent, state_path=state)
-        assert route["status"] == "deferred", route["errors"]
+        assert route["status"] == ("blocked" if intent == "simulation_execution" else "deferred"), route["errors"]
         assert not route["execution_allowed"] and not route["simulation_execution_allowed"]
         assert not route["implementation_execution_allowed"] and not route["activated_modules"]
         if intent == "simulation_execution":
             assert "model_structure_checked" not in route["missing_gates"]
-            assert "simulation_protocol_approved" in route["missing_gates"]
+            assert "simulation_protocol_supplied" in route["missing_gates"]

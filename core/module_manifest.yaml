@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.4.0
+version: 0.5.0
 modules:
   environment_assurance:
     phase: A
@@ -52,8 +52,7 @@ modules:
     - simulink.library_load
     - simulink.core_build_structure
     execution_scope: implementation_execution
-    qualification_scope: controlled Inport/Outport/Constant/Gain/Sum/Integrator constructor;
-      no simulation
+    qualification_scope: controlled Inport/Outport/Constant/Gain/Sum/Integrator constructor; no simulation
   simscape_build:
     phase: D
     status: deferred
@@ -64,12 +63,40 @@ modules:
     resources: []
   simulation_execution:
     phase: E
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/04_simulation_protocol.md
+    - core/simulation_protocol.schema.yaml
+    - core/simulation_assurance_contract.yaml
+    - scripts/validate_simulation_protocol.py
+    - templates/contracts/simulation_protocol.yaml
+    - scripts/simulation_route.py
+    - scripts/simulation_state.py
+    - scripts/probe_simulation.py
+    - scripts/run_simulation.py
+    - scripts/validate_simulation_profile.py
+    - scripts/validate_simulation_receipt.py
+    - scripts/matlab/run_simulation.m
+    required_operations:
+    - matlab.basic_execution
+    - simulink.library_load
+    - simulink.core_simulation
+    execution_scope: simulation_execution
+    qualification_scope: normal serial scalar core outputs; individual qualified solver only
   solver_diagnostics:
     phase: E
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/04_simulation_protocol.md
+    - core/simulation_protocol.schema.yaml
+    - core/simulation_assurance_contract.yaml
+    - scripts/validate_simulation_protocol.py
+    - templates/contracts/simulation_protocol.yaml
+    - scripts/simulation_route.py
+    - scripts/simulation_state.py
+    - scripts/validate_simulation_receipt.py
+    required_operations: []
+    execution_scope: simulation_review
   parameter_identification:
     phase: F
     status: deferred
@@ -157,4 +184,16 @@ modules:
     - adapters/mathworks/compatibility.yaml
     - adapters/mathworks/simulink_agentic_toolkit.md
     - adapters/mathworks/upstream_pin.yaml
+    required_operations: []
+  simulation_protocol:
+    phase: E
+    status: implemented
+    resources:
+    - modules/04_simulation_protocol.md
+    - core/simulation_protocol.schema.yaml
+    - core/simulation_assurance_contract.yaml
+    - scripts/validate_simulation_protocol.py
+    - templates/contracts/simulation_protocol.yaml
+    - scripts/simulation_route.py
+    - scripts/simulation_state.py
     required_operations: []
