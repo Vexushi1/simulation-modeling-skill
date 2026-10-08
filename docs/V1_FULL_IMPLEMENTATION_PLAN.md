@@ -1793,6 +1793,8 @@ E metrics.lower/upper 是执行准入界，必须覆盖各实际合法实验结�
 
 历史 receipt 绑定执行时资格以及当前不可变源/设计/成员/样本/输出身份；当前 TTL 只限制新执行。改变目录、概率/顺序/因素/seed/阈值/预算、成员完整协议或来源使相应 campaign/统计及实际依赖 stale。不能靠重写旧 receipt 或扩大 current runtime anchor 恢复历史。
 
+共享 resolver/project-state 开始导入 G 分支后，仅保留原 E/F 文件清单不能捕获新分支消费者改变。原生探测前，将 E/F/G 执行安全来源保守闭合为三合同既有关键文件清单的并集，资格仍各自独立、scope 不扩大；清单绑定文件字节，不写互相递归的预存 hash。A 七项、B 两项及 D 十九项保护集合不改变。新增分支或共享消费者改变将使相关 E/F/G 资格失效并需重资格，不能由单个 overall 通过掩盖。
+
 保护 A7、B schema/validator、D19（包括 taxonomy）逐字节不变。G 共享 bootstrap/router/manifest/state/output/resolver 改动属于 E/F critical source identity，须保留旧 checkout/原证据并标旧源码；不能放宽 closure。最终 source-bound 修改后，重新取得 E 九案例、F 三方法资格，以及相应三个 E 项目和三个 F 研究当前回执，另保留 strict ARX 警告负例。原 D/SLX 未变无需重建；A 仍按真实 current TTL 检验。
 
 ## 11.12 文件及开发出口
