@@ -1,11 +1,11 @@
 # Simulation Modeling Skill v1.0.0 全流程实施计划
 
-> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-08 Phase D实施前审查修订）**
+> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-08 Phase E实施前审查修订）**
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
-> 当前启动分支：bootstrap/v0.1.0-architecture  
-> 当前架构 PR：Draft PR #1  
+> 已完成阶段：A–D；D PR #5 合并基线 `91e6e1eb357511cf53562bac2055038ad68e3617`
+> 当前下一阶段：E；实施分支 `phase-e/simulation-runtime`，未通过出口前不登记为已实现
 > 核心纪律：先冻结计划，再按阶段实施；任何阶段不得脱离本计划直接堆功能。
 
 ---
@@ -99,6 +99,14 @@ phase-k/release-qualification
 - 同一物理量可以有多个明确关联的角色；不机械要求所有角色互斥。
 - 项目 frozen Gate 与仓库 B 开发验收分开；保留关键审查决定，验证器不自动生成冻结决定或修改状态。
 - 题面或审查决定变化使问题及其依赖失效；环境 TTL 不使未变的问题语义失效。
+
+## 0.5 2026-10-08 Phase E 实施前审查摘要
+
+用户继续授权下一阶段，要求先读计划、必要时先修订，再实施并独立复核。D 已在独立 PR #5 完成最终源码、实际 R2025b 结构资格、独立审查、双平台 CI 与合并回读。原 §9 只有 solver/协议字段与推荐 API，缺少协议冻结消费者、真正的仿真操作资格、历史运行身份、状态和可执行出口，不能据此直接开放仿真。
+
+本次先补 §9.9：E 只开放当前 D 六类核心 block 的受控标量 Simulink 普通串行仿真，区分当前执行资格与历史 receipt，补齐协议/运行/状态消费者及真实正反例。仿真成功仍不代表 H 的数值验证、I 的现实有效性或 J 的成果验收。保留 A 七个 source-identity 文件、B schema/validator 与 D 十九个资格源码文件，避免为拓展 E 而使已验证的 D 身份失效。
+
+用户同时指出 `--include-statistics` 的整体核心通过容易被误读。本次不改变 A 的可选探测语义；只修正使用说明，并要求 E 将实际依赖的 `statistics.fitlm`、`statistics.lhsdesign` 或 `statistics.normcdf` 明确传播为 required operations。必须消费该项的实际资格，不能用整体通过替代。先保存这些计划决定，再修改契约与实现。
 
 # 1. 已冻结的顶层决策
 
@@ -547,7 +555,7 @@ simulation-modeling-skill/
 
 # 4. 总体运行状态机
 
-以下是单个建模项目的目标运行状态链，不是仓库开发 Phase A–K 的完成状态。开发阶段只登记已实现且测试通过的能力；未实现的项目状态可以保留在目标图中，但不得被当前 router 激活或通过。Phase A 实现 NEW 与 ENVIRONMENT_ASSURED；Phase B 增加 PROBLEM_AUDITED 与 PROBLEM_FROZEN；Phase C 增加 MODEL_PROPOSED、MODEL_CHALLENGED 与 MODEL_APPROVED，不另造 MODEL_DESIGNED 状态。下图是典型工作顺序，纯文本审题可以从 NEW 开始；环境 readiness 与题意/模型状态独立，问题冻结和模型批准都不授予数值执行许可。
+以下是单个建模项目的目标运行状态链，不是仓库开发 Phase A–K 的完成状态。开发阶段只登记已实现且测试通过的能力；未实现的项目状态可以保留在目标图中，但不得被当前 router 激活或通过。Phase A 实现 NEW 与 ENVIRONMENT_ASSURED；Phase B 增加 PROBLEM_AUDITED 与 PROBLEM_FROZEN；Phase C 增加 MODEL_PROPOSED、MODEL_CHALLENGED 与 MODEL_APPROVED，不另造 MODEL_DESIGNED 状态；已完成 D 增加 IMPLEMENTATION_READY。E 本次拟增加 SIMULATION_PROTOCOL_FROZEN 与 PRIMARY_RUN_COMPLETE，须通过 §9.9 后才成为实际能力。下图是典型工作顺序，纯文本审题可以从 NEW 开始；环境 readiness 与题意/模型状态独立，问题冻结和模型批准都不授予数值执行许可。
 
 主状态链：
 
@@ -639,6 +647,8 @@ solver 不稳定
 - 增加 runtime capability probe；
 - 未来 capability 以当前检测为准；
 - 不永久硬编码旧故障。
+
+`--include-statistics` 会探测三项统计操作，但它们默认不是仅需 MATLAB/Simulink 核心环境的必需项；某项失败时整体核心仍可通过。比赛任务实际依赖哪个函数，就将该 operation ID 通过可重复的 `--require-operation` 明确列为必需，并检查该项 call/assertion/qualified 结果。整体通过、某项成功或已安装工具箱都不能证明另外几项已经通过；一次失败也不等于统计工具箱整体不可用。
 
 ### A-02 Roadmap 与 Full Plan Authority
 
@@ -1433,6 +1443,96 @@ synthetic批准/数值/案例仅资格化基础设施，不为实际项目提供
 - scripts/validate_simulation_protocol.py
 - tests/test_simulation_protocol.py
 
+## 9.9 2026-10-08 实施前审查与执行契约
+
+### E 状态、协议冻结与权限
+
+协议仅使用 draft/frozen，不引入没有消费者的 reviewed 中间状态。validator 分别报告 schema_valid、valid、protocol_complete、frozen、execution_ready 和 missing_gates；run 消费者另报告 run_complete、criteria_satisfied 及实际输出完整性。合法草稿、当前冻结协议、可执行门控和成功运行不可混为一个 passed。
+
+协议绑定当前 B、C 文件/完整人类批准/locked snapshot、D 参数登记与映射、实际 SLX/结构 receipt、选定 design/model/target 与数学身份。冻结记录为独立文件，绑定 project、完整协议语义摘要及明确的授权审查决定、当前来源和精确 quote。协议 semantic digest 只排除 status 与冻结记录引用，其余内容全部绑定；不能把包含自身 SHA 的 receipt 或批准摘要写回自身形成循环。显式调用者先准备完整可审查材料，真实执行审查后记录决定、冻结合同并更新状态；validator/router 从不生成决定、修改文件或推进状态。
+
+E 的协议审查不另造一次 C Human Model Approval；它在当前授权范围内审核执行条件。C 的实际人类批准仍必须当前有效，仓库开发授权或 synthetic 案例不能替实际项目提供这个批准。改变 E solver/tolerance 等而保持 C 内容不变时，数学模型身份与 C 批准保持；修改 C 内 solver_plan、Brief、参数、条件或其他完整设计内容仍须依现 C 合同更新批准，不能以数学结构身份未变绕过完整设计摘要。
+
+SIMULATION_PROTOCOL_FROZEN 要求当前完整冻结协议及有效 B/C/D 绑定，不要求运行已经发生。PRIMARY_RUN_COMPLETE 另要求当前协议的实际成功运行、完整有限输出、预先声明的检查判据通过及显式调用者的运行审查/登记。该状态仅记录可供后续验证的运行，不授予 NUMERICALLY_VERIFIED、VALIDATED、EVIDENCE_ACCEPTED 或论文主张权限。read-only protocol 设计与检查不要求当前 MATLAB profile；新的 simulation_execution 必须满足当前资格和完整协议 Gate。solver_diagnostics 仅消费该次实际运行配置/诊断，不开放 H 的 solver comparison。
+
+### 实际支持范围与 solver 决策
+
+本轮 native baseline 为当前 D 已 qualified 的一个 flat scalar Simulink target，六类 Inport/Outport/Constant/Gain/Sum/Integrator，至少一个根 Outport，普通 normal mode、串行单次仿真。无根 Inport 的常量模型可以运行；没有根 Outport 时不能得到本 baseline 的成功主运行证据，明确返回缺项，不能为了过 Gate 新添数学对象或伪造输出。
+
+受控 solver 先实现 variable-step ode45 与 fixed-step ode4；ode15s 作为单独案例候选，只有实际 R2025b stiff 资格案例和对应断言通过才开放其操作。每种 solver 按各自实际资格裁决；某一项失败不得由其他 solver 的成功提升成 qualified，也不得自动切换 solver 或改数学模型。记录 continuous/discrete、stiffness、DAE、event/zero-crossing、algebraic loop、multirate、fixed-step、real-time/codegen 的分类、判断依据、风险与适用性，不把声明或图更新当作这些复杂能力的证明。
+
+solver 值以 typed、有界有限数据登记，记录 StartTime/StopTime、Solver/SolverType、适用的步长、容差和 zero-crossing 设置及理由。不适用参数显式 null/理由，不能给 fixed-step 填无意义容差或给 variable-step 默填固定步长。要求 start < stop、步长/容差处于对应 API 的合法范围以及适用字段一致。实际运行保存有效 solver/readback，而非只回显请求。期望指标、阈值和 claim_limit 在冻结前确定，实际结果不反向修改这些条件。
+
+第二轮真实 R2025b 探测证明此前允许 MinStep=0 的审查判断错误：变量步长案例实际返回 Simulink:ConfigSet:BdInvSimParam，固定 ode4 与受控错误/早停案例则按预期通过。R2025b MinStep 文档也规定 auto 或正标量。E 当前范围使用显式有限数值，因此 variable-step 的 MinStep 必须严格为正，并与 InitialStep/MaxStep 一致；不将零暗改为 auto。先修订计划、协议与运行器共同拒绝零值，然后显式重新审查新的正值协议，保留原冻结协议和失败运行。该错误不构成 solver 或工具箱不可用的结论。
+
+独立复核补充：协议与运行器必须使用一致的时间和容差边界。R2025b StartTime 允许有限负起点，RelTol 要求正标量，没有通用的非负起点或不大于 1 限制；不能在运行器暗加这两项约束。固定步长的起点必须是步长的整数倍，以浮点表示误差范围检查，冻结前拒绝会被引擎自动调整的起点，不把这种调整当成已审查工况。StopTime 不凭空要求整数倍，但实际输出仍必须覆盖冻结终点。实际公开 SolverInfo 的名称、类型和适用的固定步长或 MaxStep 必须存在且与协议一致；缺失或矛盾不能凭配置回显通过。warning_policy=reject 同时检查实际 WarningDiagnostics 与 lastwarn 消息/标识，不能因诊断数组为空而忽略已经观测到的警告。
+
+第三轮真实 R2025b 记录了 ode45、ode4、ode15s 的正常终止与对应公开步长，及无状态 constant 的实际 Solver=VariableStepDiscrete。R2025b 引擎会将无连续状态模型编译为对应离散求解器；检查须保留请求与实际方法，按 variable/fixed 类型分别识别 VariableStepDiscrete/FixedStepDiscrete，不能用未经实测的笼统名称 discrete 误拒，也不能声称静态模型实际运行了连续 ODE 求解器。存在 Integrator 的受控目标仍要求实际选定连续方法一致。该轮随后发生原生 Illegal instruction，整个资格失败；部分正常记录只供 API 诊断，不合并或提升为完整资格。
+
+第四轮原生记录进一步发现 Constant 的继承 Inf 采样仅记录初始输出，多输出案例中的 constant 端口也只有一个采样；因此虽然终止正常，仍不满足已冻结的完整时间覆盖。不能通过复制常数到伪造时间轴或放宽覆盖检查过 Gate。E 协议须显式冻结 logging.sample_time=0，将每个根 Outport 的连续采样设置通过 SimulationInput.setBlockParameter 临时应用，保存实际应用的端口/采样设置并核验运行后与重新加载时的原设置恢复；这是根输出记录方式，不改变已批准参数、数学本体或保存的 SLX。无输入 static 仍为合法 primary 场景，须在全新原生九案例及真实项目中验证这个设置确实产生完整采样。保留旧协议、原始单采样与未完成回执，不补写未知进程退出码。
+
+R2025b 公开 SimulationMetadata 的 SolverInfo 不保证暴露全部容差字段。配置记录与实际观测分开：记录 SimulationInput 施加的完整 typed 参数，实际 solver 名称/类型及公开步长从 SimulationMetadata 读取；只核对公开观测和实际时间覆盖。未公开的容差不声称已独立 get_param readback，也不为此引入自定义运行 callback。输出采样间隔与内部求解步长保持区别。该限制来自本轮官方 API 审查，先保存此计划修订，再实施相关消费者。
+
+初轮真实 R2025b 九案例发现 ExecutionInfo 不含 StopEventTime，直接读取会使已返回的仿真输出在后处理失败中丢失。终止事件继续读实际 StopEvent；实际停止时间以 SimulationOutput.tout 的最后有限采样及各必需输出覆盖独立裁决，并记录观测来源，不能用配置 StopTime 代替。错误/零输出导致 tout 为空时保留 unknown 与失败诊断；受控早停必须有实际时间依据。SimulationOutput 返回后先持久化原始 MAT，再做元数据与格式后处理；失败保留原生部分数据，不提升成成功。此次按实际 API 证据先修订计划，再修正消费者，原九案例保留为失败记录。
+
+Simscape/Stateflow/System Composer 执行、复杂 DAE/事件/多速率支持、实时/codegen、accelerator/rapid accelerator、Fast Restart、并行、参数扫描、辨识/标定/优化以及 solver comparison 保持 deferred。SDI、内部 signal logging/logsout 扩展可以登记待支持，不因推荐 API 出现在 §9.5/§9.6 而自动获得资格。
+
+### 参数、场景、输入与非破坏执行
+
+SimulationInput 只独立覆盖已审核的 solver 设置，并通过模型 workspace 将当前 D/C exact 已批准参数再次显式绑定；不覆盖 C 参数、初值或边值，不寻找 base workspace 默认值。参数 hash、exact typed value/unit/provenance/owner 与当前 D/C 一致。初始化与边界继续消费 D 实际结构和 C 条件，新增采样、延迟、初值、事件或其他数学变化返回 C。G 的扫描与 F 的拟合不由 E 顺带执行。
+
+场景有当前要求/来源依据、工况说明、输入变量/单位和 seed、runtime class 的明确值或不适用理由。所有根 Inport 必须完整、唯一、按当前 C/D 身份绑定；支持有限标量 constant 或严格有限、时间有序、覆盖所需区间的 time/value 输入，显式声明插值/保持规则和边界处理。C 已知输入值和来源规范必须保持，关键场景或输入缺失时返回具体缺项，不自动补零、step、随机信号或 qualification fixture。自由文本关系和任意 MATLAB 表达式不解析、不 eval。
+
+采用 Simulink.SimulationData.Dataset + SimulationInput.setExternalInput；外部输入是当前协议的受控数值数据。根 Outport 通过 SimulationOutput 的 yout Dataset 输出，不机械插入 To Workspace，也不保存为了 logging 改 dirty 的主 SLX。SimulationInput.setBlockParameter 虽为推荐 API，本 baseline 不用它改已批准初边值或引入未审语义。
+
+每次运行使用新目录、拥有的模型副本和独立 file-generation 目录，只 load/close 本次拥有的模型；恢复 file-generation 与 RNG 设置，不修改全局路径、不关闭其他模型、不写入 base workspace。加载/仿真可能执行 callbacks，须在载入前核实当前 D 结构 receipt 与 SLX 字节身份，并限制为已审核心 execution surface；不接受任意用户 SLX、mask、引用模型、外部字典或 callbacks。原 C/D/参数/SLX 在执行前后逐字节不变；文件存在或 normal-mode 启动不构成非破坏执行通过。
+
+### 独立仿真操作资格和 Statistics 要求
+
+新增 E simulation_assurance companion contract/profile/probe/consumer，不修改或扩大 A 的 minimal operation scope，也不把 D 结构资格升级为 sim 资格。真实 probe 必须在当前 A 资格的同一 R2025b/runtime/host/channel 上实际运行受控 solver、输入和 logging 路径，检查数值输出、有效 solver、非破坏原件与输出解释，并观察受控失败。资格记录具体操作/solver、实际函数来源和 assertion 结果；未通过某项给明确未 qualified，不得用 installed/license/整体 qualified 布尔值掩盖。
+
+新的业务运行分别要求当前 A 所有实际必需操作及 E 所选 solver/输入/输出操作通过、同 runtime、输入/源码/宿主/receipt 完整绑定。历史 D 结构按其执行时资格和当前身份回读，不要求现在重新取得 D TTL 以只读消费已有结构；E 不借此获取新的建模权限。E profile 的 TTL 与当前检测规则独立登记，不覆盖已有失败和成功证据。
+
+协议明确 required_A_operations，至少核心 MATLAB/Simulink 操作，并将实际方法依赖的统计 operation ID 作为必需传播给 A 校验和 route。用户/调用者显式 `--require-operation` 的要求不得静默忽略或被协议较小集合覆盖。`--include-statistics` 仍只扩展探测；整体 runtime_assured/core 通过不能替代所需 fitlm/lhsdesign/normcdf 的 qualified 与 assertion。未声明且不使用的统计操作不阻断核心；声明为必需而失败/缺失必须阻止 E execution，fallback 不得悄悄换方法。F/G 分析模块继续 deferred，即使相关 A 最小操作已 qualified。
+
+### Run receipt、原始输出与终止检查
+
+每次 producer 捕获完整协议和输入 snapshot、B/C/D/参数/SLX/结构身份、当前 A/E profile/receipt、源代码集合、runtime/channel/host、实际有效配置、过程 started/finished/state/exit、原始 MATLAB 报告和日志、输出 MAT/JSON/CSV 文件与逐文件 SHA。运行 receipt 不写回协议形成自引用；实际数据从 SimulationOutput/Dataset 读取，记录每个输出的根端口、observable/变量身份、单位、采样时间和值。CSV/JSON 与 MAT 内容/数组形状按同一声明的输出契约核对，不凭非空文件声称正确。
+
+第五轮真实 R2025b 九案例均完成原生执行，常量与多输出端口已取得完整采样，但 MAT 消费者误把存储 payload dtype 当作 MATLAB 数组类型：MAT v7 可将 double 类的整数值压缩为 miUINT8，SciPy loadmat 默认返回存储类型。这不代表原输出是 uint8，且实际 MAT/JSON/CSV 数值完全相同。独立消费者应使用 loadmat(mat_dtype=True, squeeze_me=False) 按 MATLAB 声明类型读取，仍严格要求 float64、完整形状及精确数值一致，不通过强制 cast 或数值容差放宽 Gate。新增 double 类/uint8 payload 的真实格式回归以及真正 uint8/logical 类拒绝检查，保留 v5 原始失败报告，并在修订后的当前源码上重新取得完整原生资格和项目运行。
+
+独立负例还确认 SciPy 1.18.1 的 mat_dtype=True 会将 complex double 转为实部并发出 ComplexWarning。为保留既有 real-double 边界，先用默认存储类型只读选定数值字段并拒绝任何 complex 数组，再按 MATLAB 声明类型读取校验。不得通过丢弃虚部使本来无效的数据通过；使用实部恰好等于 JSON 的 complex 负例验证此路径。
+
+最终提交附加独立负例发现 MAT 身份字段仍有隐式转换缺口：logical true 可与端口 1 比较相等，数值单位 1 可经 str 转换匹配文本 "1"；端口 row 方向也未区分。该问题没有改变已取得的真实数值输出，但不符合 typed 身份和同一格式的核对目的。现明确冻结 producer 的 MAT 规范：output_ports 为 MATLAB double 类 N×1 正整数端口列；run_id 为单行 char 文本；output_variables/output_units 为 N×1 cell，其成员为单行 char 文本，只有空的声明单位可用空 char。consumer 严格验证声明类、方向和文本，拒绝 logical/整数类伪端口、数值/多行伪文本及方向不符，不经 str/cast 放宽。允许的 null 单位在 JSON 保持 null、MAT 保持空 char，不编码成 JSON []；在受控 passthrough 实例中真实测试 nullable 单位与文本身份出口，保留旧成功和新负例证据后重新取得当前源码资格、真实项目及最终提交检查。
+
+process.json 在后续 normalization 前保存；异常、超时、raw 缺失、JSON 形状错误、单例/空集记录等保留原始证据并受控失败。raw 中 cases/functions/diagnostics/outputs 等记录集合使用 0/1/N 一致数组协议，MATLAB producer 明确编码，Python 严格校验；不把 object/null 宽松提升为数组。没有输入或参数是合法基数；没有必需输出或缺输出是运行失败，不能把空数组当作完整主结果。
+
+进程 exit0、MATLAB 调用返回、时间轴完整性、预期终止、输出有限性、指标判据与 diagnostics 分开检查。消费 SimulationOutput Error/Warning/StopEvent 等实际终止信息及实际最终时间；错误、非预期早停、时间未达到已冻结 StopTime、缺少/重复/非有限输出或判据失败均不能生成成功主运行 receipt。warning 的接受/阻断策略与理由在协议中明确并按实际内容审查，不静默丢弃 warning，也不把所有 warning 一律当失败。不得只用 exit0 或波形“看着正常”断言成功。
+
+历史 run 消费者只读重算身份/receipt/raw/输出/判据及当时完整 A/E 资格，当前 TTL 过期不否定未变历史运行，也不给新的执行权限。receipt/输出成功证明当前声明范围的可复核执行，不证明数学等价、数值收敛或物理真实性。
+
+### 状态、依赖与失效
+
+project state 增加 protocol、primary_run 和独立 simulation_environment 绑定，新增 E artifact roles 和 simulation partial scope。simulation scope 评估 B/C/D/E 的实际 anchors、历史运行与依赖，environment readiness 未评估；problem/model/implementation scope 明确 E 未评估，default all 保持当前环境要求。草稿协议不可通过冻结状态，旧运行或手写 success 标志不可通过 PRIMARY_RUN_COMPLETE。所有 state/route 消费者只读，必须分别报告 checked/unchecked 范围与 execution scope，不能把 E artifact 当 A route_decision 消费。
+
+E solver/tolerance/logging/输入/场景等协议变化，或输入源、C/D 参数/映射/SLX、必要源码/运行依赖变化，使相应协议/运行及实际依赖的验证、主张和交付 stale。当前环境 TTL、runtime/host/source 变化限制新执行并使当前环境与 route 失效；未变历史证据按绑定当时资格核验并保留。C whole-Problem 的保守失效保持，不宣称已完成未来精细 validation-data 图。
+
+保留 A 七个 source-identity 文件、B schema/validator 与 D implementation_assurance source_files 的十九个源码文件逐字节不变；E 扩展通过独立契约、producer/consumer 和非 D source-bound 的 router/state/lint/module/入口接入。若确有改这些文件的必要，先修订计划写明相关 A/D 历史身份失效范围，重新取得受影响资格和实现证据，不能以“仍是同一模型”继续使用原证据。solver/tolerance 的 E 局部变更本身不能迫使未变 C/D 自动 stale。
+
+### 实际资源与开发出口
+
+除 §9.8 资源外，增加 core/simulation_assurance_contract.yaml、E profile/receipt consumer、scripts/probe_simulation.py、scripts/validate_simulation_profile.py、scripts/run_simulation.py、scripts/validate_simulation_receipt.py、受控 scripts/matlab/ 实现、合法协议 draft 模板，以及 protocol/freeze/native/runtime/router/state/stale/output 回归。同步 bootstrap/output/manifest/lint/index/入口与版本 0.5.x；不创建未来模块占位。
+
+官方适配以 live pinned skill/resource、实际文件与 R2025b API 为准，按实际 simulating/inputs/output 需求更新兼容矩阵；上游文档或 release 声明不能代替本地实际组合资格。官方 API 选择需核对 R2025b，R2026a-only 行为不得进入当前 native 路径。SDI/logsout 等本轮 deferred 范围在适配中同样明确。
+
+开发出口要求 simulation_protocol_checks、protocol_freeze_binding、native_simulation_qualification、run_receipt_and_outputs、simulation_route_and_state、source_and_stale_checks、required_operation_propagation、upstream_compatibility_and_authority、authority_and_indexes、完整 A/B/C/D 回归、原始输入独立行为测试、精确最终 commit 独立复核、Windows/Ubuntu CI、合并及合并后回读。先做当前源码资格，再由该资格执行真实单项目；改动资格源码后，原 native green 不能作为新源码完成证据。
+
+Native 正例覆盖 variable ode45、fixed ode4、constant/no-input、带状态 feedback、passthrough 与多个根输出；ode15s 另做候选 stiff case 并据实际结果决定是否开放。资格须至少两个不同 solver 的正例、一个受控失败与非预期早停不得成功的终止检查。实际验证输入/参数/solver 应用、完整输出、原 SLX 不变、模型副本加载/关闭及 0/1/N 跨语言数组；无输出作为 negative boundary，不列成功 case。Python fixtures 只能补充错误路径，不能替代以上 MATLAB 真实正例和出口。
+
+tests 覆盖 frozen/status 伪造、错 project/C/D/SLX/参数/协议 SHA、旧审查决定、未批准或未知关键值、不完整输入/不合法时间与单位、solver 不适用或未 qualified、optional Statistics 失败但核心仍可用与显式必需失败阻断、output/MAT/CSV/raw/receipt 篡改、非有限输出、exit0 但失败/早停、TTL 与历史语义分离、scope/accepted 依赖闭合、只读文件不变、deferred 模块未激活。独立 agent 从原始合成题面和必要的当前来源进入 workflow，不靠 implementation tests/factory 生成应有答案。
+
+synthetic C 批准、参数和数值只资格化仓库基础设施；不制造真实用户模型批准，不替比赛模型完成 F/G/H/I/J，不发布 v1.0.0，也不将 E 单次仿真成功说成最终数值可信或现实有效。同步 §17 协议→运行→待验证数值产物链、§18 失效边界和 §25 仿真/solver 证据限定含义。
+
 ---
 
 # 10. Phase F — 参数辨识、Calibration 与 Optimization
@@ -2196,6 +2296,8 @@ problem
 
 ## 18.2 只改 solver tolerance
 
+本规则指独立 E 协议内的 solver/tolerance 变更，C 内容及其完整批准、D 参数/映射/SLX 均保持不变。若同时修改 C solver_plan/Brief 等设计字节，仍依 §7 的完整批准和其下游失效规则处理；数学结构身份未变不能替代当前完整设计批准。
+
 ~~~text
 model 保持
 simulation protocol stale
@@ -2224,6 +2326,7 @@ model approval
 ## 18.5 参数、数据、工况与环境变化
 
 - D参数登记、映射、SLX、实际构建代码或其依赖变化：相应mapping/implementation/structure及实际依赖的下游失效；未变历史结构按当时完整资格回读，当前环境TTL只限制新的执行。
+- E协议、场景/输入源、solver/tolerance/logging、实际仿真源码或输出/receipt变化：相应protocol/run及实际依赖的下游失效；未变历史运行按当时完整A/E资格与当前身份回读，当前TTL到期不伪造历史失败也不授予新执行许可。
 - 参数、控制器、初值、边值、输入或场景变化：协议、运行及实际依赖的验证、主张、图表和论文失效；不自动改写题意。
 - 辨识/标定数据变化：相关参数和模型选择依据及下游失效；独立验证数据变化只使相关 validation、claim 和交付失效。
 - runtime/宿主、probe/合同、必要操作、输入或有效期变化：环境 profile 与依赖它的路由/环境状态失效并重检。后续运行按实际依赖传播，不删除历史证据。
@@ -2409,9 +2512,9 @@ R2025b 与上游兼容情况。
 | 题意不漂移 | Frozen Problem Contract |
 | 模型可解释 | Model Contract + Approval |
 | Simulink 实现追踪与结构 | 当前批准C + Parameter Provenance + Mapping Review + 原生SLX/Structure Receipt；不自动证明数学等价或物理有效 |
-| 仿真可复现 | Simulation Protocol + Run Receipt |
+| 仿真可复现 | 当前冻结Simulation Protocol + 完整实际Run Receipt/原始数值输出 + 执行时A/E操作资格；不等于数值收敛或现实有效 |
 | 参数有来源 | Parameter Provenance |
-| Solver 合理 | Solver Decision + Diagnostics |
+| Solver 决策可审查 | typed Solver Decision + 实际有效配置/终止Diagnostics + 对应操作资格；solver comparison/数值验证仍依H |
 | 数值可信 | Primary Numerical Verification |
 | 结论稳定 | Sensitivity / Robustness Evidence |
 | 结构可信 | Model Comparison Decision / Evidence |

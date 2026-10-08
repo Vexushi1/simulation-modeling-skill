@@ -1,0 +1,235 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Phase E source-bound non-destructive simulation protocol
+type: object
+additionalProperties: false
+required: [schema_version, project_id, status, mapping, selection, parameter_set, sources, scenario, conditions, time, solver, inputs, outputs, logging, seed, metrics, runtime_class, warning_policy, required_A_operations, freeze_record]
+properties:
+  schema_version: {const: 1}
+  project_id: {$ref: '#/$defs/id'}
+  status: {enum: [draft, frozen]}
+  mapping: {$ref: '#/$defs/nullable_file'}
+  selection:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [target_id, design_id, model_id]
+        properties:
+          target_id: {$ref: '#/$defs/id'}
+          design_id: {$ref: '#/$defs/id'}
+          model_id: {$ref: '#/$defs/id'}
+  parameter_set: {$ref: '#/$defs/nullable_file'}
+  sources:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, path, sha256, purpose, model_source_id, problem_source_id]
+      properties:
+        id: {$ref: '#/$defs/id'}
+        path: {$ref: '#/$defs/text'}
+        sha256: {$ref: '#/$defs/sha'}
+        purpose: {$ref: '#/$defs/text'}
+        model_source_id: {type: [string, 'null']}
+        problem_source_id: {type: [string, 'null']}
+  scenario:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [id, description, requirement_ids, source_ids]
+        properties:
+          id: {$ref: '#/$defs/id'}
+          description: {$ref: '#/$defs/text'}
+          requirement_ids: {$ref: '#/$defs/ids'}
+          source_ids: {$ref: '#/$defs/ids'}
+  conditions:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [initial_conditions, boundary_conditions]
+        properties:
+          initial_conditions: {}
+          boundary_conditions: {}
+  time:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [start, stop, unit, requirement_ids]
+        properties:
+          start: {type: number}
+          stop: {type: number}
+          unit: {const: s}
+          requirement_ids: {$ref: '#/$defs/ids'}
+  solver:
+    anyOf:
+      - {type: 'null'}
+      - {$ref: '#/$defs/solver'}
+  inputs: {type: array, items: {$ref: '#/$defs/input'}}
+  outputs: {type: array, items: {$ref: '#/$defs/output'}}
+  logging:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [format, output_variable, time_variable, sample_time, reason]
+        properties:
+          format: {const: Dataset}
+          output_variable: {const: yout}
+          time_variable: {const: tout}
+          sample_time: {type: number, const: 0}
+          reason: {$ref: '#/$defs/text'}
+  seed:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [value, generator, reason]
+        properties:
+          value: {type: integer, minimum: 0, maximum: 4294967295}
+          generator: {const: twister}
+          reason: {$ref: '#/$defs/text'}
+  metrics: {type: array, items: {$ref: '#/$defs/metric'}}
+  runtime_class: {const: normal_serial}
+  warning_policy:
+    anyOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [action, reason]
+        properties:
+          action: {enum: [record, reject]}
+          reason: {$ref: '#/$defs/text'}
+  required_A_operations:
+    type: array
+    uniqueItems: true
+    items:
+      enum: [matlab.basic_execution, simulink.library_load, statistics.normcdf, statistics.fitlm, statistics.lhsdesign]
+  freeze_record: {$ref: '#/$defs/nullable_file'}
+$defs:
+  id: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'}
+  text: {type: string, pattern: '\S'}
+  sha: {type: string, pattern: '^[a-f0-9]{64}$'}
+  ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+  file:
+    type: object
+    additionalProperties: false
+    required: [path, sha256]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+  nullable_file:
+    anyOf:
+      - {type: 'null'}
+      - {$ref: '#/$defs/file'}
+  selector:
+    type: array
+    items:
+      oneOf:
+        - {$ref: '#/$defs/text'}
+        - {type: integer, minimum: 0}
+  data:
+    type: object
+    additionalProperties: false
+    required: [kind, value, time, values, interpolation]
+    properties:
+      kind: {enum: [constant, sampled]}
+      value: {type: [number, 'null']}
+      time: {type: array, items: {type: number}}
+      values: {type: array, items: {type: number}}
+      interpolation: {enum: [linear, zoh]}
+  input:
+    type: object
+    additionalProperties: false
+    required: [port, block_path, variable_id, unit, data, source_ref, requirement_ids, reason]
+    properties:
+      port: {type: integer, minimum: 1}
+      block_path: {$ref: '#/$defs/text'}
+      variable_id: {$ref: '#/$defs/id'}
+      unit: {type: [string, 'null']}
+      data:
+        anyOf:
+          - {type: 'null'}
+          - {$ref: '#/$defs/data'}
+      source_ref:
+        anyOf:
+          - {type: 'null'}
+          - type: object
+            additionalProperties: false
+            required: [source_id, selector]
+            properties:
+              source_id: {$ref: '#/$defs/id'}
+              selector: {$ref: '#/$defs/selector'}
+      requirement_ids: {$ref: '#/$defs/ids'}
+      reason: {$ref: '#/$defs/text'}
+  output:
+    type: object
+    additionalProperties: false
+    required: [port, block_path, variable_id, unit]
+    properties:
+      port: {type: integer, minimum: 1}
+      block_path: {$ref: '#/$defs/text'}
+      variable_id: {$ref: '#/$defs/id'}
+      unit: {type: [string, 'null']}
+  solver:
+    type: object
+    additionalProperties: false
+    required: [name, type, max_step, min_step, initial_step, rel_tol, abs_tol, fixed_step, zero_crossing, reason, classification]
+    properties:
+      name: {enum: [ode45, ode4, ode15s]}
+      type: {enum: [variable-step, fixed-step]}
+      max_step: {type: [number, 'null']}
+      min_step: {type: [number, 'null']}
+      initial_step: {type: [number, 'null']}
+      rel_tol: {type: [number, 'null']}
+      abs_tol: {type: [number, 'null']}
+      fixed_step: {type: [number, 'null']}
+      zero_crossing: {enum: [EnableAll, DisableAll]}
+      reason: {$ref: '#/$defs/text'}
+      classification:
+        type: object
+        additionalProperties: false
+        required: [dynamics, stiffness, dae, events, algebraic_loop, multirate, real_time_codegen, reason]
+        properties:
+          dynamics: {enum: [continuous, discrete, algebraic]}
+          stiffness: {enum: [stiff, non_stiff, not_applicable, unknown]}
+          dae: {type: boolean}
+          events: {type: boolean}
+          algebraic_loop: {type: boolean}
+          multirate: {type: boolean}
+          real_time_codegen: {type: boolean}
+          reason: {$ref: '#/$defs/text'}
+  metric:
+    type: object
+    additionalProperties: false
+    required: [id, output_port, statistic, unit, lower, upper, reason]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      output_port: {type: integer, minimum: 1}
+      statistic: {enum: [final, minimum, maximum]}
+      unit: {type: [string, 'null']}
+      lower: {type: [number, 'null']}
+      upper: {type: [number, 'null']}
+      reason: {$ref: '#/$defs/text'}
+  freeze_record:
+    type: object
+    additionalProperties: false
+    required: [schema_version, project_id, protocol_semantic_sha256, decision]
+    properties:
+      schema_version: {const: 1}
+      project_id: {$ref: '#/$defs/id'}
+      protocol_semantic_sha256: {$ref: '#/$defs/sha'}
+      decision:
+        type: object
+        additionalProperties: false
+        required: [path, sha256, start, end, quote, reviewed_by, action]
+        properties:
+          path: {$ref: '#/$defs/text'}
+          sha256: {$ref: '#/$defs/sha'}
+          start: {type: integer, minimum: 0}
+          end: {type: integer, minimum: 1}
+          quote: {$ref: '#/$defs/text'}
+          reviewed_by: {$ref: '#/$defs/text'}
+          action: {const: freeze}

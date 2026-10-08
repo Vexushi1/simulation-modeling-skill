@@ -1,0 +1,75 @@
+schema_version: 1
+phase: E
+operation_id: simulink.core_simulation
+target: {matlab_release: R2025b, simulink_version: '25.2'}
+scope: normal serial flat scalar six-block model simulation with Dataset inputs and root-Outport Dataset outputs
+execution_channel: matlab_batch
+validity_seconds: 86400
+baseline_solvers: [ode45, ode4]
+candidate_solvers: [ode15s]
+required_functions: [Simulink.SimulationInput, Simulink.SimulationData.Dataset, Simulink.Parameter, Simulink.fileGenControl, timeseries, sim, rng, new_system, add_block, add_line, load_system, close_system, bdIsLoaded, set_param, get_param, find_system, save_system, save, load, fopen, fprintf, fclose]
+source_files:
+  - core/simulation_assurance_contract.yaml
+  - core/simulation_protocol.schema.yaml
+  - scripts/validate_simulation_protocol.py
+  - scripts/probe_simulation.py
+  - scripts/run_simulation.py
+  - scripts/validate_simulation_profile.py
+  - scripts/validate_simulation_receipt.py
+  - scripts/matlab/run_simulation.m
+  - requirements.txt
+  - modules/04_simulation_protocol.md
+  - core/bootstrap.yaml
+  - core/workflow_router.yaml
+  - core/module_manifest.yaml
+  - core/project_state.schema.yaml
+  - core/output_contract.yaml
+  - scripts/resolve_runtime.py
+  - scripts/validate_project_state.py
+  - scripts/simulation_route.py
+  - scripts/simulation_state.py
+  - core/runtime_assurance_contract.yaml
+  - core/capability_profile.schema.yaml
+  - scripts/matlab/probe_environment.m
+  - core/implementation_assurance_contract.yaml
+  - scripts/probe_implementation.py
+  - scripts/validate_implementation_profile.py
+  - scripts/validate_implementation_receipt.py
+  - scripts/run_implementation.py
+  - scripts/matlab/probe_implementation.m
+  - scripts/runtime_common.py
+  - scripts/probe_environment.py
+  - scripts/validate_environment.py
+  - core/domain_mapping.schema.yaml
+  - core/parameter_provenance.schema.yaml
+  - scripts/validate_domain_mapping.py
+  - scripts/validate_parameter_provenance.py
+  - scripts/validate_model_contract.py
+  - scripts/validate_problem_contract.py
+  - core/model_contract.schema.yaml
+  - core/model_approval_contract.yaml
+  - core/problem_contract.schema.yaml
+  - core/capability_taxonomy.yaml
+evidence:
+  input: simulation-inputs.json
+  raw: raw-simulation.json
+  process: process.json
+  log: matlab-simulation.log
+  profile: simulation-profile.json
+  profile_receipt: simulation-profile-receipt.json
+  run_receipt: simulation-receipt.json
+qualification_cases: [feedback_ode45, feedback_ode4, feedback_ode15s, constant_no_input, passthrough, multiple_outputs, invalid_override, early_stop, no_output]
+common_cases: [constant_no_input, passthrough, multiple_outputs, invalid_override, early_stop, no_output]
+output_format: finite scalar double timeseries exported to MAT v7 plus exact JSON and per-port CSV
+invariants:
+  - qualification is independent of project approval and does not approve a user model
+  - current independent A and selected E solver qualification required for each new simulation
+  - historical D receipt and exact original SLX are consumed without granting new construction permission
+  - profile validity does not assert that every solver candidate passed
+  - existing evidence directories are never overwritten
+  - original project files and owned SLX are byte-preserved; no callbacks references dictionaries masks or arbitrary expressions
+  - reviewed logging.sample_time 0 applies root-Outport continuous sampling temporarily through SimulationInput; original settings are read before after and on reopening
+  - MAT identities use a double output-port column and char-row run id plus cell-column char-row variables and units; absent declared units remain JSON null and MAT empty char
+  - process exit zero, simulation return, stop coverage, numeric criteria and diagnostics are checked separately
+  - history validates A and E qualifications at execution start; present source and artifact bytes still matter
+deferred: [toolkit MCP execution, Simscape execution, Stateflow execution, System Composer execution, internal signal logging, SDI, fast restart, acceleration, parallel execution, parameter sweeps, calibration, numerical verification, model comparison, validation]

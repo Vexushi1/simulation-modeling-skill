@@ -1,8 +1,8 @@
 ---
 name: simulation-modeling-skill
-description: Audit simulation statements, design and challenge mathematical models, prepare human model approval, map current approved models and parameter provenance to engineering structures, and build qualified core Simulink models on MATLAB R2025b. Use for source-bound Problem/Model/Mapping Contracts, operation evidence and scoped state checks. Simulation, numerical verification and paper workflows remain deferred.
+description: Audit simulation tasks, design and challenge mathematical models, prepare human approval, map approved models, and build and run qualified scalar core Simulink models on MATLAB R2025b with frozen protocols and source-bound receipts. Use for Problem/Model/Mapping/Simulation Contracts, operation evidence and scoped state checks. Numerical V&V, advanced domains and paper delivery remain deferred.
 metadata:
-  version: "0.4.0"
+  version: "0.5.0"
   primary_runtime: "MATLAB R2025b"
 ---
 
@@ -16,7 +16,7 @@ For repository changes, first read [the full implementation plan](docs/V1_FULL_I
 
 ## Current scope
 
-Version 0.4.0 adds Phase D approved-model mapping, exact parameter provenance, and qualified core Simulink construction to the merged Phase A/B/C infrastructure. Local checks, independent review, CI, merge, and release are separate evidence recorded in the relevant development PR; a version label does not establish qualification.
+Version 0.5.0 adds Phase E frozen simulation protocols, individually qualified solvers and non-destructive core Simulink execution to A–D. Local checks, actual MATLAB qualification, independent review, CI, merge and release are separate evidence recorded in the development PR; a version label does not establish qualification.
 
 For problem audit, read [modules/01_problem_audit.md](modules/01_problem_audit.md) and the Problem Contract schema before using its draft template. Text audit and read-only validation require no environment profile. Preserve original material identities, literal coverage, requirements, roles, dependencies, and critical ambiguities. Freeze requires a current source-bound review decision under the actual task authorization; resolve necessary material decisions without demanding approval for every question. Repository development authorization does not approve a real task or its model.
 
@@ -26,14 +26,16 @@ Structural model identity excludes solver and parameter-value changes; the compl
 
 Structural digests identify the registered expression, without proving symbolic equivalence. A changed digest alone does not establish a meaningful structural comparator.
 
-Environment inspection needs no profile. Assurance requires current evidence for the requested operations. Resolver and validator results never write contracts, approvals, locks, or project state. For D, read [modules/03_domain_mapping.md](modules/03_domain_mapping.md) and its schemas before constructing a mapping or parameter file. Formal mapping requires current C human approval and no profile. Unknown values remain unknown. Native construction requires current A and independent D operation evidence; library loading is insufficient. The bounded builder consumes explicit reviewed instructions for six core block types and produces actual save/reopen/structure receipts in a new directory. Check the separate implementation execution permission. Simscape/Stateflow/System Composer construction and Phases E–K remain deferred; return their missing gates. Model approval grants no numerical execution.
+Environment inspection needs no profile. Assurance requires current evidence for the requested operations. Resolver and validator results never write contracts, approvals, locks, or project state. For D, read [modules/03_domain_mapping.md](modules/03_domain_mapping.md) and its schemas before constructing a mapping or parameter file. Formal mapping requires current C human approval and no profile. Unknown values remain unknown. Native construction requires current A and independent D operation evidence; library loading is insufficient. The bounded builder consumes explicit reviewed instructions for six core block types and produces actual save/reopen/structure receipts in a new directory. Check the separate implementation execution permission. Simscape/Stateflow/System Composer construction and Phases F–K remain deferred; return their missing gates. Model approval alone grants no numerical execution.
 
 ## Use evidence within its scope
 
 - Baseline products are candidates. Installation, a license test, or a resolvable function path does not prove that an operation is callable or qualified.
 - Qualification applies to the exact operation, inputs, runtime identity, and execution channel recorded by the repository probe. Simulink library loading does not qualify simulation execution or a Toolkit composition.
 - Validate current profile, raw report, receipt, source hashes, and process evidence against the runtime assurance contract before granting an assurance route. Use a new output directory for every probe. Runtime freshness controls runtime use; it does not expire unchanged problem, text-model, or mapping meaning. New model mutation requires current profiles; historical structures retain their bound execution-time evidence.
-- Select only operations required by the current route. `selected` belongs to that route decision and is not written back to the probe profile.
+- Select only operations required by the current route. `selected` belongs to that route decision and is not written back to the probe profile. `--include-statistics` runs optional diagnostics; it does not make the three operations mandatory. Explicitly require the actual needed `statistics.fitlm`, `statistics.lhsdesign` or `statistics.normcdf` and check each qualification. See [operation qualification](docs/OPERATION_QUALIFICATION.md).
 - Report missing, failed, stale, or deferred capabilities with their prescribed fallback. Resolver output does not update project state automatically.
 
 The v1 target is a traceable problem-to-model-to-evidence workflow. Its detailed semantics and gates live in the full plan. This repository owns competition methodology and evidence; low-level execution prefers official MathWorks Toolkits under [the integration policy](core/upstream_integration_policy.md). Full paper composition can be delegated to `Vexushi1/mathmodel-skill` when a qualified handoff is available; that repository is not a core runtime dependency.
+
+For E, read [modules/04_simulation_protocol.md](modules/04_simulation_protocol.md) and its contracts. Review and freeze the source-bound protocol against current B/C/D evidence. New execution requires current same-runtime A/E profiles, every actual required operation and the individually qualified solver. Preserve original files, review the actual termination and MAT/JSON/CSV outputs, and register state only through an explicit caller. A completed primary run awaits numerical verification; it establishes no physical or publication claim.

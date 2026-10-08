@@ -1,0 +1,26 @@
+# Legal Phase E draft. Read modules/04_simulation_protocol.md and the schema first.
+# Bind current ready D; its current B/C approval and exact parameters remain authoritative.
+# Source-referenced input data comes from JSON/YAML and explicit selectors, never text eval.
+# Leave unknowns null; validators do not freeze this draft or grant execution.
+schema_version: 1
+project_id: replace-project-id
+status: draft
+mapping: null
+selection: null
+parameter_set: null
+sources: []
+scenario: null
+conditions: null
+time: null
+solver: null
+inputs: []
+outputs: []
+logging: null
+# A completed protocol must explicitly review logging.sample_time: 0. This applies
+# continuous sampling to root Outports temporarily; it does not set solver steps.
+seed: null
+metrics: []
+runtime_class: normal_serial
+warning_policy: null
+required_A_operations: [matlab.basic_execution, simulink.library_load]
+freeze_record: null

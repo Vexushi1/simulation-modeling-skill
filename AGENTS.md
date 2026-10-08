@@ -4,7 +4,7 @@ Read [docs/V1_FULL_IMPLEMENTATION_PLAN.md](docs/V1_FULL_IMPLEMENTATION_PLAN.md),
 
 Work on an independent phase/topic branch and PR. Amend the plan first when its semantics need correction. Routine work already authorized within the current phase does not require renewed approval. Development gates do not approve a user's model or advance a project state.
 
-Version 0.4.0 implements Phase D mapping, parameter binding, and qualified core Simulink construction on the merged A/B/C infrastructure. Simscape/Stateflow/System Composer construction and Phases E–K remain deferred. Do not activate them, create placeholder business files, or count their target states as implemented. Keep the entry point short and detailed rules in their authorities.
+Version 0.5.0 implements Phase E frozen protocols and independently qualified core simulation on A–D. Simscape/Stateflow/System Composer construction and Phases F–K remain deferred. Do not activate them, create placeholder business files, or count their target states as implemented. Keep the entry point short and detailed rules in their authorities.
 
 Read [modules/01_problem_audit.md](modules/01_problem_audit.md) and [core/problem_contract.schema.yaml](core/problem_contract.schema.yaml) before constructing a Problem Contract or using its template. Preserve original material and review identities, facts, references, data ranges, and task ambiguities. A freeze is an actual source-bound review decision under the task authorization, not an automatic validator result. Resolve necessary missing facts or choices without requiring approval for every question. Continued repository development authorization supplies neither a real task's answers nor its Model Approval.
 
@@ -47,14 +47,14 @@ Structural identity hashes registered representations without proving symbolic e
 Run a fresh local R2025b qualification probe in a new output directory:
 
 ```text
-python scripts/probe_environment.py --matlab-executable '<path>' --output-dir '<new dir>' --include-statistics
+python scripts/probe_environment.py --matlab-executable '<path>' --output-dir '<new dir>'
 ```
 
-Replace the path placeholders with the chosen MATLAB executable and unused evidence directory. Omit `--include-statistics` when the request requires only core operations. Preserve failed probe evidence as well as successes; never overwrite earlier runs.
+Replace the path placeholders with the chosen MATLAB executable and unused evidence directory. `--include-statistics` only expands optional diagnostics, so a failed statistical operation can coexist with core success. For each actually needed statistics.fitlm/lhsdesign/normcdf use repeated `--require-operation` and inspect its qualified result; see [operation qualification](docs/OPERATION_QUALIFICATION.md). Preserve failed probe evidence as well as successes; never overwrite earlier runs.
 
 Qualification belongs to the tested operation, inputs, runtime identity, source version, and execution channel. License flags, library loading, generic Skill validation, and Python fixture checks do not establish business simulation or end-to-end qualification. `selected` belongs to the route, not the probe profile.
 
-Report tests, actual MATLAB calls, CI, independent review, merge, and release distinctly. Use the full plan's Phase D exit checks and include Scope, Authority Changes, Behavior Changes, Evidence, Compatibility, Stale Impact, and Deferred in its PR. Preserve Phase A/B qualification and audit behavior; synthetic C fixtures qualify infrastructure, not an actual model approval or physical result. Do not infer finer-grained source invalidation than the current conservative binding implements.
+Report tests, actual MATLAB calls, CI, independent review, merge, and release distinctly. Use the full plan's Phase E exit checks and include Scope, Authority Changes, Behavior Changes, Evidence, Compatibility, Stale Impact, and Deferred in its PR. Preserve Phase A/B qualification and audit behavior; synthetic C fixtures qualify infrastructure, not an actual model approval or physical result. Do not infer finer-grained source invalidation than the current conservative binding implements.
 
 ## Phase D implementation discipline
 
@@ -63,3 +63,11 @@ Read modules/03_domain_mapping.md and core/domain_mapping.schema.yaml, core/para
 New construction requires current independent A and D profiles. Inspect the producer CLI help, use a new output directory, and qualify actual create/connect/assign/update/save/close/reload/readback. Do not overwrite models, close other models, or modify global paths/base workspace. Preserve failed evidence. Historical structure validation consumes execution-time qualifications and current semantic/source/SLX identities without granting a new run. Only explicit callers write mapping receipt bindings or IMPLEMENTATION_READY. Implementation scope checks B/C/D and leaves runtime unassessed; problem/model scopes leave D unassessed. Business simulation remains forbidden until E.
 
 Run all A/B/C regressions and D mapping/parameter/native/router/state/stale/adapter checks, original-input independent behavior testing, final-commit review, Windows/Ubuntu CI, merge and post-merge readback. Preserve the seven A source-identity files and B schema/validator. Synthetic qualification approves no actual project.
+
+## Phase E execution discipline
+
+Read modules/04_simulation_protocol.md and both E contracts first. Preserve all seven A source identities, B schema/validator and all nineteen D source-bound files when extending E. Protocol/source review is separate from real C human approval. E-only solver/tolerance choices do not rewrite C; changing full C bytes still invalidates its approval. Never invent needed parameters or override approved conditions. New execution consumes current same-host/runtime A/E evidence, the chosen qualified solver and the union of protocol/caller required operations; core success alone is insufficient.
+
+Use new directories, owned model copies, SimulationInput and Dataset root outputs. Verify actual public solver/termination metadata separately from configured parameters. Preserve failures and partial data, and independently read MAT/JSON/CSV numeric evidence. Historical E receipts bind execution-time qualification; current TTL only controls new execution. Simulation scope assesses B/C/D/E without current environment readiness; earlier scopes leave E unassessed. Only callers record freeze/primary-run states. Successful execution grants no numerical verification, validation or publication acceptance.
+
+E exit requires real variable/fixed solver, no-input/static, feedback/passthrough and multiple-output cases, controlled errors and early stop, all A–D regressions, independent original-input behavior and exact-head review, Windows/Ubuntu CI, merge and postmerge readback. Preserve all failures; never replace current-source qualification with an earlier green run.

@@ -75,7 +75,6 @@ Exit checks: domain_mapping_checks, parameter_binding_checks, native_simulink_st
 
 | Phase | Planned scope |
 |---|---|
-| E | Solver decisions, frozen simulation protocol, reproducible execution, and run receipts |
 | F | Parameter provenance, identification, calibration, and optimization when required |
 | G | Experiment design, campaigns, uncertainty sampling, and parallel simulation |
 | H | Primary numerical verification, sensitivity/robustness decisions, and structural/solver comparison |
@@ -88,3 +87,9 @@ Develop phases in the full plan's order and refine each phase's executable gates
 ## Release
 
 The v1.0.0 gate remains the full plan's release definition: all phases qualified and merged, complete active indexes and CI, current upstream compatibility, representative R2025b runtime evidence, accepted evidence and claim boundaries, and verified paper handoff. Version 0.4.0 does not claim that release gate.
+
+## Phase E — Frozen protocols and qualified execution
+
+The full plan §9.9 is the detailed Authority. Version 0.5.0 adds a source-bound draft/frozen protocol, independent A/E operation and individual solver qualification, normal serial scalar core execution, actual Dataset root outputs, cross-format MAT/JSON/CSV numeric receipts and SIMULATION_PROTOCOL_FROZEN/PRIMARY_RUN_COMPLETE. Original C/D evidence and all nineteen D source identities remain unchanged. Optional Statistics diagnostics are distinct from explicit operation requirements.
+
+E success does not grant numerical V&V or publication claims. Read-only consumers never freeze or update state. Historical qualification and current TTL are separate. Exit requires real R2025b positive/negative/cardinality cases, all prior regressions, independent behavior/final-source review, dual-platform CI, merge and readback. Advanced solver/domain and F–K workflows remain deferred.

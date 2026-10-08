@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 
 from runtime_common import contained_path, emit, load_contract, load_document, schema_errors, sha256_file
+from simulation_state import STAGES as E_STAGES, HISTORICAL_ROLES as E_HISTORICAL_ROLES, CURRENT_ROLES as E_CURRENT_ROLES
 
 D_EVIDENCE_ROLES = {"mapping_contract", "parameter_provenance", "implementation_model", "structure_evidence"}
 
@@ -20,6 +21,7 @@ def affected_artefacts(artefacts: list[dict], changed_ids: set[str]) -> set[str]
 
 def validate_project_state(state_path: Path, *, profile_path: Path | None = None,
                            implementation_profile_path: Path | None = None,
+                           simulation_profile_path: Path | None = None,
                            scope: str = "all") -> dict:
     """Partial scopes validate only declared evidence, never the whole project."""
     errors = []
@@ -30,14 +32,15 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
               "implementation_environment_checked": False,
               "stage_assessment": {"all": "all_implemented_evidence", "problem": "problem_only",
                                    "model": "problem_and_model_only",
-                                   "implementation": "problem_model_and_implementation_only"}.get(scope),
+                                   "implementation": "problem_model_and_implementation_only",
+                                   "simulation": "problem_model_implementation_and_simulation_only"}.get(scope),
               "problem_path": None, "problem_contract_sha256": None,
               "model_path": None, "model_contract_sha256": None,
               "approval_path": None, "approval_sha256": None, "model_approved": False,
               "mapping_path": None, "mapping_contract_sha256": None,
               "environment_path": None, "implementation_environment_path": None,
               "project_root": None}
-    if scope not in ("all", "problem", "model", "implementation"):
+    if scope not in ("all", "problem", "model", "implementation", "simulation"):
         return {**result, "valid": False, "errors": [f"unknown validation scope: {scope}"],
                 "stale_artefacts": [], "current_stage": None}
     try:
@@ -103,7 +106,7 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
         bound_problem = None
         problem_report = None
         problem_status = None
-        model_stages = {"MODEL_PROPOSED", "MODEL_CHALLENGED", "MODEL_APPROVED", "IMPLEMENTATION_READY"}
+        model_stages = {"MODEL_PROPOSED", "MODEL_CHALLENGED", "MODEL_APPROVED", "IMPLEMENTATION_READY"} | E_STAGES
         if problem:
             from validate_problem_contract import validate_problem_contract
 
@@ -152,7 +155,7 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                 bound_model, project_root=project_root, problem_path=bound_problem,
                 approval_path=bound_approval, require_proposed=stage == "MODEL_PROPOSED",
                 require_challenged=stage == "MODEL_CHALLENGED",
-                require_approved=stage in {"MODEL_APPROVED", "IMPLEMENTATION_READY"})
+                require_approved=stage in {"MODEL_APPROVED", "IMPLEMENTATION_READY"} | E_STAGES)
             result["model_validation"] = model_report
             result["model_contract_sha256"] = model_report["contract_sha256"]
             result["approval_path"] = model_report.get("approval_path")
@@ -193,6 +196,7 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                 "MODEL_APPROVED": {"approved"},
                 "IMPLEMENTATION_READY": {"approved"},
             }
+            required_statuses.update({item: {"approved"} for item in E_STAGES})
             if stage in required_statuses and model_status not in required_statuses[stage]:
                 errors.append(f"{stage} requires the corresponding declared model status")
                 stale.add("model")
@@ -203,14 +207,14 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
         mapping = state.get("mapping")
         bound_mapping = contained_path(project_root, mapping["path"]) if mapping else None
         mapping_report = None
-        if scope in {"all", "implementation"} and mapping:
+        if scope in {"all", "implementation", "simulation"} and mapping:
             from validate_domain_mapping import validate_domain_mapping
 
             result["implementation_checked"] = True
             result["mapping_path"] = str(bound_mapping)
             mapping_report = validate_domain_mapping(
                 bound_mapping, project_root=project_root,
-                require_ready=stage == "IMPLEMENTATION_READY")
+                require_ready=stage == "IMPLEMENTATION_READY" or stage in E_STAGES)
             result["mapping_validation"] = mapping_report
             result["mapping_contract_sha256"] = mapping_report["contract_sha256"]
             if mapping_report["contract_sha256"] != mapping["sha256"]:
@@ -231,30 +235,35 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                 stale.add("mapping")
             result["implementation_ready"] = bool(
                 mapping_report["implementation_ready"] and result["model_approved"] and "mapping" not in stale)
-            if stage == "IMPLEMENTATION_READY" and not result["implementation_ready"]:
+            if (stage == "IMPLEMENTATION_READY" or stage in E_STAGES) and not result["implementation_ready"]:
                 errors.append("IMPLEMENTATION_READY requires current mapping, parameter and actual structure evidence")
                 stale.add("mapping")
 
+        from simulation_state import validate_bindings, validate_artifact
+        validate_bindings(state, project_root, result, errors, stale, scope, simulation_profile_path)
         artefacts = state["artefacts"]
         by_id = {item["id"]: item for item in artefacts}
         if len(by_id) != len(artefacts):
             errors.append("artefact IDs must be unique")
         for item in artefacts:
             contained_path(project_root, item["path"])
-        environment_ids = {"environment", "implementation_environment"} | {
+        environment_ids = {"environment", "implementation_environment", "simulation_environment"} | {
             item["id"] for item in artefacts if item["role"] in
-            ("environment_profile", "route_decision", "implementation_profile", "implementation_route_decision")}
+            ("environment_profile", "route_decision", "implementation_profile", "implementation_route_decision", "simulation_profile", "simulation_route_decision")}
         environment_dependents = affected_artefacts(artefacts, environment_ids)
         anchors = ({"environment"} if environment else set()) | ({"problem"} if problem else set())
         anchors |= ({"model"} if model else set()) | ({"approval"} if approval else set())
         anchors |= ({"mapping"} if mapping else set())
         anchors |= ({"implementation_environment"} if implementation_environment else set())
+        anchors |= {anchor for anchor in ("protocol", "primary_run", "simulation_environment") if state.get(anchor)}
         known = set(by_id) | anchors
         scoped_roles = {"problem_contract"}
-        if scope in {"model", "implementation"}:
+        if scope in {"model", "implementation", "simulation"}:
             scoped_roles |= {"model_contract", "model_approval"}
-        if scope == "implementation":
+        if scope in {"implementation", "simulation"}:
             scoped_roles |= D_EVIDENCE_ROLES
+        if scope == "simulation":
+            scoped_roles |= E_HISTORICAL_ROLES
         checked_ids = set(by_id) if scope == "all" else {
             item["id"] for item in artefacts if item["role"] in scoped_roles}
         if scope != "all":
@@ -400,6 +409,15 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                         errors.extend(f"{item['id']}: {error}" for error in invalid)
                         stale.add(item["id"])
                     continue
+                if item["role"] in E_HISTORICAL_ROLES | E_CURRENT_ROLES:
+                    if scope != "all" and item["role"] in E_CURRENT_ROLES:
+                        continue
+                    invalid = validate_artifact(item, state=state, result=result, root=project_root,
+                        environment_dependents=environment_dependents, ancestor_roles=ancestor_roles)
+                    if invalid:
+                        errors.extend(f"{item['id']}: {error}" for error in invalid)
+                        stale.add(item["id"])
+                    continue
                 if scope != "all":
                     # Byte/dependency checks above do not qualify an environment ancestor.
                     continue
@@ -482,10 +500,20 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                         errors.append(f"{item['id']}: route decision is outside the bound qualified Phase A scope")
                         stale.add(item["id"])
         stale = affected_artefacts(artefacts, stale)
+        if {"protocol", "mapping", "model", "approval", "problem"} & stale:
+            result["protocol_frozen"] = False
+            result["primary_run_complete"] = False
+        if "primary_run" in stale or any(item["id"] in stale and item["role"] in E_HISTORICAL_ROLES for item in artefacts):
+            result["primary_run_complete"] = False
+        if stage in E_STAGES and scope in {"all", "simulation"}:
+            if not result["protocol_frozen"]:
+                errors.append("frozen simulation stage cannot retain stale protocol dependencies")
+            if stage == "PRIMARY_RUN_COMPLETE" and not result["primary_run_complete"]:
+                errors.append("PRIMARY_RUN_COMPLETE cannot retain stale run dependencies")
         if "mapping" in stale or any(item["id"] in stale and item["role"] in D_EVIDENCE_ROLES
                                      for item in artefacts if item["id"] in checked_ids):
             result["implementation_ready"] = False
-        if (stage == "IMPLEMENTATION_READY" and scope in {"all", "implementation"} and
+        if ((stage == "IMPLEMENTATION_READY" or stage in E_STAGES) and scope in {"all", "implementation", "simulation"} and
                 not result["implementation_ready"]):
             errors.append("IMPLEMENTATION_READY cannot retain stale implementation dependencies")
         for item in artefacts:
@@ -502,10 +530,12 @@ def main() -> int:
     parser.add_argument("state", type=Path)
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--implementation-profile", type=Path)
-    parser.add_argument("--scope", choices=["all", "problem", "model", "implementation"], default="all")
+    parser.add_argument("--simulation-profile", type=Path)
+    parser.add_argument("--scope", choices=["all", "problem", "model", "implementation", "simulation"], default="all")
     args = parser.parse_args()
     result = validate_project_state(args.state, profile_path=args.profile,
-                                    implementation_profile_path=args.implementation_profile, scope=args.scope)
+                                    implementation_profile_path=args.implementation_profile,
+                                    simulation_profile_path=args.simulation_profile, scope=args.scope)
     emit(result)
     return 0 if result["valid"] else 1
 

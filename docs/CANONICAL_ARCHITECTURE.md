@@ -1,12 +1,12 @@
 # Canonical Architecture — Simulation Modeling Skill
 
-> Scope: v0.4.0 Phase D implementation, based on merged Phase A/B/C infrastructure
+> Scope: v0.5.0 Phase E implementation, based on A–D infrastructure
 > Primary runtime baseline: MATLAB R2025b + Simulink  
 > Target: competition-oriented simulation modeling with engineering-grade reproducibility and paper-ready evidence.
 
 [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md) is the detailed development authority. [V1_IMPLEMENTATION_ROADMAP.md](V1_IMPLEMENTATION_ROADMAP.md) summarizes it. This architecture describes the target layers; the active contracts begin at [../core/bootstrap.yaml](../core/bootstrap.yaml).
 
-Current implementation covers environment inspection and assurance, problem audit, and text model design with challenge and human approval checks. Phase D adds approved-model mapping and qualified bounded core construction. Layers E–J and Phases E–K remain deferred; other D domains have no native construction qualification. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Phase A/B's merged qualification is recorded in the full plan; later qualification, CI, merge, and release results are recorded separately in their development PRs.
+Current implementation covers environment inspection and assurance, problem audit, and text model design with challenge and human approval checks. Phase D adds approved-model mapping and qualified bounded core construction. Phase E adds frozen protocols and bounded core execution; experiment campaigns and numerical/evidence layers remain deferred, as do Phases F–K. Other D domains have no native construction qualification. A declared layer, toolbox, or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Phase A/B's merged qualification is recorded in the full plan; later qualification, CI, merge, and release results are recorded separately in their development PRs.
 
 ## 1. Scope
 
@@ -287,3 +287,7 @@ v1.0.0 is reached only when:
 - representative end-to-end regression cases pass;
 - Phase A–K gates, independent PR review, CI, and post-merge evidence are complete;
 - repository semantics and version references are internally consistent.
+
+## Current Phase E execution boundary
+
+The [E module](../modules/04_simulation_protocol.md) and its independent contracts govern frozen source-bound execution, current per-operation/per-solver qualification and actual output receipts. It preserves C approval/parameters/conditions and D source/model bytes. The implemented PRIMARY_RUN_COMPLETE state records a reviewed run awaiting later numerical verification. Repository development qualification, actual user approval, current runtime permission, historical evidence, CI, merge and release remain distinct.

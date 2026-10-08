@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.4.0
+version: 0.5.0
 development_authority: docs/V1_FULL_IMPLEMENTATION_PLAN.md
 runtime_entry:
   router: core/workflow_router.yaml
@@ -13,6 +13,8 @@ runtime_entry:
   domain_mapping: core/domain_mapping.schema.yaml
   parameter_provenance: core/parameter_provenance.schema.yaml
   implementation_assurance: core/implementation_assurance_contract.yaml
+  simulation_protocol: core/simulation_protocol.schema.yaml
+  simulation_assurance: core/simulation_assurance_contract.yaml
 authority_graph:
   nodes:
     plan: docs/V1_FULL_IMPLEMENTATION_PLAN.md
@@ -37,6 +39,9 @@ authority_graph:
     implementation: core/implementation_assurance_contract.yaml
     domain_mapping: modules/03_domain_mapping.md
     adapter: adapters/mathworks/compatibility.yaml
+    simulation_protocol: core/simulation_protocol.schema.yaml
+    simulation_assurance: core/simulation_assurance_contract.yaml
+    simulation: modules/04_simulation_protocol.md
   edges:
   - - plan
     - governance
@@ -90,5 +95,17 @@ authority_graph:
     - domain_mapping
   - - upstream
     - adapter
-implemented_phase: D
-business_execution_enabled: false
+  - - bootstrap
+    - simulation_protocol
+  - - bootstrap
+    - simulation_assurance
+  - - mapping
+    - simulation_protocol
+  - - approval
+    - simulation_protocol
+  - - simulation_protocol
+    - simulation
+  - - simulation_assurance
+    - simulation
+implemented_phase: E
+business_execution_enabled: true

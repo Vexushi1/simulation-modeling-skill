@@ -1,7 +1,7 @@
 schema_version: 1
 name: simulation-modeling-skill
-version: 0.4.0
-status: phase_d_implementation
+version: 0.5.0
+status: phase_e_implementation
 primary_runtime:
   product: MATLAB
   release: R2025b
@@ -46,3 +46,7 @@ active_authorities:
 - modules/03_domain_mapping.md
 - adapters/mathworks/skill_mapping.yaml
 - adapters/mathworks/compatibility.yaml
+- core/simulation_protocol.schema.yaml
+- core/simulation_assurance_contract.yaml
+- modules/04_simulation_protocol.md
+- docs/OPERATION_QUALIFICATION.md

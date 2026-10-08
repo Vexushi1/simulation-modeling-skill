@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "phase": "D",
+  "phase": "E",
   "pin_file": "adapters/mathworks/upstream_pin.yaml",
   "ownership": {
-    "upstream": "MathWorks skills and APIs are reference knowledge; this repository owns current C binding, mapping, parameter provenance, gates and receipts",
-    "local": "No upstream execution or installation is performed by the mapping route"
+    "upstream": "MathWorks skills and APIs are reference knowledge; this repository owns current C/D binding, mapping, parameter provenance, frozen E protocols, execution gates and receipts",
+    "local": "No upstream execution or installation is performed by mapping or simulation routes; local batch operations require their own current qualification"
   },
   "skills": [
     {
@@ -72,12 +72,56 @@
         "evaluate_matlab_code"
       ],
       "native_execution": "deferred"
+    },
+    {
+      "id": "simulating-simulink-models",
+      "repository": "matlab/simulink-agentic-toolkit",
+      "skill_path": "skills-catalog/model-based-design-core/simulating-simulink-models/SKILL.md",
+      "manifest_path": "skills-catalog/model-based-design-core/simulating-simulink-models/manifest.yaml",
+      "version": "1.2",
+      "minimum_release": "R2023a",
+      "role": "non-destructive SimulationInput, Dataset input and SimulationOutput reference for a frozen approved E protocol",
+      "required_products": [
+        "Simulink"
+      ],
+      "required_tools": [],
+      "native_execution": "deferred toolkit; local normal serial six-block simulation requires independent A/E qualification and historical unchanged D structure evidence",
+      "local_boundaries": [
+        "CaptureErrors can return partial or failed SimulationOutput; local diagnostics, StopEvent, coverage and output criteria govern success",
+        "owned exact-path SLX loading supports readback and cleanup; simulation configuration remains on SimulationInput",
+        "root-Outport yout Dataset only; internal logsout, SDI and advanced simulation modes deferred"
+      ]
+    },
+    {
+      "id": "authoring-simulink-inputs",
+      "repository": "matlab/simulink-agentic-toolkit",
+      "skill_path": "skills-catalog/simulink-simulation/authoring-simulink-inputs/SKILL.md",
+      "manifest_path": "skills-catalog/simulink-simulation/authoring-simulink-inputs/manifest.yaml",
+      "version": "1.0",
+      "minimum_release": "R2023a",
+      "role": "input metadata and explicitly requested synthetic-waveform authoring reference; not measured-file import or simulation",
+      "required_products": [
+        "Simulink"
+      ],
+      "required_tools": [
+        "evaluate_matlab_code",
+        "model_read"
+      ],
+      "native_execution": "deferred toolkit and full waveform generation; local E consumes approved numeric protocol inputs through its independently qualified Dataset path",
+      "local_boundaries": [
+        "E does not invent task inputs or activate createInputDataset/base-workspace authoring workflow",
+        "Dataset values, root-port order, units and interpolation come from the frozen protocol in function scope",
+        "only SKILL and manifest pinned; further authoring references require separate readback before their use"
+      ]
     }
   ],
   "rules": [
     "Select a skill from the approved C model's actual needs; no fixed number of hierarchy layers",
     "Do not copy whole upstream API guides into local phase modules",
     "Toolkit library loading, installed products and documentation availability do not establish build qualification",
-    "Preserve unknown required parameters as gates; do not assign default physics or parse arbitrary equations"
+    "Preserve unknown required parameters as gates; do not assign default physics or parse arbitrary equations",
+    "E requires a frozen source-bound protocol, current required A operations and independent selected E solver/input/output evidence",
+    "SimulationOutput return or process exit zero cannot replace diagnostics, expected termination and complete finite output assertions",
+    "Do not promote toolkit installation, MCP execution, advanced logging or waveform-authoring workflows from reference metadata"
   ]
 }

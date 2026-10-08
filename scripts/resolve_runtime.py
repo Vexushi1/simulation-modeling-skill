@@ -1,4 +1,4 @@
-"""Resolve A/B/C/D gates without writing state or granting simulation permission."""
+"""Resolve A through E gates without writing project state."""
 from __future__ import annotations
 
 import argparse
@@ -155,7 +155,8 @@ def _implementation_route(result, *, router, module_id, resources, state_result,
 def resolve_runtime(intent, *, profile_path=None, state_path=None,
                     required_operations=None, expected_root=None, problem_path=None,
                     model_path=None, approval_path=None, mapping_path=None,
-                    implementation_profile_path=None) -> dict:
+                    implementation_profile_path=None, protocol_path=None,
+                    simulation_profile_path=None, run_receipt_path=None) -> dict:
     router = load_contract("core/workflow_router.yaml")
     taxonomy = load_contract(router["capability_taxonomy"])["capabilities"]
     manifest = load_contract(router["module_manifest"])["modules"]
@@ -211,6 +212,8 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
     known_operations = set(runtime_contract["operations"])
     if intent == "simulink_build":
         known_operations.add(IMPLEMENTATION_OPERATION)
+    if intent == "simulation_execution":
+        known_operations.add("simulink.core_simulation")
     unknown_operations = [op for op in requested if op not in known_operations]
     if unknown_operations:
         result["errors"] = [f"unknown operation: {op}" for op in unknown_operations]
@@ -223,7 +226,8 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
 
         scope = router["intents"].get(intent, {}).get("state_validation_scope", "all")
         state_result = validate_project_state(state_path, profile_path=profile_path,
-                                              implementation_profile_path=implementation_profile_path, scope=scope)
+                                              implementation_profile_path=implementation_profile_path,
+                                              simulation_profile_path=simulation_profile_path, scope=scope)
         result["state_validation"] = state_result
         if not state_result["valid"]:
             result.update(status="blocked", missing_gates=["project_state_valid"],
@@ -257,7 +261,7 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
                       missing_gates=missing,
                       fallback=router["fallback"]["future_capability"],
                       next_step=policy["next_step_template"].format(phase=phase),
-                      errors=[f"{intent} is not implemented in Phase A/B/C/D (declared Phase {phase})"])
+                      errors=[f"{intent} is deferred (declared Phase {phase})"])
         return result
 
     route = router["intents"][intent]
@@ -278,6 +282,15 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         result.update(status="inspected", activated_modules=[module_id],
                       activated_resources=list(resources))
         return result
+
+    if intent in {"simulation_protocol", "simulation_execution", "solver_diagnostics"}:
+        from simulation_route import simulation_route
+        return simulation_route(result, router=router, resources=resources,
+            state_result=state_result, state_path=state_path, protocol_path=protocol_path,
+            mapping_path=mapping_path, problem_path=problem_path, model_path=model_path,
+            approval_path=approval_path, profile_path=profile_path,
+            simulation_profile_path=simulation_profile_path, run_receipt_path=run_receipt_path,
+            requested=requested, expected_root=expected_root)
 
     if intent in {"domain_mapping", "simulink_build"}:
         return _implementation_route(
@@ -445,6 +458,9 @@ def main() -> int:
     parser.add_argument("--approval", type=Path)
     parser.add_argument("--mapping", type=Path)
     parser.add_argument("--implementation-profile", type=Path)
+    parser.add_argument("--protocol", type=Path)
+    parser.add_argument("--simulation-profile", type=Path)
+    parser.add_argument("--run-receipt", type=Path)
     parser.add_argument("--require-operation", action="append", default=[])
     parser.add_argument("--matlab-root", type=Path)
     args = parser.parse_args()
@@ -453,7 +469,9 @@ def main() -> int:
                                  required_operations=args.require_operation,
                                  expected_root=args.matlab_root, problem_path=args.problem,
                                  model_path=args.model, approval_path=args.approval, mapping_path=args.mapping,
-                                 implementation_profile_path=args.implementation_profile)
+                                 implementation_profile_path=args.implementation_profile,
+                                 protocol_path=args.protocol, simulation_profile_path=args.simulation_profile,
+                                 run_receipt_path=args.run_receipt)
     except (OSError, ValueError, KeyError, TypeError) as error:
         result = {"status": "blocked", "execution_allowed": False,
                   "business_execution_allowed": False, "simulation_execution_allowed": False,

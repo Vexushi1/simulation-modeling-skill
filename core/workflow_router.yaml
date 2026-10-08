@@ -1,5 +1,5 @@
 schema_version: 1
-phase: D
+phase: E
 module_manifest: core/module_manifest.yaml
 capability_taxonomy: core/capability_taxonomy.yaml
 runtime_contract: core/runtime_assurance_contract.yaml
@@ -10,7 +10,6 @@ model_approval_contract: core/model_approval_contract.yaml
 domain_mapping_schema: core/domain_mapping.schema.yaml
 parameter_provenance_schema: core/parameter_provenance.schema.yaml
 implementation_assurance_contract: core/implementation_assurance_contract.yaml
-
 intents:
   inspect:
     phase: A
@@ -28,14 +27,14 @@ intents:
     profile_required: true
     execution_allowed: true
     required_gates:
-      - capability_profile_current
-      - requested_operations_qualified
-      - project_state_valid_if_supplied
+    - capability_profile_current
+    - requested_operations_qualified
+    - project_state_valid_if_supplied
     expected_artefacts:
-      - capability_profile
-      - runtime_receipt
-      - raw_probe_report
-      - process_log
+    - capability_profile
+    - runtime_receipt
+    - raw_probe_report
+    - process_log
     next_step: Record the validated profile in project state through a separate explicit state update.
   problem_audit:
     phase: B
@@ -45,15 +44,16 @@ intents:
     execution_allowed: false
     state_validation_scope: problem
     required_gates:
-      - problem_sources_current_if_supplied
-      - problem_contract_valid_if_supplied
-      - problem_state_valid_if_supplied
+    - problem_sources_current_if_supplied
+    - problem_contract_valid_if_supplied
+    - problem_state_valid_if_supplied
     expected_artefacts:
-      - problem_contract_draft
-      - literal_audit
-      - requirement_map
-      - problem_audit_report
-    next_step: Prepare or review the source-bound problem contract; record a freeze review separately and update project state only through an explicit caller action.
+    - problem_contract_draft
+    - literal_audit
+    - requirement_map
+    - problem_audit_report
+    next_step: Prepare or review the source-bound problem contract; record a freeze review separately
+      and update project state only through an explicit caller action.
   model_design:
     phase: C
     mode: read_only
@@ -62,15 +62,17 @@ intents:
     execution_allowed: false
     state_validation_scope: model
     required_gates:
-      - problem_contract_frozen
-      - model_sources_current_if_supplied
-      - model_contract_valid_if_supplied
-      - model_state_valid_if_supplied
+    - problem_contract_frozen
+    - model_sources_current_if_supplied
+    - model_contract_valid_if_supplied
+    - model_state_valid_if_supplied
     expected_artefacts:
-      - model_contract_draft
-      - model_challenge_review
-      - model_approval_brief
-    next_step: Develop and challenge the mathematical model, preserve unknown parameters and proposed checks, then request a human decision on the current brief; no implementation or numerical execution is authorized.
+    - model_contract_draft
+    - model_challenge_review
+    - model_approval_brief
+    next_step: Develop and challenge the mathematical model, preserve unknown parameters and proposed
+      checks, then request a human decision on the current brief; no implementation or numerical execution
+      is authorized.
   domain_mapping:
     phase: D
     mode: read_only
@@ -79,12 +81,16 @@ intents:
     execution_allowed: false
     state_validation_scope: implementation
     required_gates:
-      - model_design_approved
-      - mapping_sources_current_if_supplied
-      - mapping_contract_valid_if_supplied
-      - implementation_state_valid_if_supplied
-    expected_artefacts: [domain_mapping_draft, parameter_provenance, mapping_review]
-    next_step: Trace the current approved mathematical design to implementation objects and preserve unresolved parameters; no native construction or simulation is authorized.
+    - model_design_approved
+    - mapping_sources_current_if_supplied
+    - mapping_contract_valid_if_supplied
+    - implementation_state_valid_if_supplied
+    expected_artefacts:
+    - domain_mapping_draft
+    - parameter_provenance
+    - mapping_review
+    next_step: Trace the current approved mathematical design to implementation objects and preserve unresolved
+      parameters; no native construction or simulation is authorized.
   simulink_build:
     phase: D
     mode: implementation_only
@@ -94,21 +100,70 @@ intents:
     execution_allowed: true
     state_validation_scope: implementation
     required_gates:
-      - model_design_approved
-      - mapping_contract_build_ready
-      - capability_profile_current
-      - implementation_profile_current
-      - simulink_core_build_structure_qualified
-      - implementation_state_valid_if_supplied
-    expected_artefacts: [implementation_receipt, implementation_model, structure_report, process_log]
-    next_step: Build only the declared supported core Simulink structure in a new directory and capture actual save/reopen/update evidence; do not run simulation.
-
+    - model_design_approved
+    - mapping_contract_build_ready
+    - capability_profile_current
+    - implementation_profile_current
+    - simulink_core_build_structure_qualified
+    - implementation_state_valid_if_supplied
+    expected_artefacts:
+    - implementation_receipt
+    - implementation_model
+    - structure_report
+    - process_log
+    next_step: Build only the declared supported core Simulink structure in a new directory and capture
+      actual save/reopen/update evidence; do not run simulation.
+  simulation_protocol:
+    phase: E
+    mode: read_only
+    module: simulation_protocol
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: simulation
+    required_gates:
+    - implementation_ready
+    expected_artefacts:
+    - protocol_review
+    next_step: Review the current protocol and actual recorded diagnostics; do not advance state.
+  simulation_execution:
+    phase: E
+    mode: simulation_only
+    module: simulation_execution
+    profile_required: true
+    execution_allowed: true
+    state_validation_scope: simulation
+    required_gates:
+    - implementation_ready
+    - simulation_protocol_frozen
+    - capability_profile_current
+    - simulation_profile_current
+    - required_operations_qualified
+    - requested_solver_qualified
+    expected_artefacts:
+    - simulation_receipt
+    - raw_outputs
+    - process_log
+    next_step: Execute the current frozen protocol in a new directory using its individually qualified
+      solver.
+  solver_diagnostics:
+    phase: E
+    mode: read_only
+    module: solver_diagnostics
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: simulation
+    required_gates:
+    - implementation_ready
+    - simulation_protocol_frozen
+    - current_run_receipt
+    expected_artefacts:
+    - solver_diagnostics
+    next_step: Review the current protocol and actual recorded diagnostics; do not advance state.
 operation_selection:
   defaults_from: module_manifest.modules.environment_assurance.required_operations
   optional_policy: explicit_request_only
   selected_scope: route_decision_only
   mutate_profile: false
-
 future_capabilities:
   status: deferred
   execution_allowed: false
@@ -116,63 +171,98 @@ future_capabilities:
   activate_packs: false
   activate_upstream_skills: false
   common_missing_gates:
-    - requested_capability_implemented
+  - requested_capability_implemented
   prerequisite_gates_by_phase:
-    C: [problem_contract_frozen]
-    D: [model_design_approved]
-    E: [model_structure_checked, simulation_protocol_approved]
-    F: [simulation_protocol_approved, calibration_data_roles_approved]
-    G: [simulation_protocol_approved, experiment_design_approved]
-    H: [accepted_simulation_evidence]
-    I: [accepted_verification_evidence, validation_target_approved]
-    J: [accepted_claim_evidence, evidence_package_valid]
-  next_step_template: Complete the implementation and reviewed exit gates for Phase {phase}; the current Phase A/B/C/D router grants no simulation or business execution permission.
-
+    C:
+    - problem_contract_frozen
+    D:
+    - model_design_approved
+    E:
+    - model_structure_checked
+    - simulation_protocol_approved
+    F:
+    - simulation_protocol_approved
+    - calibration_data_roles_approved
+    G:
+    - simulation_protocol_approved
+    - experiment_design_approved
+    H:
+    - accepted_simulation_evidence
+    I:
+    - accepted_verification_evidence
+    - validation_target_approved
+    J:
+    - accepted_claim_evidence
+    - evidence_package_valid
+  next_step_template: Complete the implementation and reviewed exit gates for Phase {phase}; deferred
+    capabilities grant no execution permission.
 fallback:
   missing_or_stale_profile:
     action: reprobe_current_environment
-    command: python scripts/probe_environment.py --matlab-executable <R2025b-executable> --output-dir <new-evidence-directory>
+    command: python scripts/probe_environment.py --matlab-executable <R2025b-executable> --output-dir
+      <new-evidence-directory>
     reason: Environment evidence must come from the current repository probe and be bound to its receipt.
   optional_operation_unavailable:
     action: repair_or_review_optional_requirement
-    reason: Repair and re-probe the requested operation, or explicitly review whether the task can omit it without changing the mathematical method.
+    reason: Repair and re-probe the requested operation, or explicitly review whether the task can omit
+      it without changing the mathematical method.
   invalid_project_state:
     action: repair_project_state
-    reason: Repair invalid or stale state evidence before requesting execution; the resolver never rewrites project state.
+    reason: Repair invalid or stale state evidence before requesting execution; the resolver never rewrites
+      project state.
   future_capability:
     action: implement_next_phase
-    reason: Review the full implementation plan and complete the declared phase; no unimplemented module or upstream skill is activated.
+    reason: Review the full implementation plan and complete the declared phase; no unimplemented module
+      or upstream skill is activated.
   problem_contract_invalid:
     action: review_problem_sources_and_contract
-    reason: Re-read the original material, repair its exact source bindings and requirement audit, and preserve unresolved information. Do not substitute a numerical method or generate a freeze decision.
+    reason: Re-read the original material, repair its exact source bindings and requirement audit, and
+      preserve unresolved information. Do not substitute a numerical method or generate a freeze decision.
   model_contract_invalid:
     action: review_model_sources_and_design
-    reason: Re-read the frozen problem and design sources, repair the mathematical design and exact bindings, and preserve pending or blocked reviews. Do not generate a human approval or lock a model without an actual decision.
+    reason: Re-read the frozen problem and design sources, repair the mathematical design and exact bindings,
+      and preserve pending or blocked reviews. Do not generate a human approval or lock a model without
+      an actual decision.
   mapping_contract_invalid:
     action: review_mapping_and_parameter_bindings
-    reason: Review the current approved design, trace coverage, parameters and implementation evidence; preserve unknown values and return to model design when mathematical semantics change.
+    reason: Review the current approved design, trace coverage, parameters and implementation evidence;
+      preserve unknown values and return to model design when mathematical semantics change.
   implementation_profile_invalid:
     action: reprobe_supported_implementation_operations
-    reason: Obtain current independent qualification for the declared core build/structure operation on the same A-qualified R2025b runtime; library loading does not qualify construction.
-
+    reason: Obtain current independent qualification for the declared core build/structure operation on
+      the same A-qualified R2025b runtime; library loading does not qualify construction.
+  simulation_protocol_invalid:
+    action: review_current_simulation_protocol
+    reason: Repair current approved B/C/D bindings and the source-bound protocol review before execution;
+      preserve unknown values.
+  simulation_profile_invalid:
+    action: reprobe_simulation_operations
+    reason: Obtain current A and independent E operation qualification on the same runtime, including
+      the chosen solver and actual required optional operations.
 invariants:
-  - inspect_never_grants_execution_or_advances_state
-  - current_profile_and_requested_operations_required_for_environment_execution
-  - environment_permission_does_not_grant_simulation_or_model_permission
-  - optional_operations_are_explicit_and_do_not_change_profile
-  - no_automatic_file_writes_or_state_transitions
-  - no_mathematical_method_change_in_fallback
-  - deferred_capabilities_activate_no_resources
-  - unknown_intents_are_invalid
-  - problem_audit_does_not_require_matlab_or_select_operations
-  - problem_state_validation_is_partial_and_never_grants_environment_permission
-  - problem_freeze_is_a_recorded_review_not_an_automatic_state_transition
-  - model_design_requires_current_frozen_problem_without_runtime_permission
-  - model_scope_does_not_assess_environment_and_problem_scope_does_not_assess_model
-  - human_model_approval_is_never_generated_by_a_validator_or_resolver
-  - model_approval_alone_never_grants_native_or_simulation_execution
-  - domain_mapping_requires_current_model_approval_without_runtime_permission
-  - implementation_scope_assesses_b_c_d_without_current_environment_permission
-  - native_build_requires_current_a_and_d_profiles_and_supported_mapping
-  - implementation_execution_never_grants_simulation_or_business_permission
-  - historical_structure_evidence_is_not_expired_by_current_runtime_ttl
+- inspect_never_grants_execution_or_advances_state
+- current_profile_and_requested_operations_required_for_environment_execution
+- environment_permission_does_not_grant_simulation_or_model_permission
+- optional_operations_are_explicit_and_do_not_change_profile
+- no_automatic_file_writes_or_state_transitions
+- no_mathematical_method_change_in_fallback
+- deferred_capabilities_activate_no_resources
+- unknown_intents_are_invalid
+- problem_audit_does_not_require_matlab_or_select_operations
+- problem_state_validation_is_partial_and_never_grants_environment_permission
+- problem_freeze_is_a_recorded_review_not_an_automatic_state_transition
+- model_design_requires_current_frozen_problem_without_runtime_permission
+- model_scope_does_not_assess_environment_and_problem_scope_does_not_assess_model
+- human_model_approval_is_never_generated_by_a_validator_or_resolver
+- model_approval_alone_never_grants_native_or_simulation_execution
+- domain_mapping_requires_current_model_approval_without_runtime_permission
+- implementation_scope_assesses_b_c_d_without_current_environment_permission
+- native_build_requires_current_a_and_d_profiles_and_supported_mapping
+- implementation_execution_never_grants_simulation_or_business_permission
+- historical_structure_evidence_is_not_expired_by_current_runtime_ttl
+- simulation_requires_current_frozen_protocol_and_individual_solver_qualification
+- protocol_required_operations_cannot_be_replaced_by_core_runtime_assured
+- simulation_success_does_not_grant_numerical_verification_or_validation
+- historical_simulation_receipts_do_not_grant_new_execution_permission
+simulation_protocol_schema: core/simulation_protocol.schema.yaml
+simulation_assurance_contract: core/simulation_assurance_contract.yaml

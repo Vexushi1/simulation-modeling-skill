@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "phase": "D",
+  "phase": "E",
   "target_release": "R2025b",
   "active_native_channel": "matlab_batch",
   "active_native_operation": "simulink.core_build_structure",
@@ -36,7 +36,8 @@
     "model_workspace": "Model File",
     "parameters": "Simulink.Parameter finite scalar double",
     "historical_receipt": "captured full mapping input plus semantic snapshot and exact evidence bytes; qualifications checked at execution time",
-    "simulation_allowed": false
+    "simulation_allowed": false,
+    "scope": "Phase D construction; this operation grants no simulation permission"
   },
   "deferred": [
     "toolkit MCP execution",
@@ -44,12 +45,56 @@
     "Stateflow execution",
     "System Composer execution",
     "arbitrary algorithms",
-    "solver qualification",
-    "business simulation"
+    "unqualified solver candidates",
+    "internal logsout marking",
+    "SDI",
+    "timetable bus trigger function-call and multirate extensions",
+    "full synthetic waveform authoring",
+    "fast restart",
+    "acceleration",
+    "parallel simulation",
+    "parameter sweeps",
+    "calibration",
+    "numerical verification",
+    "model comparison",
+    "validation"
   ],
   "license": {
     "redistributed_upstream_code": false,
     "review_required_before_install_or_redistribution": true,
     "scope": "upstream licenses restrict use to MathWorks products and service offerings; preserve notices if redistributing"
+  },
+  "active_native_operation_scope": "legacy field for the separately gated Phase D construction operation",
+  "active_native_operations": [
+    "simulink.core_build_structure",
+    "simulink.core_simulation"
+  ],
+  "simulation_fallback": {
+    "scope": "normal serial flat scalar six-block model with Dataset inputs and root-Outport Dataset outputs",
+    "operation": "simulink.core_simulation",
+    "current_required_independent_profiles": [
+      "phase_a_required_operations",
+      "phase_e_core_simulation"
+    ],
+    "historical_implementation": "current unchanged D mapping, parameter, SLX and structure receipt identities; bound A/D qualifications checked at D execution time",
+    "required_project_gates": [
+      "current C human model approval",
+      "current D implementation structure",
+      "current complete frozen E protocol"
+    ],
+    "baseline_solvers": [
+      "ode45",
+      "ode4"
+    ],
+    "candidate_solvers": [
+      "ode15s"
+    ],
+    "solver_activation": "each selected solver must independently pass actual R2025b qualification; profile validity does not promote all candidates",
+    "parameter_binding": "exact approved model-workspace parameter values; no unapproved parameter or initial/boundary override",
+    "input_binding": "approved finite scalar numeric data in root-port order with explicit units and interpolation; no missing-input defaults",
+    "outputs": "SimulationOutput MAT plus root-Outport yout Dataset-derived JSON and per-port CSV",
+    "success_gate": "process, ErrorMessage, ErrorDiagnostic, StopEvent, time coverage, finite dimensions, numeric criteria and source/model byte preservation",
+    "execution_permission_authority": "current local execution route and contracts; adapter metadata grants no permission",
+    "toolkit_execution_qualified": false
   }
 }
