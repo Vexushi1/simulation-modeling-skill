@@ -49,6 +49,10 @@ def synthetic_case(case, directory, run_id, *, primary=False):
               "observed_solver_info": {"Solver": spec["solver"]["name"],"Type":spec["solver"]["type"],"FixedStepSize" if spec["solver"]["name"] == "ode4" else "MaxStepSize":spec["solver"]["fixed_step"] if spec["solver"]["name"] == "ode4" else spec["solver"]["max_step"]}, "observed_solver_name": spec["solver"]["name"],
               "stop_event": "ReachedStopTime", "stop_event_time": spec["stop_time"], "time_source":"SimulationOutput.tout", "saved_time":[spec["start_time"],spec["stop_time"]], "output_count": len(spec["outputs"]),
               "mat_file": "", "raw_mat_file":case["case_id"] + "-returned.mat", "data_file": "", "outputs": []}
+    if not any(block["type"] == "Integrator" for block in case["build_spec"]["blocks"]):
+        compiled = "FixedStepDiscrete" if spec["solver"]["type"] == "fixed-step" else "VariableStepDiscrete"
+        actual["observed_solver_info"]["Solver"] = compiled
+        actual["observed_solver_name"] = actual["effective_configuration"]["Solver"] = compiled
     savemat(directory / actual["raw_mat_file"],{"run_id":run_id,"simulation_output":"SYNTHETIC; NO MATLAB"},format="5")
     if case["expectation"] != "success":
         if case["expectation"] == "error":
@@ -462,6 +466,45 @@ def test_public_solver_metadata_missing_or_conflicting_does_not_qualify(tmp_path
     actual = synthetic_case(case,tmp_path,"synthetic-native-api")
     actual["observed_solver_info"] = info
     with pytest.raises(ValueError,match="actual public solver metadata"):
+        assert_case(actual,case,tmp_path,"synthetic-native-api")
+
+
+@pytest.mark.parametrize("method,accepted", [("VariableStepDiscrete", True),
+    ("FixedStepDiscrete", False), ("discrete", False), ("ode45", False), ("ode15s", False)])
+def test_stateless_variable_solver_records_exact_compiled_method(tmp_path,method,accepted):
+    case = next(item for item in producer.qualification_cases("00000000-0000-0000-0000-000000000001",tmp_path)
+                if item["case_id"] == "constant_no_input")
+    actual = synthetic_case(case,tmp_path,"synthetic-native-api")
+    actual["observed_solver_info"]["Solver"] = method
+    actual["observed_solver_name"] = actual["effective_configuration"]["Solver"] = method
+    if accepted:
+        assert assert_case(actual,case,tmp_path,"synthetic-native-api")["complete"]
+    else:
+        with pytest.raises(ValueError,match="actual stateless solver"):
+            assert_case(actual,case,tmp_path,"synthetic-native-api")
+
+
+@pytest.mark.parametrize("method,accepted", [("FixedStepDiscrete", True), ("VariableStepDiscrete", False)])
+def test_stateless_fixed_solver_records_exact_compiled_method(tmp_path,method,accepted):
+    cases = producer.qualification_cases("00000000-0000-0000-0000-000000000001",tmp_path)
+    case = next(item for item in cases if item["case_id"] == "constant_no_input")
+    case["run_spec"]["solver"] = next(item for item in cases if item["case_id"] == "feedback_ode4")["run_spec"]["solver"]
+    actual = synthetic_case(case,tmp_path,"synthetic-native-api")
+    actual["observed_solver_info"]["Solver"] = method
+    actual["observed_solver_name"] = actual["effective_configuration"]["Solver"] = method
+    if accepted:
+        assert assert_case(actual,case,tmp_path,"synthetic-native-api")["complete"]
+    else:
+        with pytest.raises(ValueError,match="actual stateless solver"):
+            assert_case(actual,case,tmp_path,"synthetic-native-api")
+
+
+def test_continuous_model_cannot_claim_compiled_discrete_solver(tmp_path):
+    case = producer.qualification_cases("00000000-0000-0000-0000-000000000001",tmp_path)[0]
+    actual = synthetic_case(case,tmp_path,"synthetic-native-api")
+    actual["observed_solver_info"]["Solver"] = "VariableStepDiscrete"
+    actual["observed_solver_name"] = actual["effective_configuration"]["Solver"] = "VariableStepDiscrete"
+    with pytest.raises(ValueError,match="actual continuous solver"):
         assert_case(actual,case,tmp_path,"synthetic-native-api")
 
 

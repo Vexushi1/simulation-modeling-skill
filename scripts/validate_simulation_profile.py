@@ -245,7 +245,8 @@ def assert_case(actual, case, directory, run_id):
     continuous = any(item["type"] == "Integrator" for item in case["build_spec"]["blocks"])
     if continuous and info["Solver"] != spec["solver"]["name"]:
         raise ValueError("actual continuous solver differs from requested qualified method")
-    if not continuous and info["Solver"] not in {spec["solver"]["name"], "discrete"}:
+    discrete_method = "FixedStepDiscrete" if spec["solver"]["type"] == "fixed-step" else "VariableStepDiscrete"
+    if not continuous and info["Solver"] != discrete_method:
         raise ValueError("actual stateless solver is outside the controlled observed method")
     outputs = _read_outputs(directory, actual, spec, run_id)
     if type(actual.get("output_count")) is not int or actual["output_count"] != len(outputs):
