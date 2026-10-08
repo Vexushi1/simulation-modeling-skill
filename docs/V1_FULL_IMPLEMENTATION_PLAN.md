@@ -1,11 +1,11 @@
 # Simulation Modeling Skill v1.0.0 全流程实施计划
 
-> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-08 Phase F实施前审查修订）**
+> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-09 Phase G实施前审查修订）**
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
-> 已完成阶段：A–E；E PR #6 合并基线 `6c8cbbf84364c49b85dce62db15aba9b11f55e53`
-> 当前实施阶段：F；实施分支 `phase-f/parameter-studies`，未通过全部出口前不登记为阶段完成
+> 已完成阶段：A–F；F PR #7 合并基线 `b44259894db795b451d5f41ff2c709466cde26e0`
+> 当前实施阶段：G；实施分支 `phase-g/serial-experiments`，未通过全部出口前不登记为阶段完成
 > 核心纪律：先冻结计划，再按阶段实施；任何阶段不得脱离本计划直接堆功能。
 
 ---
@@ -1717,7 +1717,7 @@ Statistics and Machine Learning Toolbox 当前可正式进入 DOE / 统计分析
 
 ## 11.4 Parallel Simulation
 
-优先：
+按任务、资源与当前操作资格选择；本轮采用有限串行场景，以下仍是未资格化候选：
 
 - parsim；
 - Fast Restart；
@@ -1746,6 +1746,61 @@ Statistics and Machine Learning Toolbox 当前可正式进入 DOE / 统计分析
 - packs/evidence/monte_carlo.md
 - templates/experiment/
 - tests/test_experiment_design.py
+
+## 11.7 2026-10-09 实施前审查：有限冻结场景目录
+
+用户在 F 合并及出口完成后授权继续。F PR #7 的 main 基线为 `b44259894db795b451d5f41ff2c709466cde26e0`；最终候选与合并后 Windows/Ubuntu CI、真实资格及独立回读分别记录在 PR。§11 原先只列候选方法，缺少执行、数据与出口契约，不能直接把清单全部激活。E 只批准每个来源明确、独立冻结的协议，精确保持 C/D 参数与条件；G 不得通过复制 frozen 标志或改 run_spec 绕过它。本次先冻结下列有限范围，再实施消费者。
+
+版本 0.7.0 的 G 支持 `scenario_matrix`、`full_factorial`、`monte_carlo_catalog`：在同一实际批准 C、已就绪 D 上，组织有限、各自已冻结的 E 协议目录。每个目录成员最多两个声明的标量外部输入因素；输入可变化必须通过该成员当前 E 的来源、需求、已知输入及条件检查。始终保持完整 C/D、原参数、SLX、初边值、time、solver、logging、E seed、输出、指标准入界和 warning policy。非因素输入也相同；成员/来源/场景/独立冻结记录的身份可不同。
+
+这不是参数覆盖通道。当前固定参数变化仍需新的实际 C 批准、D 与 E；F 候选先完成采纳链。连续分布抽样、相关抽样、Latin hypercube、fractional factorial、response surface、参数敏感性、边界搜索、内部随机噪声、并行/加速/GPU 及 H–K 不在本轮 native-qualified 范围。原 §11.2–11.5 的其它 API 保留为按需求和资格选择的候选，不表示现在可执行。
+
+## 11.8 设计、来源与独立审查
+
+新增 `core/experiment_design.schema.yaml`、`modules/06_experiment_design.md`、只读 validator、draft template 与独立 source-bound review。设计记录 project、当前 mapping/C/D、有限目录成员的 E path/SHA、method、因素/输入身份/单位/水平及结构化来源 selector、顺序/概率及来源角色、固定 sample count、seed/algorithm、metrics/event、预算、claim_limit、required_A_operations。草稿可未知；缺少当前来源、完整组合或审查不授予执行。
+
+`scenario_matrix` 按已冻结目录顺序各运行一次；`full_factorial` 限 1–2 个因素，每因素 2–4 个不同有限水平，实际目录必须与按因素/水平顺序定义的完整笛卡尔积一一对应，不能只比较成员数。每成员输入在所有声明时间点精确等于该因素水平，输入端口/变量/单位与当前 C/D/E 相符。额外的非因素输入及公共配置保持完全一致；缺组合、重复组合、改已知题设输入、改批准条件或参数阻断。
+
+`monte_carlo_catalog` 是对有限目录声明分类法则的固定 n iid 抽样。目录顺序、probabilities 与成员 ID 映射入 digest；p 必须有限非负，`math.fsum(p) == 1.0`，不静默归一化。累加 CDF 的末项置为精确 1 只修正浮点累加端点；用 `U < CDF` 选择首个成员，零概率项不能在 U=0 时误选。保留实际 U、按原目录的一基索引、生成/执行顺序；不排序、去重或重抽。重复成员每次有新的 E attempt/run ID，n 按 draws 计。概率源须标明 given/assumed/design-law；绑定来源不认证现实工况概率。
+
+独立 review 绑定除 status/review_record 外的完整语义 digest、来源/协议 identity 与实际文件 selector。审查者的来源决定单独保存；validator/router 不产生决定或状态。G 审查不供应真实 C Human Model Approval，也不替 E 成员冻结。样本属于由已声明目录/算法/seed 产生的派生实验记录，不能冒充原始测量或 n 条独立现实观测。
+
+## 11.9 采样资格、RNG 与串行执行
+
+新增独立 `core/experiment_assurance_contract.yaml` 和 MATLAB sampling producer；G profile 只资格化 `sample_plan` 的各方法，不资格化模型仿真。实际目录/笛卡尔顺序、fixed-n 分类抽样、矩阵类型/形状、重复 seed 及正常/错误路径 RNG 保全分别真实测试。使用专用 local `RandStream('mt19937ar','Seed',seed)` 与 `rand(stream,n,1)`；seed 为 [0,2^32) 整数，不使用 default/shuffle/global rng 覆盖。记录流配置/实际状态及 caller 全流配置/状态原样不变。种子只控制目录抽样，不宣称 E 内部随机噪声已资格化。
+
+每次 G campaign 要求当前同宿主/runtime/channel A、所选 G sample_plan 方法与 E solver 的独立资格。A requirements 是 G、每个 E 成员、设计及调用者的并集，按操作逐项检验；optional Statistics 的整体 core green 不能替代必需函数。本轮分类采样自身无需 Statistics；用户实际必需统计操作仍须明确 --require-operation。
+
+复用现有公共 `run_simulation()` 的完整单成员链；每次保持 case_id=primary 与完整冻结 E 参数/输入/模型绑定，在新的子目录和新的 MATLAB 进程中串行执行。G 不构造假的 E primary receipt、不修改 E request 来传入未批准覆盖、不把 G case ID 塞进 E probe consumer。每成员前重新校验源、profile/operation/current TTL 和剩余预算。G 采样 profile 不能单独放行仿真；真实组合行为由最终源码的合成项目 campaign 和逐条 E receipt 独立核验。
+
+本次本机执行遵循用户 CPU 约束：本机读取、Python/pytest/MATLAB 共用独占队列，数学库线程 1、进程局部两逻辑 CPU。该运行安排不把其它用户的并行能力永久禁用；并行需独立资源/任务依据及操作资格，当前未实现也不自动创建 pool。
+
+## 11.10 预算、失败及统计含义
+
+目录最多 16 个成员，planned draws/cases 为 1–16，设计另显式给 max_cases、total_timeout、member_process_timeout、member_simulation_timeout 与 artifact byte 上限。首版只执行当前 E `ode4` 固定步协议，单成员 span≤30、steps≤3000、outputs≤2；所有边界在 MATLAB 启动前检查。总时间含采样及各成员进程；每成员采用剩余时间与其上限的较小值。不因预算不足换 solver/seed、重抽、补样、用旧输出替代或填罚值。
+
+ledger 区分 n_planned/generated/attempted/completed/valid/event，保存全计划、每行独立 run ID/协议/样本身份、E input/process/raw/MAT/JSON/CSV/receipt 及逐文件字节/SHA。技术错误、超时、源/profile变化、准入指标失败或超产物预算时立即停止，保留已有成功和失败目录，余项明确未尝试；不能写 complete 或生成完整 MC 统计。JSON checkpoint 先编码、完整写唯一临时文件、检查 close/replacement，失败保留旧完整报告；不宣称物理断电耐久。
+
+E metrics.lower/upper 是执行准入界，必须覆盖各实际合法实验结果；G event 单独绑定一个 E metric ID、相同单位、gt/lt 与预先声明 threshold。事件越界仍是有效样本，不能从分母删除；E 准入界越界仍按 E 失败处理，G 不升级其 receipt。所有 planned draws 有完整有效回执才汇总。
+
+所有方法报告逐行指标及有限样本 mean/min/max；`monte_carlo_catalog` 另报告 k/n、固定 n 和预先声明的 nominal 95% Wilson 区间，公式/常数与 iid 分类抽样假设冻结，不做顺序停止/自适应收敛。n≤16 通常区间很宽；n=16,k=0 的上界约0.194，无事件不能写成可靠或精度/收敛达标。其它方法不输出 MC 置信区间。经验结果仅描述该离散目录法则下的当前模型响应；有限点 extrema 不证明连续域全域鲁棒，不授予 H verification、现实有效性或论文接受。
+
+## 11.11 回执、状态及失效
+
+新增 readonly receipt/profile consumers、route/state helper、`experiment_design`/`experiment_campaign`/`campaign_review` 入口和 optional `experiment` state scope。EXPERIMENT_DESIGN_REVIEWED 与 CAMPAIGN_COMPLETE 是可选分支；scope 评估 B/C/D/E/当前 G 设计与历史实验完整身份，runtime readiness 留 unassessed；all 范围另核验 current execution readiness。早期 scopes 留 G unassessed。仅显式 caller 在真实检查后登记状态；G 不写原状态、primary_run、批准文件或模型。
+
+历史 receipt 绑定执行时资格以及当前不可变源/设计/成员/样本/输出身份；当前 TTL 只限制新执行。改变目录、概率/顺序/因素/seed/阈值/预算、成员完整协议或来源使相应 campaign/统计及实际依赖 stale。不能靠重写旧 receipt 或扩大 current runtime anchor 恢复历史。
+
+保护 A7、B schema/validator、D19（包括 taxonomy）逐字节不变。G 共享 bootstrap/router/manifest/state/output/resolver 改动属于 E/F critical source identity，须保留旧 checkout/原证据并标旧源码；不能放宽 closure。最终 source-bound 修改后，重新取得 E 九案例、F 三方法资格，以及相应三个 E 项目和三个 F 研究当前回执，另保留 strict ARX 警告负例。原 D/SLX 未变无需重建；A 仍按真实 current TTL 检验。
+
+## 11.12 文件及开发出口
+
+产物包括 experiment schema/assurance、module06、有限 DOE/MC packs、unknown draft、MATLAB sampling producer、Python sampling/profile/campaign/receipt validators 与 runner、route/state helper。保持入口精短，重用 E 全链；不创建未实现方法的 business 占位文件。
+
+覆盖：合法未知草稿、未审查/未冻结、错误 project/C/D/E/source/unit/selector、已知输入不得覆盖、全组合缺失/重复、公共参数/配置变化、p 顺序与零概率边界、非法 seed/预算、样本矩阵或 row identity 篡改、重复 draw 计数、完整与未尝试 ledger、技术失败/预算停止无 complete/CI、事件样本不删除、k=0/k=n Wilson、TTL 与 source-stale 分离、runtime 必需项并集、read-only/source/state/SLX 保全及 deferred routes。
+
+真实 qualification 覆盖 sample_plan 的三个方法和重复 seed/错误/RNG保护；真实合成 campaign 覆盖不同已冻结场景、full factorial 与 fixed-n categorical MC、逐 E 输出独立数值 oracle 与 MAT/JSON/CSV/样本身份、受控成员失败及剩余未尝试。不能把 Python factory 结果当 native 完成。全部 A–F 回归、最终源码 E/F 重资格/项目回执、从原始材料进入的独立行为测试、精确最终 commit 独立审查、Windows/Ubuntu CI、独立 PR、合并与 main 实际回读/CI分别为出口。所有开发批准形状、概率/观测和模型记录明确 SYNTHETIC INFRASTRUCTURE TEST；无 release/tag/install 或 H–K 激活。
+
 
 ---
 
