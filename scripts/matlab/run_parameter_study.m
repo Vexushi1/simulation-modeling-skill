@@ -387,6 +387,19 @@ value=char(datetime('now','TimeZone','UTC','Format','yyyy-MM-dd''T''HH:mm:ss.SSS
 end
 
 function writeJson(path,value)
-file=fopen(path,'w','n','UTF-8'); assert(file~=-1,'PhaseF:WriteReport','Cannot preserve F evidence.');
-cleanup=onCleanup(@() fclose(file)); fprintf(file,'%s\n',jsonencode(value,'PrettyPrint',true));
+assert(~isfolder(path),'PhaseF:WriteReport','JSON evidence target cannot be a directory.');
+encoded=jsonencode(value,'PrettyPrint',true);
+bytes=unicode2native([encoded newline],'UTF-8');
+temporary=[tempname(fileparts(path)) '.json.tmp'];
+file=fopen(temporary,'wb'); assert(file~=-1,'PhaseF:WriteReport','Cannot preserve temporary F evidence.');
+try
+    written=fwrite(file,bytes,'uint8');
+    closed=fclose(file);
+    assert(written==numel(bytes) && closed==0,'PhaseF:WriteReport','Incomplete F evidence write or close.');
+catch exception
+    if ismember(file,fopen('all')), fclose(file); end
+    rethrow(exception);
+end
+[moved,message]=movefile(temporary,path,'f');
+assert(moved,'PhaseF:WriteReport','Cannot replace F evidence: %s',message);
 end
