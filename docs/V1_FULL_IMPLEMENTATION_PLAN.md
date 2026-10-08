@@ -1763,6 +1763,8 @@ Statistics and Machine Learning Toolbox 当前可正式进入 DOE / 统计分析
 
 `monte_carlo_catalog` 是对有限目录声明分类法则的固定 n iid 抽样。目录顺序、probabilities 与成员 ID 映射入 digest；p 必须有限非负，`math.fsum(p) == 1.0`，不静默归一化。累加 CDF 的末项置为精确 1 只修正浮点累加端点；用 `U < CDF` 选择首个成员，零概率项不能在 U=0 时误选。保留实际 U、按原目录的一基索引、生成/执行顺序；不排序、去重或重抽。重复成员每次有新的 E attempt/run ID，n 按 draws 计。概率源须标明 given/assumed/design-law；绑定来源不认证现实工况概率。
 
+独立静态审查进一步指出：仅绑定水平/概率数列不足以绑定物理意义与顺序。因此 factor 来源 selector 必须匹配包含 `variable_id`、`unit`、`levels` 的完整结构；概率来源 selector 必须匹配含顺序 `catalog_ids`、`values`、`role`、`reason` 的完整声明。改变单位、成员顺序或 given/assumed/design-law 角色必须同时得到来源依据，不能仅用重新审查的 digest 覆盖语义错配。抽样/event/预算/claim/必需操作的 settings 全量 snapshot 也须来源绑定。
+
 独立 review 绑定除 status/review_record 外的完整语义 digest、来源/协议 identity 与实际文件 selector。审查者的来源决定单独保存；validator/router 不产生决定或状态。G 审查不供应真实 C Human Model Approval，也不替 E 成员冻结。样本属于由已声明目录/算法/seed 产生的派生实验记录，不能冒充原始测量或 n 条独立现实观测。
 
 ## 11.9 采样资格、RNG 与串行执行
