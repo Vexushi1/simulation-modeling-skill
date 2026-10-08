@@ -1751,7 +1751,7 @@ Statistics and Machine Learning Toolbox 当前可正式进入 DOE / 统计分析
 
 用户在 F 合并及出口完成后授权继续。F PR #7 的 main 基线为 `b44259894db795b451d5f41ff2c709466cde26e0`；最终候选与合并后 Windows/Ubuntu CI、真实资格及独立回读分别记录在 PR。§11 原先只列候选方法，缺少执行、数据与出口契约，不能直接把清单全部激活。E 只批准每个来源明确、独立冻结的协议，精确保持 C/D 参数与条件；G 不得通过复制 frozen 标志或改 run_spec 绕过它。本次先冻结下列有限范围，再实施消费者。
 
-版本 0.7.0 的 G 支持 `scenario_matrix`、`full_factorial`、`monte_carlo_catalog`：在同一实际批准 C、已就绪 D 上，组织有限、各自已冻结的 E 协议目录。每个目录成员最多两个声明的标量外部输入因素；输入可变化必须通过该成员当前 E 的来源、需求、已知输入及条件检查。始终保持完整 C/D、原参数、SLX、初边值、time、solver、logging、E seed、输出、指标准入界和 warning policy。非因素输入也相同；成员/来源/场景/独立冻结记录的身份可不同。
+版本 0.7.0 的 G 支持 `scenario_matrix`、`full_factorial`、`monte_carlo_catalog`：在同一实际批准 C、已就绪 D 上，组织有限、各自已冻结的 E 协议目录。每个目录成员最多两个声明的标量外部输入因素；输入可变化必须通过该成员当前 E 的来源、需求、已知输入及条件检查。每个输入最多 301 个采样点、全部输入最多 602 个点，在启动采样或 E 前检查；输出字节预算不能代替此输入规模边界。始终保持完整 C/D、原参数、SLX、初边值、time、solver、logging、E seed、输出、指标准入界和 warning policy。非因素输入也相同；成员/来源/场景/独立冻结记录的身份可不同。
 
 这不是参数覆盖通道。当前固定参数变化仍需新的实际 C 批准、D 与 E；F 候选先完成采纳链。连续分布抽样、相关抽样、Latin hypercube、fractional factorial、response surface、参数敏感性、边界搜索、内部随机噪声、并行/加速/GPU 及 H–K 不在本轮 native-qualified 范围。原 §11.2–11.5 的其它 API 保留为按需求和资格选择的候选，不表示现在可执行。
 
