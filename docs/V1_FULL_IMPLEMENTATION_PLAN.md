@@ -1663,6 +1663,7 @@ ARX 实际检查 `[y[k-1],u[k-1]]` 的秩及条件数，登记固定阶次、采
 
 资格至少实际执行：已知离散递推 ARX 与不同 holdout；已知增益真实 Simulink+lsqnonlin 及 heldout；已知受约束二维平方目标 fmincon；秩不足、标定仿真错误、预算终止和非法设置的正常拒绝。预设独立解析/线性代数真值及判据；负例预期通过不计为成功候选。项目 study 生产与合成 qualification 分开；手填成功标志和测试 factory 不是真实资格。
 
+实际失败证据审查补充：原生 JSON checkpoint 必须先完成编码，再向同目录唯一临时文件写入完整 UTF-8 字节，检查写入长度和关闭结果，最后检查目标文件替换成功；目标不能是目录。先截断旧报告再编码会在编码错误或原生退出时丢失已完成的 cases/ledger，已由保留的失败进程定位此顺序风险。失败时保留上一次完整 running 报告和临时/部分 MAT，不伪造 completed，也不放宽 process/status/source Gate。这是受控写入顺序与证据保全要求，不宣称跨平台替换或物理断电的绝对耐久性。修复后必须重新取得最终源码的 F 资格、研究试验和独立复核；旧源码回归和失败记录分别保留。
 ## 10.12 路由、状态、来源保护及失效
 
 增加参数研究文字入口、parameter_identification/calibration/optimization 条件执行及候选只读复核；每次只加载相应方法的合同/module/pack。独立 `parameter_study` state scope 检查 B/C/F、历史候选及其 accepted-trial 依赖；文字范围不评估当前 runtime，all 范围另核验相应新执行 readiness。新增 PARAMETER_STUDY_REVIEWED 与 PARAMETER_CANDIDATE_COMPLETE 属于 C→F→新 C 采纳的可选分支，不插入所有项目的必经主状态链。仅显式调用者写入状态，当前研究/来源/review/候选回执缺失或改变传播依赖失效，较早范围留下 F unassessed。
