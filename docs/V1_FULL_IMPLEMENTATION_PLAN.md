@@ -1,6 +1,6 @@
 # Simulation Modeling Skill v1.0.0 全流程实施计划
 
-> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-07 审查修订）**
+> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-08 Phase D实施前审查修订）**
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
@@ -1152,7 +1152,7 @@ validator 分别报告 schema_valid、valid、proposal_complete、challenge_comp
 
 ## 8.1 目标
 
-将 locked_model_spec 映射为工程实现，同时保证数学语义不改变。
+将当前批准的 locked_model_spec 映射为可追踪的工程实现，审查语义保持；机械结构检查不证明数学等价、物理有效性或数值正确性。
 
 ## 8.2 Domain Selection
 
@@ -1258,6 +1258,71 @@ Top Model
 - core/parameter_provenance.schema.yaml
 - templates/simulink/
 - tests/test_upstream_mapping.py
+- core/domain_mapping.schema.yaml
+- core/implementation_assurance_contract.yaml
+- scripts/validate_domain_mapping.py
+- scripts/validate_parameter_provenance.py
+- scripts/probe_implementation.py
+- scripts/validate_implementation_profile.py
+- scripts/run_implementation.py
+- scripts/matlab/ 受控核心构建与实际结构回读
+- mapping/parameter/native/router/state/stale回归与Authority入口同步
+
+---
+
+## 8.7 2026-10-08 实施前审查与执行契约
+
+用户于2026-10-08继续授权D，要求先审查、必要时修订计划，再实施并独立复核。C已按最终54f0519合并为ecf59c7，main双平台CI成功。D当前§8缺少可执行契约、项目与开发出口，本次先补下列决定。
+
+### D状态和权限
+
+D新增项目IMPLEMENTATION_READY；只有当前真实C批准、完整审查的映射、必要参数绑定、实际实现文件和结构receipt均有效时，由显式调用者更新。草稿、mapping_complete、build_ready、built、structure_checked、implementation_ready分别报告，检查器不推进状态。不授予E仿真、solver协议、辨识/标定/优化、数值V&V或成果验收。
+
+文字domain_mapping不依赖环境profile；正式映射路线要求当前C require_approved Gate。实际simulink_build及结构更新需当前A运行资格和独立D操作资格，不能由A library_load升级。execution_allowed只适用于明确implementation_execution范围；business_execution_allowed和simulation权限保持false。构建只在新的输出目录执行，不覆盖已有模型/历史证据。
+
+### 数学和实现身份
+
+绑定当前C文件/Approval/locked的完整校验、所选design/main_model及数学身份。保持Blocks、路径、布局、求解器和数学模型不同。允许多问共享、0..N必要组件、一对多/多对一关系映射，以及任务合理的层级合并/省略；不强制固定九层，也不为过Gate建立空子系统。C自由文本关系不是可执行语法，不进行eval或自动数学转码。
+
+映射完整要求selected main models的数学关系、变量、输入输出、初边值与事件都有实现追踪/审查或具体有理由处置。辅助日志/结构对象解释用途；新增延迟、采样、饱和、切换或近似若改变C语义须返回C。反馈、DAE和非因果网络不机械要求block图无环，来源依赖仍须DAG。结构update与追踪不构成数学等价证明、物理有效性或数值正确性。
+
+### Domain和实际支持范围
+
+按数学目标登记Simulink/Simscape/Stateflow/SystemComposer或适用MATLAB算法组件、混合耦合、备选及理由。域适用性与操作可用性分开。D本次Native baseline为明确受支持的Simulink核心blocks/ports/connections/model-workspace参数，以及update/save/reopen/actualreadback。资格只覆盖实际测试范围；Simscape/Stateflow/SystemComposer实际操作未有各自qualification时继续explicitdeferred，不能因安装或selection激活。fallback不得偷偷换域或数学模型。
+
+本地受限builder补齐可复现核心结构receipt缺口，输入为经契约校验的显式block/connection/binding指令。初始支持Inport/Outport/Constant/Gain/Sum/Integrator；其他库block、MATLABFunction、自定义mask/callback、modelreference、外部字典、任意代码表达式等仅可登记待支持映射，不能进本地native ready。上游能力选择仍按固定版本、实际资源与当前资格；不把受限builder说成通用数学代码生成器。
+
+### 参数绑定
+
+参数登记引用当前C design/model/variable，以原symbol与合法独立code_name、作用域/owner、value或null、unit或null、来源角色/当前source IDs、不确定性状态、tunability及理由绑定。值/单位/来源必须与当前批准C一致；不解析自由文本推导、不识别或校准、不填0/1/零不确定性或默认可调。实现名称/作用域冲突、未知引用、不支持值类型、非有限值和当前来源变化应受控失败。
+
+未知参数可完成文字映射，但必要值缺失阻止native build_ready/结构ready。不同C参数provenance仅是来源角色。实际构建的增益/常量等必须引用参数登记；Integrator初值等必须引用批准C初边值的明确结构化位置，不能让block默认值引入未批准条件。只保留项目明确可调的决定，不混入qualification fixture值。
+
+ModelFile模型工作区是本地baseline的参数scope，不强制全局baseworkspace或数据字典。未知单位可在文字阶段保留，核心native要求其需要的绑定完成。单位登记/Simulink.Parameter.Unit不自动证明量纲一致；信号/接口单位和温差/绝对温度需独立审查。
+
+### 契约/消费者/证据
+
+新增core/domain_mapping.schema.yaml、core/parameter_provenance.schema.yaml、core/implementation_assurance_contract.yaml；先契约，再只读validate_domain_mapping/validate_parameter_provenance，再modules/03_domain_mapping和真实draft模板。Mapping绑定C、参数文件、sources、domain decision、targets/关系和变量trace、reviews及可选implementation receipt。映射semantic digest排除status与receipt引用，其余内容全绑定；producer先捕获当前完整payload再形成receipt，不能创建自引用摘要。
+
+D操作profile为A的独立伴随证据，不改A七个hash-bound文件或把A原资格扩大。D记录新source/input/host/runtime/channel、过程completed/exit0、raw结构与日志、实际SLX字节与receipt。当前构建gate分别消费当前A和Dprofile。Dprofile生产者实际创建/连接/赋值/update/save/close/reload/readback；不是手填qualified/structure_checked标志。新运行需当前runtime资格，历史receipt按其完整身份及当时资格回读，不因为现在TTL过期就删除未变结构的历史有效性。
+
+加载、保存、update可能执行callback/初始化/掩码代码，绝非纯只读inspect。本地baseline只创建受控官方核心block、无自定义callback的自有新模型，记录库来源、实际函数路径和执行surface；不关闭其他模型或修改全局路径。支持范围以contract声明并真实运行核验。未知/错误端口、值、update或source变化受控失败并保留证据，不产出成功receipt。
+
+### 状态、时效和失效
+
+增加implementation partial scope，评估B/C/D，environment_checked=false。problem/model scope报告D未评估；默认all保留环境要求。Mapping/parameter/implementation/structure artifacts明确消费各自合同/receipt，不能落入A route_decision的environment-only分支。当前C→parameters→mapping→native files/structure的实际anchor与accepted依赖须闭合。当前build-route依赖runtime，历史实现/结构证据在receipt绑定当时环境，不把现在TTL当作语义anchor。
+
+C Problem的保守全字节/source校验继续；模型/参数/映射/SLX/实际执行代码/依赖变化使相应D证据及下游stale。环境TTL只限制新的执行，不使未变文字映射/C批准自动失效；E仍须独立当前runtime检查。本地baseline不支持的依赖/域返回具体缺项，不顺便声称精细数据失效图或完整项目结构验证。
+
+### 官方适配与出口
+
+官方MathWorks适配记录repository、commit/tag、实际skill/resource、release/toolbox/channel、本地版本、trigger/precondition/input/output/evidence/fallback/side effects，不复制整套官方手册。候选skill名字需在实施时live核验，缺失不装作已安装。保留必要R2025b官方API链接，不引入仅R2026a行为。
+
+实际资源除原§8.6外增加：D两类消费者、操作probe/validator、受支持native builder/结构receipt producer、mapping/parameter草稿，以及mapping/parameter/native/router/state/stale测试与bootstrap/output/manifest/lint/index入口同步。不创建未实现业务占位。
+
+开发出口：domain_mapping_checks、parameter_binding_checks、native_simulink_structure_qualification、mapping_route_and_state、source_and_stale_checks、upstream_compatibility_and_authority、authority_and_indexes、全部A/B/C回归、原始输入独立行为测试、精确最终commit复核、Windows/Ubuntu CI、合并及合并后回读。Native qualification至少两个不同结构的开发case（静态与带状态反馈），实际端口/参数/保存重开/update断言，另一个受控失败case；不模拟仿真结果。
+
+synthetic批准/数值/案例仅资格化基础设施，不为实际项目提供ModelApproval、辨识参数或物理真实性。工程结构实现许可不等于E的仿真协议和数值执行许可。同步§17 mapping/parameter→implementation/structure链、§18失效、§25 Mapping Evidence限定含义。
 
 ---
 
@@ -2066,6 +2131,10 @@ Problem Contract
 ↓
 Locked Model Contract
 ↓
+Parameter Provenance + Domain Mapping
+↓
+Implementation Files + Actual Structure Receipt
+↓
 Simulation Protocol
 ↓
 Run Receipt
@@ -2150,6 +2219,7 @@ model approval
 
 ## 18.5 参数、数据、工况与环境变化
 
+- D参数登记、映射、SLX、实际构建代码或其依赖变化：相应mapping/implementation/structure及实际依赖的下游失效；未变历史结构按当时完整资格回读，当前环境TTL只限制新的执行。
 - 参数、控制器、初值、边值、输入或场景变化：协议、运行及实际依赖的验证、主张、图表和论文失效；不自动改写题意。
 - 辨识/标定数据变化：相关参数和模型选择依据及下游失效；独立验证数据变化只使相关 validation、claim 和交付失效。
 - runtime/宿主、probe/合同、必要操作、输入或有效期变化：环境 profile 与依赖它的路由/环境状态失效并重检。后续运行按实际依赖传播，不删除历史证据。
@@ -2334,7 +2404,7 @@ R2025b 与上游兼容情况。
 |---|---|
 | 题意不漂移 | Frozen Problem Contract |
 | 模型可解释 | Model Contract + Approval |
-| Simulink 实现一致 | Mapping Evidence |
+| Simulink 实现追踪与结构 | 当前批准C + Parameter Provenance + Mapping Review + 原生SLX/Structure Receipt；不自动证明数学等价或物理有效 |
 | 仿真可复现 | Simulation Protocol + Run Receipt |
 | 参数有来源 | Parameter Provenance |
 | Solver 合理 | Solver Decision + Diagnostics |
