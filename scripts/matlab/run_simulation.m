@@ -251,13 +251,21 @@ if any(strcmp(who(out), 'yout'))
             assert(numel(time) == numel(data), 'PhaseE:TimeShape', 'Time and data lengths differ.');
             csvFile = sprintf('%s-output-%d.csv', record.case_id, mapping.port);
             writeCsv(fullfile(directory, csvFile), time, data);
+            declaredUnit = mapping.unit;
+            matUnit = mapping.unit;
+            if ~ischar(mapping.unit)
+                assert(isa(mapping.unit, 'double') && isempty(mapping.unit), ...
+                    'PhaseE:DeclaredUnit', 'Declared unit must be text or JSON null.');
+                declaredUnit = NaN; % jsondecode(null) is []; jsonencode(NaN) is null.
+                matUnit = '';      % The canonical absent MAT unit remains empty char.
+            end
             item = struct('port', mapping.port, 'block_path', mapping.block_path, 'variable_id', mapping.variable_id, ...
-                'unit', mapping.unit, 'sample_time', mapping.sample_time, 'observed_unit', values.DataInfo.Units, 'time', {num2cell(time')}, ...
+                'unit', declaredUnit, 'sample_time', mapping.sample_time, 'observed_unit', values.DataInfo.Units, 'time', {num2cell(time')}, ...
                 'values', {num2cell(data')}, 'csv_file', csvFile);
             record.outputs{end+1} = item; %#ok<AGROW>
             output_ports(index,1) = mapping.port;
             output_variables{index,1} = mapping.variable_id;
-            output_units{index,1} = mapping.unit;
+            output_units{index,1} = matUnit;
             output_times{index,1} = time;
             output_values{index,1} = data;
         end

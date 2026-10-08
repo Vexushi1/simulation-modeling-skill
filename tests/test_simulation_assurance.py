@@ -94,7 +94,7 @@ def synthetic_case(case, directory, run_id, *, primary=False):
         units[index,0] = output["unit"] or ""
         mat_times[index,0] = np.array(output["time"],dtype=float).reshape(-1,1)
         mat_values[index,0] = np.array(output["values"],dtype=float).reshape(-1,1)
-    savemat(directory / actual["mat_file"], {"run_id":run_id,"output_ports":np.array([o["port"] for o in actual["outputs"]]).reshape(-1,1),
+    savemat(directory / actual["mat_file"], {"run_id":run_id,"output_ports":np.array([o["port"] for o in actual["outputs"]],dtype=np.float64).reshape(-1,1),
                                           "output_variables":variables,"output_units":units,"output_times":mat_times,"output_values":mat_values,"saved_time":np.array(actual["saved_time"],dtype=float).reshape(-1,1)}, format="5")
     return actual
 
@@ -125,6 +125,12 @@ def replace_constant_mat_storage(path, *, matlab_class):
     assert path.read_bytes()[126:128] == b"IM"
     with path.open("ab") as stream:
         stream.write(matrix(1, values.shape, "output_values", children))
+
+
+def rewrite_mat_field(path, field, value):
+    data = {key: item for key, item in loadmat(path, mat_dtype=True).items() if not key.startswith("__")}
+    data[field] = value
+    savemat(path, data, format="5")
 
 
 def make_simulation_profile(directory, a_profile, *, age_hours=0):
@@ -674,19 +680,124 @@ def test_true_integer_or_logical_matlab_class_is_rejected_without_casting(tmp_pa
         assert_case(actual, case, tmp_path, "synthetic-wrong-mat-class")
 
 
-@pytest.mark.parametrize("field", ["output_values", "output_times", "saved_time"])
+@pytest.mark.parametrize("field", ["output_ports", "output_values", "output_times", "saved_time"])
 def test_complex_matlab_double_cannot_pass_by_dropping_its_imaginary_component(tmp_path, field):
     case = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)[0]
     actual = synthetic_case(case, tmp_path, "synthetic-complex-mat")
     path = tmp_path / actual["mat_file"]
     data = {key: value for key, value in loadmat(path).items() if not key.startswith("__")}
-    if field == "saved_time":
+    if field in {"output_ports", "saved_time"}:
         data[field] = data[field].astype(np.complex128) + 1j
     else:
         data[field][0, 0] = data[field][0, 0].astype(np.complex128) + 1j
     savemat(path, data, format="5")
     with pytest.raises(ValueError, match="complex data.*real-double"):
         assert_case(actual, case, tmp_path, "synthetic-complex-mat")
+
+
+@pytest.mark.parametrize("dtype", [np.bool_, np.uint8, np.int64])
+def test_mat_port_identity_requires_double_class_even_when_scalar_equals_one(tmp_path, dtype):
+    case = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)[0]
+    actual = synthetic_case(case, tmp_path, "synthetic-port-class")
+    rewrite_mat_field(tmp_path / actual["mat_file"], "output_ports", np.array([[1]], dtype=dtype))
+    with pytest.raises(ValueError, match="output_ports.*MATLAB double column"):
+        assert_case(actual, case, tmp_path, "synthetic-port-class")
+
+
+@pytest.mark.parametrize("field", ["output_ports", "output_variables", "output_units"])
+def test_mat_multiple_output_identity_collections_cannot_use_row_orientation(tmp_path, field):
+    case = next(item for item in producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)
+                if item["case_id"] == "multiple_outputs")
+    actual = synthetic_case(case, tmp_path, "synthetic-port-direction")
+    path = tmp_path / actual["mat_file"]
+    rewrite_mat_field(path, field, loadmat(path, mat_dtype=True)[field].T)
+    with pytest.raises(ValueError, match="column|collection shape"):
+        assert_case(actual, case, tmp_path, "synthetic-port-direction")
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, 1.5, np.inf, np.nan])
+def test_mat_port_identity_rejects_nonpositive_noninteger_or_nonfinite_numbers(tmp_path, value):
+    case = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)[0]
+    actual = synthetic_case(case, tmp_path, "synthetic-port-value")
+    rewrite_mat_field(tmp_path / actual["mat_file"], "output_ports", np.array([[value]], dtype=np.float64))
+    with pytest.raises(ValueError, match="output_ports.*positive integer-valued"):
+        assert_case(actual, case, tmp_path, "synthetic-port-value")
+
+
+@pytest.mark.parametrize("field", ["run_id", "output_variables", "output_units"])
+@pytest.mark.parametrize("value,declared", [(np.array([[1.0]]), "1"), (np.array([[True]]), "True"),
+                                           (np.array(["ab", "cd"]), "abcd")])
+def test_mat_identity_text_cannot_be_numeric_logical_or_multiple_char_rows(tmp_path, field, value, declared):
+    case = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)[0]
+    identity = declared if field == "run_id" else "synthetic-text-identity"
+    if field == "output_variables":
+        case["run_spec"]["outputs"][0]["variable_id"] = declared
+    elif field == "output_units":
+        case["run_spec"]["outputs"][0]["unit"] = declared
+        case["run_spec"]["metrics"][0]["unit"] = declared
+    actual = synthetic_case(case, tmp_path, identity)
+    replacement = value
+    if field != "run_id":
+        replacement = np.empty((1, 1), dtype=object)
+        replacement[0, 0] = value
+    rewrite_mat_field(tmp_path / actual["mat_file"], field, replacement)
+    with pytest.raises(ValueError, match="char row"):
+        assert_case(actual, case, tmp_path, identity)
+
+
+@pytest.mark.parametrize("field", ["run_id", "output_variables", "output_units"])
+def test_mat_single_char_row_cannot_contain_multiline_identity_text(tmp_path, field):
+    case = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)[0]
+    declared = "a\nb"
+    identity = declared if field == "run_id" else "synthetic-multiline-identity"
+    if field == "output_variables":
+        case["run_spec"]["outputs"][0]["variable_id"] = declared
+    elif field == "output_units":
+        case["run_spec"]["outputs"][0]["unit"] = declared
+        case["run_spec"]["metrics"][0]["unit"] = declared
+    actual = synthetic_case(case, tmp_path, identity)
+    with pytest.raises(ValueError, match="multiline identity"):
+        assert_case(actual, case, tmp_path, identity)
+
+
+@pytest.mark.parametrize("field", ["output_variables", "output_units"])
+def test_mat_text_collection_requires_cell_class(tmp_path, field):
+    case = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)[0]
+    actual = synthetic_case(case, tmp_path, "synthetic-text-collection")
+    rewrite_mat_field(tmp_path / actual["mat_file"], field, np.array([[1.0]]))
+    with pytest.raises(ValueError, match="MATLAB cell column"):
+        assert_case(actual, case, tmp_path, "synthetic-text-collection")
+
+
+@pytest.mark.parametrize("unit", [None, ""])
+def test_nullable_and_empty_string_units_preserve_json_type_and_mat_empty_char(tmp_path, unit):
+    case = next(item for item in producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)
+                if item["case_id"] == "passthrough")
+    for item in case["run_spec"]["inputs"] + case["run_spec"]["outputs"] + case["run_spec"]["metrics"]:
+        item["unit"] = unit
+    assert validate_run_spec(case["run_spec"]) == case["run_spec"]
+    actual = synthetic_case(case, tmp_path, "synthetic-nullable-unit")
+    value = load_document(tmp_path / actual["data_file"])["outputs"][0]["unit"]
+    assert type(value) is type(unit) and value == unit
+    mat_unit = loadmat(tmp_path / actual["mat_file"], mat_dtype=True, chars_as_strings=False)["output_units"][0, 0]
+    assert mat_unit.dtype.kind == "U" and mat_unit.shape == (0, 0)
+    assert assert_case(actual, case, tmp_path, "synthetic-nullable-unit")["complete"]
+
+
+def test_null_unit_cannot_be_encoded_as_json_array_or_mat_numeric_empty(tmp_path):
+    case = next(item for item in producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)
+                if item["case_id"] == "passthrough")
+    actual = synthetic_case(case, tmp_path, "synthetic-nullable-unit")
+    mat_units = np.empty((1, 1), dtype=object)
+    mat_units[0, 0] = np.empty((0, 0), dtype=np.float64)
+    rewrite_mat_field(tmp_path / actual["mat_file"], "output_units", mat_units)
+    with pytest.raises(ValueError, match="char row"):
+        assert_case(actual, case, tmp_path, "synthetic-nullable-unit")
+    data = load_document(tmp_path / actual["data_file"])
+    data["outputs"][0]["unit"] = []
+    write_json(tmp_path / actual["data_file"], data)
+    with pytest.raises(ValueError, match="actual output binding"):
+        assert_case(actual, case, tmp_path, "synthetic-nullable-unit")
 
 
 def test_restoring_matlab_class_keeps_exact_numeric_equality_requirement(tmp_path):

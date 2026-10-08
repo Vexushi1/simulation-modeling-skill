@@ -49,8 +49,8 @@ def qualification_cases(run_id, directory):
         elif identity == "passthrough":
             blocks = [block(model, "Input", "Inport", {"Port": "1"}), block(model, "Output", "Outport", {"Port": "1"})]
             connections = [line("Input", "Output")]
-            inputs = [{"port": 1, "block_path": model + "/Input", "variable_id": "u", "unit": "1", "time": [0.0, 1.0, 2.0], "values": [0.0, 1.0, 2.0], "interpolation": "linear"}]
-            outputs = [{"port": 1, "block_path": model + "/Output", "variable_id": "y", "unit": "1"}]
+            inputs = [{"port": 1, "block_path": model + "/Input", "variable_id": "u", "unit": None, "time": [0.0, 1.0, 2.0], "values": [0.0, 1.0, 2.0], "interpolation": "linear"}]
+            outputs = [{"port": 1, "block_path": model + "/Output", "variable_id": "y", "unit": None}]
         else:
             parameters = [{"code_name": "constant_k", "value": 2.0, "unit": "1"}]
             blocks = [block(model, "Constant", "Constant", {"Value": "constant_k"})]
@@ -75,7 +75,7 @@ def qualification_cases(run_id, directory):
         for output in outputs:
             output["sample_time"] = 0
             target = (1.7 / parameters[0]["value"] + (0.25 - 1.7 / parameters[0]["value"]) * __import__("math").exp(-parameters[0]["value"] * 2.0)) if feedback else 2.0 if identity in {"constant_no_input", "passthrough"} or output["port"] == 1 else 6.0 if output["port"] == 2 else 7.0
-            spec["metrics"].append({"id": "final_" + str(output["port"]), "output_port": output["port"], "statistic": "final", "unit": "1", "lower": target - 2e-5, "upper": target + 2e-5, "reason": "Synthetic infrastructure qualification only; no real-model validity claim."})
+            spec["metrics"].append({"id": "final_" + str(output["port"]), "output_port": output["port"], "statistic": "final", "unit": output["unit"], "lower": target - 2e-5, "upper": target + 2e-5, "reason": "Synthetic infrastructure qualification only; no real-model validity claim."})
         expectation = "error" if identity == "invalid_override" else "early_stop" if identity == "early_stop" else "no_output" if identity == "no_output" else "success"
         build = {"schema_version": 1, "model_name": model, "parameters": parameters, "blocks": blocks, "connections": connections}
         cases.append({"case_id": identity, "expectation": expectation, "run_spec": spec, "build_spec": build, "simulation_timeout": 0.001 if identity == "early_stop" else 30.0, "warning_policy": "record"})

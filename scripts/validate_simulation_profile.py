@@ -141,13 +141,13 @@ def _read_outputs(directory, actual, spec, run_id):
         mat_path = contained_path(directory, actual["mat_file"])
         # Inspect complex storage first: mat_dtype=True can discard imaginary
         # components while restoring MATLAB's class from compact MAT storage.
-        stored = loadmat(mat_path, variable_names=["output_times", "output_values", "saved_time"], squeeze_me=False, mat_dtype=False)
-        if any(key not in stored for key in ("output_times", "output_values", "saved_time")):
+        stored = loadmat(mat_path, variable_names=["output_ports", "output_times", "output_values", "saved_time"], squeeze_me=False, mat_dtype=False)
+        if any(key not in stored for key in ("output_ports", "output_times", "output_values", "saved_time")):
             raise ValueError("native MAT numeric output fields missing")
-        if np.iscomplexobj(stored["saved_time"]) or any(
+        if np.iscomplexobj(stored["saved_time"]) or np.iscomplexobj(stored["output_ports"]) or any(
                 np.iscomplexobj(item) for key in ("output_times", "output_values") for item in stored[key].flat):
             raise ValueError("native MAT complex data is outside the real-double output boundary")
-        mat = loadmat(mat_path, variable_names=["run_id", "output_ports", "output_variables", "output_units", "output_times", "output_values", "saved_time"], squeeze_me=False, mat_dtype=True)
+        mat = loadmat(mat_path, variable_names=["run_id", "output_ports", "output_variables", "output_units", "output_times", "output_values", "saved_time"], squeeze_me=False, mat_dtype=True, chars_as_strings=False)
     except (OSError, ValueError, TypeError, IndexError, MatReadError) as error:
         raise ValueError("native MAT numeric output readback failed: " + str(error)) from error
     if not {"run_id", "output_ports", "output_variables", "output_units", "output_times", "output_values", "saved_time"} <= set(mat):
@@ -156,19 +156,37 @@ def _read_outputs(directory, actual, spec, run_id):
         raise ValueError("native MAT saved-time class must be double")
     if mat["saved_time"].reshape(-1).tolist() != actual["saved_time"]:
         raise ValueError("native MAT saved time differs from recorded SimulationOutput.tout")
-    text = lambda value: "".join(str(part) for part in value.reshape(-1))
-    if text(mat["run_id"]) != run_id or mat["output_ports"].reshape(-1).tolist() != [item["port"] for item in expected]:
+    def char_row(value, label, *, allow_empty=False):
+        if value.dtype.kind != "U" or value.dtype.itemsize != np.dtype("U1").itemsize or value.ndim != 2:
+            raise ValueError("MAT " + label + ": MATLAB char row required")
+        if allow_empty and value.size == 0 and value.shape in {(0, 0), (1, 0)}:
+            return ""
+        if value.shape[0] != 1 or value.shape[1] == 0:
+            raise ValueError("MAT " + label + ": one nonempty char row required")
+        text = "".join(value[0].tolist())
+        if "\n" in text or "\r" in text:
+            raise ValueError("MAT " + label + ": multiline identity text is not allowed")
+        return text
+
+    ports = mat["output_ports"]
+    if (ports.dtype != np.dtype("float64") or ports.shape != (len(expected), 1)
+            or not np.isfinite(ports).all() or (ports <= 0).any() or not np.array_equal(ports, np.floor(ports))):
+        raise ValueError("MAT output_ports: positive integer-valued MATLAB double column required")
+    if char_row(mat["run_id"], "run_id") != run_id or ports[:, 0].tolist() != [item["port"] for item in expected]:
         raise ValueError("MAT run or output-port identity differs")
     for key in ("output_variables", "output_units", "output_times", "output_values"):
         if mat[key].shape != (len(expected), 1):
             raise ValueError("MAT output collection shape differs: " + key)
+    for key in ("output_variables", "output_units"):
+        if mat[key].dtype != np.dtype("O"):
+            raise ValueError("MAT " + key + ": MATLAB cell column required")
     for index, (item, bound) in enumerate(zip(records, expected)):
         if set(item) != {"port", "block_path", "variable_id", "unit", "sample_time", "observed_unit", "time", "values", "csv_file"} or type(item.get("port")) is not int or any(not native_value_equal(item[key], bound[key]) for key in ("port", "block_path", "variable_id", "unit", "sample_time")):
             raise ValueError("actual output binding differs")
         time, values = numeric_vector(item["time"], "output.time"), numeric_vector(item["values"], "output.values")
         if len(time) != len(values) or len(time) < 2 or any(a >= b for a, b in zip(time, time[1:])):
             raise ValueError("output time/value shape or order differs")
-        if text(mat["output_variables"][index, 0]) != item["variable_id"] or text(mat["output_units"][index, 0]) != (item["unit"] or ""):
+        if char_row(mat["output_variables"][index, 0], "output_variables") != item["variable_id"] or char_row(mat["output_units"][index, 0], "output_units", allow_empty=item["unit"] in {None, ""}) != (item["unit"] or ""):
             raise ValueError("MAT variable or declared unit differs")
         if mat["output_times"][index, 0].dtype != np.dtype("float64") or mat["output_values"][index, 0].dtype != np.dtype("float64"):
             raise ValueError("native MAT numeric class must be double")
