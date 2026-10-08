@@ -88,9 +88,11 @@ if strcmp(s.method,'identification.arx_111')
     [p,e]=arxPrediction(s.train,theta);
     r.train_prediction=vector(p); r.train_residual=vector(e); r.objective=vector(sum(e.^2));
     r.ledger{1}=ledgerCall(1,'train',theta,p,e,sum(e.^2));
+    checkpoint(r);
     [p,e]=arxPrediction(s.holdout,theta);
     r.holdout_prediction=vector(p); r.holdout_residual=vector(e);
     r.ledger{2}=ledgerCall(2,'holdout',theta,p,e,sum(e.^2));
+    checkpoint(r);
     r.restored=true;
 elseif strcmp(s.method,'optimization.quadratic_sqp')
     assert(numel(s.initial)<=2 && all(s.objective.weights>0) && all(s.objective.scales>0), ...
@@ -139,7 +141,7 @@ elseif strcmp(s.method,'calibration.simulink_gain')
     baselineParameter=workspace.getVariable('trial_k');
     baselineConfig=configSnapshot(model);
     baselineSampling=get_param([model '/Output'],'SampleTime');
-    r.model_file=[item.case_id '-model.slx'];
+    r.model_file=[model '.slx'];
     save_system(model,fullfile(directory,r.model_file));
     baselineBytes=fileBytes(fullfile(directory,r.model_file));
     checkpoint(r);

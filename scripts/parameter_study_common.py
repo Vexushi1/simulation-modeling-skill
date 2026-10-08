@@ -152,6 +152,13 @@ def numeric_readback(directory, actual, run_id):
     return data
 
 
+def optimizer_diagnostics(actual, spec, ledger):
+    """Actual native termination diagnostics are required even for budget negatives."""
+    expected_algorithm = 'sqp' if spec['method'] == METHODS[2] else 'trust-region-reflective'
+    if actual['algorithm'] != expected_algorithm or type(actual['iterations']) is not int or not 0 <= actual['iterations'] <= spec['budget']['max_iterations'] or type(actual['func_count']) is not int or not 0 < actual['func_count'] <= spec['budget']['max_evaluations'] or len(ledger) > spec['budget']['max_evaluations'] or actual['func_count'] != sum(item['phase'] == 'train' for item in ledger) or not finite(actual['firstorderopt']) or actual['firstorderopt'] < 0:
+        raise ValueError('actual algorithm/count/finite optimality diagnostics differ from reviewed budget')
+
+
 def assert_case(actual, case, directory, run_id):
     import numpy as np
     spec = case['native_spec']
@@ -179,7 +186,7 @@ def assert_case(actual, case, directory, run_id):
                 if len(call['prediction']) != len(expected) or not np.allclose(call['prediction'], expected, rtol=0, atol=1e-10):
                     raise ValueError('ledger prediction differs from approved method')
                 r = residuals(spec, call['prediction'], 'holdout' if call['phase'] == 'holdout' else 'train')
-                if not np.allclose(call['residual'], r, rtol=0, atol=1e-12) or abs(call['objective']-sum(v*v for v in r)) > 1e-10:
+                if len(call['residual']) != len(r) or not np.allclose(call['residual'], r, rtol=0, atol=1e-12) or abs(call['objective']-sum(v*v for v in r)) > 1e-10:
                     raise ValueError('ledger residual/objective differs')
                 if spec['method'] == METHODS[1]:
                     split = 'holdout' if call['phase'] == 'holdout' else 'train'
@@ -197,11 +204,18 @@ def assert_case(actual, case, directory, run_id):
         if case['expectation'] == 'budget':
             if actual['status'] != 'budget_exhausted' or actual['exitflag'] != [0.0] or not ledger or any(c['error'] for c in ledger) or any(c['phase'] != 'train' for c in ledger):
                 raise ValueError('actual budget termination and preserved calls required')
+            optimizer_diagnostics(actual, spec, ledger)
         elif actual['status'] != 'failed' or not actual.get('error'):
             raise ValueError('controlled failure did not fail')
         if case['expectation'] == 'simulation_error':
             if not any('phase_f_controlled_missing_symbol' in item['error'] for item in ledger):
                 raise ValueError('controlled missing-symbol actual simulation failure ledger missing')
+        elif case['expectation'] == 'criterion':
+            if actual['error_identifier'] != 'PhaseF:HoldoutCriterion' or len(actual['theta']) != 2 or [item['phase'] for item in ledger] != ['train', 'holdout'] or any(item['error'] or item['theta'] != actual['theta'] for item in ledger) or not np.allclose(actual['theta'], case['expected_theta'], rtol=0, atol=1e-6) or not actual['train_prediction'] or not actual['holdout_prediction']:
+                raise ValueError('failed ARX holdout must preserve actual fitted theta and both call records')
+            r = residuals(spec, actual['holdout_prediction'], 'holdout')
+            if math.sqrt(sum(v*v for v in r)/sum(spec['holdout']['weights'][1:])) <= spec['criteria']['max_holdout_rmse']:
+                raise ValueError('controlled holdout rejection requires an actual failed criterion')
         elif case['expectation'] == 'error':
             expected_error = 'PhaseF:Bounds' if 'bounds' in case['case_id'] else 'PhaseF:TimeGrid' if 'time' in case['case_id'] else 'PhaseF:RankDeficient'
             if actual['error_identifier'] != expected_error:
@@ -226,9 +240,7 @@ def assert_case(actual, case, directory, run_id):
     if spec['method'] != METHODS[0]:
         if len(actual['exitflag']) != 1 or actual['exitflag'][0] <= 0 or any(not lo <= x <= hi for x, lo, hi in zip(theta, spec['lower'], spec['upper'])):
             raise ValueError('positive convergence flag and feasible candidate bounds required')
-        expected_algorithm = 'sqp' if spec['method'] == METHODS[2] else 'trust-region-reflective'
-        if actual['algorithm'] != expected_algorithm or type(actual['iterations']) is not int or not 0 <= actual['iterations'] <= spec['budget']['max_iterations'] or type(actual['func_count']) is not int or not 0 < actual['func_count'] <= spec['budget']['max_evaluations'] or len(ledger) > spec['budget']['max_evaluations'] or actual['func_count'] != sum(item['phase'] == 'train' for item in ledger) or not finite(actual['firstorderopt']) or actual['firstorderopt'] < 0:
-            raise ValueError('actual algorithm/count diagnostics differ')
+        optimizer_diagnostics(actual, spec, ledger)
     if spec['method'] == METHODS[2]:
         tol = spec['criteria']['feasibility_tolerance']
         if any(sum(a*x for a, x in zip(row, theta))-b > tol for row, b in zip(spec['objective']['A'], spec['objective']['b'])) or len(actual['objective']) != 1 or not math.isclose(actual['objective'][0], objective_value(spec, theta), rel_tol=1e-10, abs_tol=1e-12):
@@ -254,7 +266,7 @@ def assert_case(actual, case, directory, run_id):
                 raise ValueError('candidate predicted output differs')
             r = residuals(spec, prediction, split)
             offset = 1 if spec['method'] == METHODS[0] else 0
-            if not np.allclose(actual[split + '_residual'], r, rtol=0, atol=1e-12) or math.sqrt(sum(v*v for v in r)/sum(spec[split]['weights'][offset:])) > spec['criteria']['max_' + split + '_rmse']:
+            if len(actual[split + '_residual']) != len(r) or not np.allclose(actual[split + '_residual'], r, rtol=0, atol=1e-12) or math.sqrt(sum(v*v for v in r)/sum(spec[split]['weights'][offset:])) > spec['criteria']['max_' + split + '_rmse']:
                 raise ValueError('candidate residual or prior holdout criterion failed')
         if len(actual['objective']) != 1 or not math.isclose(actual['objective'][0], sum(v*v for v in actual['train_residual']), rel_tol=1e-10, abs_tol=1e-12):
             raise ValueError('candidate loss differs from training residuals')

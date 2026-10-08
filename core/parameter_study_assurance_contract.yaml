@@ -9,7 +9,7 @@ operations:
     product: System Identification Toolbox
     license_feature: Identification_Toolbox
     functions: [iddata, arx, arxOptions]
-    cases: [arx_positive, arx_rank_deficient, arx_invalid_time]
+    cases: [arx_positive, arx_rank_deficient, arx_invalid_time, arx_holdout_rejected]
     required_A_operations: [matlab.basic_execution, simulink.library_load]
   calibration.simulink_gain:
     product: Optimization Toolbox

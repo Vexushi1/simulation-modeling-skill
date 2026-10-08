@@ -15,7 +15,7 @@ from probe_environment import write_json
 from runtime_common import canonical_digest, load_document, sha256_file
 from test_runtime import make_profile
 from test_simulation_assurance import make_simulation_profile
-from validate_environment import utc_text
+from validate_environment import runtime_identity, utc_text
 from validate_parameter_study import validate_parameter_study
 from validate_parameter_study_profile import derive_profile, observed_runtime, validate_parameter_study_profile
 from validate_parameter_study_receipt import validate_parameter_study_receipt
@@ -30,7 +30,7 @@ def synthetic_case(case, directory, identity):
               'iterations': 1, 'func_count': 1, 'firstorderopt': 0.0, 'rank': None, 'condition_number': None,
               'ledger': [], 'diagnostics': [], 'restored': True, 'model_file': '',
               'data_file': case['case_id']+'-numeric.json', 'mat_file': case['case_id']+'-numeric.mat'}
-    if case['expectation'] not in {'success', 'budget'}:
+    if case['expectation'] not in {'success', 'budget', 'criterion'}:
         actual.update(status='failed', candidate_complete=False, error='SYNTHETIC controlled negative', error_identifier='PhaseF:Bounds' if 'bounds' in case['case_id'] else 'PhaseF:TimeGrid' if 'time' in case['case_id'] else 'PhaseF:RankDeficient')
         if case['expectation'] == 'simulation_error':
             actual['error_identifier'] = 'PhaseF:SimulationError'
@@ -57,7 +57,7 @@ def synthetic_case(case, directory, identity):
             if s['method'] == METHODS[0]:
                 X = np.column_stack((s['train']['output'][:-1], s['train']['input'][:-1]))
                 actual.update(rank=int(np.linalg.matrix_rank(X)), condition_number=float(np.linalg.cond(X)))
-            for split in ('train', 'holdout') if case['expectation'] == 'success' else ('train',):
+            for split in ('train', 'holdout') if case['expectation'] in {'success', 'criterion'} else ('train',):
                 p = predictions(s, theta, split); r = residuals(s, p, split)
                 actual[split+'_prediction'] = p; actual[split+'_residual'] = r
                 value = sum(v*v for v in r)
@@ -73,6 +73,8 @@ def synthetic_case(case, directory, identity):
                     final = copy.deepcopy(actual['ledger'][0]); final.update(sequence=2,phase='final')
                     actual['ledger'].append(final); call['sequence']=3
                 actual['ledger'].append(call)
+        if case['expectation'] == 'criterion':
+            actual.update(status='failed', candidate_complete=False, error='SYNTHETIC heldout criterion failure after actual-shaped fitted numeric data', error_identifier='PhaseF:HoldoutCriterion')
     names = ('theta', 'train_prediction', 'holdout_prediction', 'train_residual', 'holdout_residual', 'objective', 'exitflag')
     data = {name: actual[name] for name in names}
     data.update(schema_version=1, run_id=identity, case_id=case['case_id'])
@@ -136,6 +138,8 @@ def make_trial(root, method=METHODS[2], *, required_operations=None):
     profile_raw = load_document(f.parent/contract()['evidence']['raw'])
     clock = datetime.now(timezone.utc)-timedelta(seconds=0.005)
     raw = copy.deepcopy(profile_raw)
+    raw['functions'] = [item for item in raw['functions'] if item['name'] in request['required_functions']]
+    raw['operation_diagnostics'] = [item for item in raw['operation_diagnostics'] if item['operation_id'] == method]
     raw.update({key: request[key] for key in ('run_id','channel','host_fingerprint','source_identity','input_identity')})
     raw.update(started_at=utc_text(clock), finished_at=utc_text(clock+timedelta(milliseconds=1)),
                cases=[synthetic_case(request['cases'][0], d, request['run_id'])])
@@ -156,11 +160,11 @@ def test_each_independent_method_profile_has_own_cases_and_no_adoption(tmp_path)
     result=validate_parameter_study_profile(path)
     assert result['valid'], result
     assert result['qualified_operations']==list(METHODS)
-    assert len(result['case_results'])==10
+    assert len(result['case_results'])==11
     assert 'primary_run_complete' not in result
 
 
-@pytest.mark.parametrize('case_id', ['arx_positive','arx_rank_deficient','arx_invalid_time','gain_positive','gain_simulation_error','gain_budget','gain_invalid_bounds','quadratic_positive','quadratic_budget','quadratic_invalid_bounds'])
+@pytest.mark.parametrize('case_id', ['arx_positive','arx_rank_deficient','arx_invalid_time','arx_holdout_rejected','gain_positive','gain_simulation_error','gain_budget','gain_invalid_bounds','quadratic_positive','quadratic_budget','quadratic_invalid_bounds'])
 def test_failure_is_specific_to_its_method_and_cannot_be_declared_qualified(tmp_path,case_id):
     a=make_profile(tmp_path/'a'); path=make_parameter_profile(tmp_path/'f',a)
     raw=load_document(path.parent/contract()['evidence']['raw'])
@@ -279,3 +283,99 @@ def test_successful_ledger_requires_finite_typed_objective(tmp_path,method,value
     case=producer.qualification_cases([method])[0]; actual=synthetic_case(case,tmp_path,'synthetic-run')
     actual['ledger'][0]['objective']=value
     with pytest.raises(ValueError): assert_case(actual,case,tmp_path,'synthetic-run')
+
+
+@pytest.mark.parametrize('mutation',['none','missing_ledger','missing_theta','wrong_error'])
+def test_arx_holdout_failure_preserves_fitted_candidate_and_both_numeric_calls(tmp_path,mutation):
+    case=next(c for c in producer.qualification_cases() if c['case_id']=='arx_holdout_rejected')
+    actual=synthetic_case(case,tmp_path,'synthetic-run')
+    if mutation=='missing_ledger': actual['ledger']=actual['ledger'][:1]
+    elif mutation=='missing_theta': actual['theta']=[]
+    elif mutation=='wrong_error': actual['error_identifier']='MATLAB:UndefinedFunction'
+    if mutation=='none':
+        report=assert_case(actual,case,tmp_path,'synthetic-run')
+        assert not report['candidate_complete'] and len(actual['ledger'])==2 and len(actual['theta'])==2
+    else:
+        with pytest.raises(ValueError): assert_case(actual,case,tmp_path,'synthetic-run')
+
+
+@pytest.mark.parametrize('method',METHODS[1:])
+@pytest.mark.parametrize('field,value',[('algorithm','bogus'),('iterations',999999),('iterations',-1),('func_count',-999),('func_count',0),('firstorderopt',None),('firstorderopt',True)])
+def test_controlled_budget_requires_actual_typed_method_and_count_diagnostics(tmp_path,method,field,value):
+    case=next(c for c in producer.qualification_cases([method]) if c['expectation']=='budget')
+    actual=synthetic_case(case,tmp_path,'synthetic-run'); actual[field]=value
+    with pytest.raises(ValueError): assert_case(actual,case,tmp_path,'synthetic-run')
+
+
+@pytest.mark.parametrize('method',METHODS[1:])
+def test_controlled_budget_cannot_hide_over_budget_objective_calls(tmp_path,method):
+    case=next(c for c in producer.qualification_cases([method]) if c['expectation']=='budget')
+    actual=synthetic_case(case,tmp_path,'synthetic-run')
+    actual['ledger']=[{**copy.deepcopy(actual['ledger'][0]),'sequence':index+1} for index in range(case['native_spec']['budget']['max_evaluations']+1)]
+    actual['func_count']=len(actual['ledger'])
+    with pytest.raises(ValueError): assert_case(actual,case,tmp_path,'synthetic-run')
+
+
+@pytest.mark.parametrize('split',['train','holdout'])
+def test_arx_ledger_single_residual_cannot_broadcast_to_a_whole_experiment(tmp_path,split):
+    case=producer.qualification_cases([METHODS[0]])[0]; actual=synthetic_case(case,tmp_path,'synthetic-run')
+    call=next(c for c in actual['ledger'] if c['phase']==split); call['residual']=[0.0]
+    with pytest.raises(ValueError): assert_case(actual,case,tmp_path,'synthetic-run')
+
+
+@pytest.mark.parametrize('split',['train','holdout'])
+def test_arx_final_single_residual_cannot_broadcast_after_numeric_rebinding(tmp_path,split):
+    case=producer.qualification_cases([METHODS[0]])[0]; actual=synthetic_case(case,tmp_path,'synthetic-run')
+    field=split+'_residual'; actual[field]=[0.0]
+    data=load_document(tmp_path/actual['data_file']); data[field]=[0.0]; write_json(tmp_path/actual['data_file'],data)
+    mat=loadmat(tmp_path/actual['mat_file']); mat={k:v for k,v in mat.items() if not k.startswith('__')}
+    mat[field]=np.asarray([[0.0]],dtype=np.float64); savemat(tmp_path/actual['mat_file'],mat)
+    with pytest.raises(ValueError): assert_case(actual,case,tmp_path,'synthetic-run')
+
+
+@pytest.mark.parametrize('method',METHODS)
+@pytest.mark.parametrize('mutation',['missing','duplicate','extra','outside_installation'])
+def test_trial_requires_exact_unique_official_method_functions_after_receipt_rebinding(tmp_path,method,mutation):
+    path=make_trial(tmp_path,method); names=contract()['evidence']
+    request=load_document(path.parent/names['input']); raw=load_document(path.parent/names['raw'])
+    if mutation=='missing': raw['functions']=raw['functions'][1:]
+    elif mutation=='duplicate': raw['functions'].append(copy.deepcopy(raw['functions'][0]))
+    elif mutation=='extra':
+        qualification_raw=load_document(Path(request['bindings']['parameter_study_profile']['path']).parent/names['raw'])
+        raw['functions'].append(next(copy.deepcopy(item) for item in qualification_raw['functions'] if item['name'] not in request['required_functions']))
+    else:
+        outsider=tmp_path/'shadow-function.m'; outsider.write_text('% SYNTHETIC outside MATLAB installation\n',encoding='utf-8')
+        raw['functions'][0]['path']=str(outsider.resolve())
+    write_json(path.parent/names['raw'],raw)
+    receipt=load_document(path)
+    # Recreate the prior permissive normalization to ensure the consumer rejects
+    # method evidence even when all mutable raw/receipt manifest bytes agree.
+    receipt['runtime']=runtime_identity({**raw,'operations':[{'functions':raw['functions']}]},request['matlab_executable'])
+    receipt['artifacts']=producer.artifact_manifest(path.parent,raw); write_json(path,receipt)
+    result=validate_parameter_study_receipt(path)
+    assert not result['valid'] and any('official method surface' in error for error in result['errors']),result
+
+
+@pytest.mark.parametrize('method',METHODS)
+def test_trial_cannot_reuse_qualification_for_different_official_function_resolution(tmp_path,method):
+    path=make_trial(tmp_path,method); names=contract()['evidence']
+    request=load_document(path.parent/names['input']); raw=load_document(path.parent/names['raw'])
+    original=Path(raw['functions'][0]['path']); alternate=original.parent/'other-official'/original.name
+    alternate.parent.mkdir(); alternate.write_bytes(original.read_bytes())
+    raw['functions'][0]['path']=str(alternate.resolve()); write_json(path.parent/names['raw'],raw)
+    receipt=load_document(path); receipt['runtime']=observed_runtime(raw,request)
+    receipt['artifacts']=producer.artifact_manifest(path.parent,raw); write_json(path,receipt)
+    result=validate_parameter_study_receipt(path)
+    assert not result['valid'] and any('qualified selected method' in error for error in result['errors']),result
+
+
+@pytest.mark.parametrize('method',METHODS)
+def test_trial_function_bytes_must_match_qualified_selected_method(tmp_path,monkeypatch,method):
+    import validate_parameter_study_receipt as consumer
+    path=make_trial(tmp_path,method); original=consumer.observed_runtime
+    def changed_after_qualification(raw,request):
+        runtime=copy.deepcopy(original(raw,request)); runtime['function_files'][0]['sha256']='0'*64
+        return runtime
+    monkeypatch.setattr(consumer,'observed_runtime',changed_after_qualification)
+    result=consumer.validate_parameter_study_receipt(path)
+    assert not result['valid'] and any('function-file bytes' in error for error in result['errors']),result

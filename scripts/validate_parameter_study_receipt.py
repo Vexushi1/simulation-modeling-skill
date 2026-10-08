@@ -7,6 +7,7 @@ from pathlib import Path
 from parameter_study_common import assert_case, contract, records
 from runtime_common import canonical_digest, emit, load_document, sha256_file
 from run_parameter_study import verify_trial_bindings
+from validate_environment import _path
 from validate_implementation_receipt import same_runtime
 from validate_parameter_study_profile import observed_runtime, validate_evidence_chain
 
@@ -29,15 +30,23 @@ def validate_parameter_study_receipt(path, *, project_root=None, study_report=No
             raise ValueError('supplied study report is stale')
         if receipt['project_id'] != report['project_id'] or receipt['study_sha256'] != report['study_sha256'] or receipt['study_semantic_sha256'] != report['semantic_sha256'] or receipt['native_spec_sha256'] != canonical_digest(report['native_spec']):
             raise ValueError('trial receipt study identity changed')
-        if not same_runtime(observed_runtime(raw, request), runtime):
+        actual_runtime = observed_runtime(raw, request)
+        if not same_runtime(actual_runtime, runtime):
             raise ValueError('actual trial differs from qualified F runtime')
+        qualification_raw = load_document(Path(request['bindings']['parameter_study_profile']['path']).parent/contract()['evidence']['raw'])
+        qualified_functions = {item['name']: item['path'] for item in records(qualification_raw['functions'], 'qualification.functions')}
+        if any(item['name'] not in qualified_functions or _path(item['path']) != _path(qualified_functions[item['name']]) for item in raw['functions']):
+            raise ValueError('actual trial function resolution differs from qualified selected method')
+        qualified_files = {_path(item['path']): item['sha256'] for item in runtime['function_files']}
+        if any(qualified_files.get(_path(item['path'])) != item['sha256'] for item in actual_runtime['function_files']):
+            raise ValueError('actual trial function-file bytes differ from qualified selected method')
         cases = records(raw['cases'], 'raw.cases')
         if len(cases) != 1:
             raise ValueError('single candidate trial required')
         metrics = assert_case(cases[0], request['cases'][0], path.parent, request['run_id'])
         result.update(valid=True, trial_complete=True, candidate_complete=metrics['candidate_complete'], criteria_satisfied=metrics['criteria_satisfied'],
                       study_sha256=report['study_sha256'], study_semantic_sha256=report['semantic_sha256'], native_spec_sha256=receipt['native_spec_sha256'],
-                      operation_id=report['operation_id'], method=report['method'], runtime=observed_runtime(raw, request), receipt_sha256=sha256_file(path),
+                      operation_id=report['operation_id'], method=report['method'], runtime=actual_runtime, receipt_sha256=sha256_file(path),
                       environment_profile_sha256=request['bindings']['environment_profile']['sha256'], parameter_study_profile_sha256=request['bindings']['parameter_study_profile']['sha256'],
                       candidate=cases[0]['theta'], ledger=cases[0]['ledger'])
     except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError) as error:

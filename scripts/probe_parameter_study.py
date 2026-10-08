@@ -53,6 +53,8 @@ def qualification_cases(operations=None):
         failed['native_spec']['train'] = data([0.0]*12)
         failed = add('arx_invalid_time', arx, 'error')
         failed['native_spec']['train']['time'][2] = 0.25
+        failed = add('arx_holdout_rejected', arx, 'criterion', truth=[0.6, 1.2])
+        failed['native_spec']['holdout']['output'] = [value+0.5 for value in failed['native_spec']['holdout']['output']]
     if METHODS[1] in operations:
         add('gain_positive', gain, truth=[1.75])
         add('gain_simulation_error', gain, 'simulation_error')['control'] = 'invalid_gain_expression'

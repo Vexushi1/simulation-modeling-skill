@@ -12,7 +12,11 @@ from validate_implementation_receipt import same_runtime
 
 
 def observed_runtime(raw, request):
-    return runtime_identity({**raw, 'operations': [{'functions': records(raw['functions'], 'raw.functions')}]}, request['matlab_executable'])
+    functions = records(raw['functions'], 'raw.functions')
+    names = {item['name']: item['path'] for item in functions}
+    if len(names) != len(functions) or set(names) != set(request['required_functions']) or not all(_official_function(value, raw['runtime']['matlabroot']) for value in names.values()):
+        raise ValueError('F function resolution differs from complete unique official method surface')
+    return runtime_identity({**raw, 'operations': [{'functions': functions}]}, request['matlab_executable'])
 
 
 def derive_profile(raw, request, process):
