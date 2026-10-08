@@ -1463,6 +1463,8 @@ SIMULATION_PROTOCOL_FROZEN 要求当前完整冻结协议及有效 B/C/D 绑定�
 
 solver 值以 typed、有界有限数据登记，记录 StartTime/StopTime、Solver/SolverType、适用的步长、容差和 zero-crossing 设置及理由。不适用参数显式 null/理由，不能给 fixed-step 填无意义容差或给 variable-step 默填固定步长。要求 start < stop、步长/容差处于对应 API 的合法范围以及适用字段一致；例如 MinStep 的合法零下限不能机械拒绝为非正值。实际运行保存有效 solver/readback，而非只回显请求。期望指标、阈值和 claim_limit 在冻结前确定，实际结果不反向修改这些条件。
 
+R2025b 公开 SimulationMetadata 的 SolverInfo 不保证暴露全部容差字段。配置记录与实际观测分开：记录 SimulationInput 施加的完整 typed 参数，实际 solver 名称/类型及公开步长从 SimulationMetadata 读取；只核对公开观测和实际时间覆盖。未公开的容差不声称已独立 get_param readback，也不为此引入自定义运行 callback。输出采样间隔与内部求解步长保持区别。该限制来自本轮官方 API 审查，先保存此计划修订，再实施相关消费者。
+
 Simscape/Stateflow/System Composer 执行、复杂 DAE/事件/多速率支持、实时/codegen、accelerator/rapid accelerator、Fast Restart、并行、参数扫描、辨识/标定/优化以及 solver comparison 保持 deferred。SDI、内部 signal logging/logsout 扩展可以登记待支持，不因推荐 API 出现在 §9.5/§9.6 而自动获得资格。
 
 ### 参数、场景、输入与非破坏执行
