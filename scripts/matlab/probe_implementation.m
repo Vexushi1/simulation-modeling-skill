@@ -11,15 +11,15 @@ report = struct('schema_version', 1, 'run_id', request.run_id, 'status', 'runnin
     'started_at', utcNow(), 'finished_at', '', 'simulation_run', false);
 report.runtime = struct('release', ['R' version('-release')], 'version', version, ...
     'matlabroot', matlabroot, 'platform', computer);
-report.installed_products = ver;
+report.installed_products = jsonRecords(ver);
 report.license_test = license('test', 'SIMULINK');
-report.licenses_inuse = license('inuse');
-report.functions = repmat(struct('name', '', 'path', ''), 0, 1);
+report.licenses_inuse = jsonRecords(license('inuse'));
+report.functions = {};
 for index = 1:numel(request.required_functions)
     name = request.required_functions{index};
-    report.functions(end+1) = struct('name', name, 'path', which(name)); %#ok<AGROW>
+    report.functions{end+1} = struct('name', name, 'path', which(name)); %#ok<AGROW>
 end
-report.cases = repmat(emptyCase(), 0, 1);
+report.cases = {};
 writeJson(rawPath, report);
 for index = 1:numel(request.cases)
     requestedCase = request.cases(index);
@@ -35,13 +35,13 @@ for index = 1:numel(request.cases)
         record.call_success = true;
     catch exception
         record.error = struct('identifier', exception.identifier, 'message', exception.message, ...
-            'report', getReport(exception, 'extended', 'hyperlinks', 'off'), 'stack', exception.stack);
+            'report', getReport(exception, 'extended', 'hyperlinks', 'off'), 'stack', {jsonRecords(exception.stack)});
     end
     [record.warning_message, record.warning_identifier] = lastwarn;
-    report.cases(end+1) = record; %#ok<AGROW>
+    report.cases{end+1} = record; %#ok<AGROW>
     writeJson(rawPath, report);
 end
-report.licenses_inuse = license('inuse');
+report.licenses_inuse = jsonRecords(license('inuse'));
 report.finished_at = utcNow();
 report.status = 'completed';
 writeJson(rawPath, report);
@@ -163,9 +163,8 @@ for index = 1:numel(callbackNames)
 end
 actualPaths = find_system(model, 'SearchDepth', 1, 'Type', 'block');
 assert(numel(actualPaths) == numel(spec.blocks), 'PhaseD:BlockSet', 'Actual flat block count differs.');
-output.blocks = repmat(struct('id','','path','','type','','source','','parameters',struct(), ...
-    'ports',struct(),'mask','','reference_model',''), 0, 1);
-output.connections = repmat(struct('source',struct(),'destination',struct()), 0, 1);
+output.blocks = {};
+output.connections = {};
 for index = 1:numel(actualPaths)
     path = actualPaths{index};
     identity = get_param(path, 'Name');
@@ -179,7 +178,7 @@ for index = 1:numel(actualPaths)
     for fieldIndex = 1:numel(names)
         record.parameters.(names{fieldIndex}) = get_param(path, names{fieldIndex});
     end
-    output.blocks(end+1) = record; %#ok<AGROW>
+    output.blocks{end+1} = record; %#ok<AGROW>
     for portIndex = 1:numel(ports.Inport)
         line = get_param(ports.Inport(portIndex), 'Line');
         if line == -1, continue; end
@@ -189,20 +188,26 @@ for index = 1:numel(actualPaths)
         sourcePorts = get_param(sourceBlock, 'PortHandles');
         sourceIndex = find(sourcePorts.Outport == sourcePort);
         assert(numel(sourceIndex) == 1, 'PhaseD:ReadbackPort', 'Readback source port differs.');
-        output.connections(end+1) = struct('source',struct('block_id',sourceIdentity,'port',sourceIndex), ...
+        output.connections{end+1} = struct('source',struct('block_id',sourceIdentity,'port',sourceIndex), ...
             'destination',struct('block_id',identity,'port',portIndex)); %#ok<AGROW>
     end
 end
-output.parameters = repmat(struct('code_name','','value',[],'unit','','class',''), 0, 1);
+output.parameters = {};
 actualVariables = whos(workspace);
 assert(numel(actualVariables) == numel(spec.parameters), 'PhaseD:WorkspaceSet', 'Workspace variable set differs.');
 for index = 1:numel(actualVariables)
     name = actualVariables(index).name;
     parameter = getVariable(workspace, name);
     assert(isa(parameter, 'Simulink.Parameter'), 'PhaseD:WorkspaceClass', 'Registered parameter object required.');
-    output.parameters(end+1) = struct('code_name',name,'value',parameter.Value, ...
+    output.parameters{end+1} = struct('code_name',name,'value',parameter.Value, ...
         'unit',parameter.Unit,'class',class(parameter)); %#ok<AGROW>
 end
+end
+
+function records = jsonRecords(items)
+% A cell array preserves JSON array shape for zero, one, or many records.
+records = cell(1, numel(items));
+for index = 1:numel(items), records{index} = items(index); end
 end
 
 function closeOwnedModel(model)

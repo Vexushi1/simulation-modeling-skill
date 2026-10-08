@@ -4,12 +4,13 @@ import json
 import pytest
 
 from mapping_factory import make_mapping_contract
-from native_factory import make_implementation_profile, make_implementation_receipt
+from native_factory import make_implementation_profile, make_implementation_receipt, synthetic_structure
 from probe_environment import write_json
 from runtime_common import load_document, sha256_file
 from test_runtime import make_profile
 from validate_domain_mapping import validate_domain_mapping
 from validate_implementation_receipt import validate_implementation_receipt
+from validate_implementation_profile import assert_structure
 
 
 def chain(root, *, age_hours=0):
@@ -106,3 +107,56 @@ def test_failed_or_timeout_execution_never_has_ready_receipt(tmp_path, state, co
     write_json(receipt, value)
     result = validate_implementation_receipt(receipt, project_root=project, mapping_report=validate_domain_mapping(mapping))
     assert not result["valid"] and not result["built"] and not result["structure_checked"] and not result["implementation_ready"]
+
+
+@pytest.mark.parametrize("root_output", [True, False])
+def test_single_case_and_constant_single_or_empty_readback_arrays_are_valid(tmp_path, root_output):
+    project = tmp_path / "project"
+    mapping = make_mapping_contract(project, case="constant", root_output=root_output)
+    a = make_profile(tmp_path / "a")
+    d = make_implementation_profile(tmp_path / "d", a)
+    receipt = make_implementation_receipt(project / "native-build", mapping, a, d)
+    result = validate_implementation_receipt(receipt, project_root=project, mapping_report=validate_domain_mapping(mapping))
+    assert result["valid"], result["errors"]
+    raw = load_document(receipt.parent / "raw-implementation.json")
+    structure = load_document(receipt.parent / "implementation-structure.json")
+    assert isinstance(raw["cases"], list) and len(raw["cases"]) == 1
+    assert isinstance(structure["parameters"], list) and len(structure["parameters"]) == 1
+    assert isinstance(structure["connections"], list) and len(structure["connections"]) == int(root_output)
+    assert isinstance(structure["blocks"], list) and len(structure["blocks"]) == 1 + int(root_output)
+
+
+def test_parameterless_pass_through_uses_empty_parameter_array(tmp_path):
+    directory, runtime = tmp_path / "build", tmp_path / "matlab"
+    directory.mkdir()
+    spec = {"schema_version": 1, "model_name": "passthrough", "parameters": [],
+        "blocks": [{"id": kind, "path": "passthrough/" + kind, "type": kind, "parameters": {"Port": "1"}} for kind in ("Inport", "Outport")],
+        "connections": [{"source": {"block_id": "Inport", "port": 1}, "destination": {"block_id": "Outport", "port": 1}}]}
+    structure = synthetic_structure(spec, directory, runtime)
+    assert structure["parameters"] == []
+    assert assert_structure(structure, spec, directory, runtime)
+
+
+@pytest.mark.parametrize("field", ["blocks", "connections", "parameters"])
+@pytest.mark.parametrize("shape", ["object", "null", "mixed_array"])
+def test_structure_array_shapes_are_strict_even_when_rehashed(tmp_path, field, shape):
+    project, _, receipt = chain(tmp_path)
+    structure_path = receipt.parent / "implementation-structure.json"
+    structure = load_document(structure_path)
+    structure[field] = structure[field][0] if shape == "object" else None if shape == "null" else [structure[field][0], "unexpected"]
+    write_json(structure_path, structure)
+    rebind_artifact(receipt, "implementation_structure")
+    result = validate_implementation_receipt(receipt, project_root=project)
+    assert not result["valid"] and "canonical JSON array" in result["errors"][0]
+
+
+@pytest.mark.parametrize("shape", ["object", "empty"])
+def test_task_case_singleton_object_or_empty_case_list_cannot_claim_structure(tmp_path, shape):
+    project, _, receipt = chain(tmp_path)
+    raw_path = receipt.parent / "raw-implementation.json"
+    raw = load_document(raw_path)
+    raw["cases"] = raw["cases"][0] if shape == "object" else []
+    write_json(raw_path, raw)
+    rebind_artifact(receipt, "raw")
+    result = validate_implementation_receipt(receipt, project_root=project)
+    assert not result["valid"] and not result["structure_checked"] and not result["implementation_ready"]

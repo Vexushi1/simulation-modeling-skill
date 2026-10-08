@@ -11,7 +11,7 @@ import uuid
 from probe_environment import _matlab_quote, _run_process, write_json
 from runtime_common import ROOT, canonical_digest, emit, host_fingerprint, load_document, sha256_file
 from validate_environment import _path
-from validate_implementation_profile import (_validate_request, contract, derive_profile, source_identities,
+from validate_implementation_profile import (_validate_request, contract, derive_profile, record_array, source_identities,
     validate_build_spec, validate_implementation_profile)
 
 
@@ -109,6 +109,8 @@ def execute_request(request, *, timeout=240):
     directory.mkdir(parents=True, exist_ok=False)
     write_json(directory / names["input"], request)
     process, console = _run_process(matlab_command(executable, directory / names["input"], directory / names["log"]), directory, timeout)
+    # Preserve actual process metadata before any raw/manifest normalization can fail.
+    write_json(directory / "process.json", process)
     log = directory / names["log"]
     if not log.exists():
         log.write_text(console, encoding="utf-8")
@@ -118,15 +120,16 @@ def execute_request(request, *, timeout=240):
     raw = directory / names["raw"]
     if not raw.exists():
         write_json(raw, {"schema_version": 1, "run_id": request["run_id"], "status": "failed",
-                         "error": "MATLAB did not produce a report; see preserved process/log evidence"})
+                         "cases": [], "error": "MATLAB did not produce a report; see preserved process/log evidence"})
     return process
 
 
 def artifact_manifest(directory, raw, *, include_profile=False):
     names = contract()["evidence"]
+    cases = record_array(raw.get("cases"), "raw.cases")
     result = {key: {"file": names[key], "sha256": sha256_file(Path(directory) / names[key])}
               for key in ("input", "raw", "log", *(("profile",) if include_profile else ())) }
-    for actual in raw.get("cases", []):
+    for actual in cases:
         if actual.get("call_success") is True:
             for kind, filename in (("structure", actual["structure_file"]), ("model", actual["model_file"])):
                 path = Path(directory) / filename
@@ -149,7 +152,12 @@ def run_probe(executable, directory, *, timeout=240):
         write_json(directory / names["profile"], {"schema_version": 1, "run_id": request["run_id"], "normalization_error": str(error)})
     receipt = {"schema_version": 1, "run_id": request["run_id"], "sources": request["sources"], "process": process,
                "runtime_fingerprint": profile["runtime"]["fingerprint"] if profile else None,
-               "artifacts": artifact_manifest(directory, raw, include_profile=True)}
+               "artifacts": {}}
+    try:
+        receipt["artifacts"] = artifact_manifest(directory, raw, include_profile=True)
+    except ValueError as error:
+        receipt["normalization_error"] = str(error)
+        receipt["artifacts"] = artifact_manifest(directory, {"cases": []}, include_profile=True)
     write_json(directory / names["receipt"], receipt)
     result = validate_implementation_profile(directory / names["profile"], expected_root=Path(executable).resolve().parent.parent)
     result["profile_path"] = str(directory / names["profile"])

@@ -16,11 +16,11 @@ def _problem(root, case, root_output=True):
     lines = ["SYNTHETIC INFRASTRUCTURE CASE ONLY; no real competition result or human approval.",
              f"System: a dimensionless {case} mathematical kernel.",
              "No external input is required: the constant kernel is y=k." if case == "constant" else "Input: commanded dimensionless signal u.",
-             "Initial state: x(0)=0.25." if case == "feedback" else "The algebraic kernel has no initial state.",
+             "Initial state: x(0)=0.25." if case == "feedback" else "The passthrough kernel y=u has no states, parameters or initial conditions." if case == "passthrough" else "The algebraic kernel has no initial state.",
              "Time domain: t in [0,1] s; no simulation is required in this case.",
              "Q1: inspect the declared mathematical-to-block structure.",
              "Q1 deliverable: a model file and structure evidence, no waveform." if root_output else "Q1 deliverable: a model file with internal mathematical output y; no root Outport or waveform is required.",
-             "Q2: review parameter and input/output bindings for the same kernel.",
+             "Q2: review the explicit absence of parameters and the direct input/output binding y=u." if case == "passthrough" else "Q2: review parameter and input/output bindings for the same kernel.",
              "No data attachment is used or required; no fitting or validation use is authorized.",
              "Q2 deliverable: a source-bound mapping review, no estimated parameters."]
     text = "\n".join(lines) + "\n"
@@ -53,6 +53,9 @@ def _problem(root, case, root_output=True):
         if case == "constant":
             facts["commanded_inputs"] = {"status": "not_applicable", "value": None,
                 "reason": "The explicit source says the constant kernel y=k requires no external input", "requirement_ids": []}
+        if case == "passthrough":
+            facts["parameters"] = {"status": "not_applicable", "value": None,
+                "reason": "The explicit source defines y=u without any parameters", "requirement_ids": []}
         question.update(facts=facts, variables=[] if case == "constant" else [
             {"id": "input", "symbol": "u", "quantity": "dimensionless input", "roles": ["commanded_input"], "role_relation": None, "unit": "1", "status": "declared", "requirement_ids": ["R2"]}])
         question["classification"] = {"objectives": ["verification_validation"], "model_structures": [], "capabilities": ["problem_audit", "model_design"]}
@@ -64,15 +67,18 @@ def _model(root, case, known_parameters, root_output=True):
     path = make_model_contract(root, status="challenged")
     problem_path = _problem(root, case, root_output)
     problem, contract = read_contract(problem_path), read_contract(path)
-    coefficients = {"a": 0.75, "b": 1.5} if case == "feedback" else {"k": 2.0}
-    expression = "dx/dt = b*u - a*x; y = x" if case == "feedback" else "y = k" if case == "constant" else "y = k*u"
+    coefficients = {} if case == "passthrough" else {"a": 0.75, "b": 1.5} if case == "feedback" else {"k": 2.0}
+    expression = "y = u" if case == "passthrough" else "dx/dt = b*u - a*x; y = x" if case == "feedback" else "y = k" if case == "constant" else "y = k*u"
     foundation = root / "design-foundation.txt"
     foundation.write_text(f"SYNTHETIC KERNEL ONLY: {expression}\nExplicit fixture coefficients: {coefficients}\n"
+                          + ("The exact identity y=u requires no parameters or default gain.\n" if case == "passthrough" else "")
+                          +
                           "These are declared infrastructure values, not identified/calibrated physical estimates.\n"
                           "Unknown-parameter tests retain null; no real task approval or numerical result is represented.\n",
                           encoding="utf-8", newline="\n")
     brief = root / "model-approval-brief.md"
     brief.write_text(f"# Synthetic {case} kernel approval brief\n\n{expression}\n"
+                     + ("This exact identity contains no parameters; it maps to a direct input/output connection.\n" if case == "passthrough" else "")
                      + ("The mathematical output y remains internal; the source requires no root Outport.\n" if not root_output else "")
                      +
                      "Only source-bound mathematical and engineering structure is reviewed.\n"
@@ -122,7 +128,7 @@ def _model(root, case, known_parameters, root_output=True):
 
 def make_mapping_contract(tmp_path, *, status="mapped", known_parameters=True, case="static", root_output=True):
     """Return a source-bound mapping path; all approvals are labelled synthetic."""
-    if case not in {"static", "feedback", "constant"}:
+    if case not in {"static", "feedback", "constant", "passthrough"}:
         raise ValueError("unknown synthetic kernel case")
     root = Path(tmp_path)
     model_path = _model(root, case, known_parameters, root_output)
@@ -163,6 +169,9 @@ def make_mapping_contract(tmp_path, *, status="mapped", known_parameters=True, c
         blocks.append(block("Coefficient", "Constant", {"Value": parameter("k")}))
         connections = []
         result_block = "Coefficient"
+    elif case == "passthrough":
+        connections = []
+        result_block = "Input"
     else:
         blocks.extend([block("GainB", "Gain", {"Gain": parameter("b")}), block("GainA", "Gain", {"Gain": parameter("a")}),
             block("Balance", "Sum", {"Inputs": {"setting": {"kind": "enum", "value": "+-"}}}),

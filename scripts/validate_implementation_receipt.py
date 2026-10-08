@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from runtime_common import canonical_digest, contained_path, emit, load_document, sha256_file
-from validate_environment import _array, _official_function, _path, _time, runtime_identity, validate_environment
-from validate_implementation_profile import (_validate_request, assert_structure, contract,
+from validate_environment import _official_function, _path, _time, runtime_identity, validate_environment
+from validate_implementation_profile import (_validate_request, assert_structure, contract, record_array, validate_raw_arrays,
     validate_build_spec, validate_implementation_profile)
 
 RUNTIME_MATCH_FIELDS = ("release", "version", "matlabroot", "executable", "executable_sha256", "version_file_sha256", "platform")
@@ -42,6 +42,9 @@ def validate_implementation_receipt(path, *, project_root=None, mapping_report=N
         _validate_request(request)
         if type(raw.get("schema_version")) is not int or raw["schema_version"] != 1:
             raise ValueError("implementation raw schema version differs")
+        validate_raw_arrays(raw)
+        if receipt.get("normalization_error"):
+            raise ValueError("implementation raw normalization failed: " + str(receipt["normalization_error"]))
         if request.get("mode") != "implementation" or _path(request["output_directory"]) != _path(directory):
             raise ValueError("not a task-specific native implementation record")
         if type(receipt.get("schema_version")) is not int or receipt["schema_version"] != 1 or receipt.get("run_id") != request["run_id"] or canonical_digest(receipt.get("sources")) != canonical_digest(request["sources"]):
@@ -90,7 +93,7 @@ def validate_implementation_receipt(path, *, project_root=None, mapping_report=N
             raise ValueError("implementation receipt mapping/project identity differs")
         for binding in bindings["bound_files"]:
             _bound_external(binding, project_root)
-        cases, actual_cases = request["cases"], _array(raw["cases"])
+        cases, actual_cases = request["cases"], record_array(raw.get("cases"), "raw.cases")
         if len(cases) != 1 or len(actual_cases) != 1 or cases[0]["expect_failure"] is not False or actual_cases[0].get("call_success") is not True:
             raise ValueError("successful task-specific native case required")
         spec, actual = cases[0]["build_spec"], actual_cases[0]
@@ -116,7 +119,7 @@ def validate_implementation_receipt(path, *, project_root=None, mapping_report=N
         structure_path = directory / expected["implementation_structure"]
         structure = load_document(structure_path)
         assert_structure(structure, spec, directory, raw["runtime"]["matlabroot"])
-        functions = _array(raw.get("functions", []))
+        functions = record_array(raw.get("functions"), "raw.functions")
         resolutions = {item["name"]: item["path"] for item in functions}
         if (set(resolutions) != set(contract()["required_functions"]) or len(resolutions) != len(functions) or
                 not all(_official_function(value, raw["runtime"]["matlabroot"]) for value in resolutions.values())):

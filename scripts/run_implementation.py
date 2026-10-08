@@ -46,7 +46,12 @@ def finish_task_request(request, process, runtime):
     raw = load_document(directory / names["raw"])
     write_json(directory / "mapping-snapshot.json", request["bindings"]["mapping_snapshot"])
     (directory / "mapping-original.yaml").write_bytes(request["bindings"]["mapping_original_text"].encode("utf-8"))
-    artifacts = artifact_manifest(directory, raw)
+    normalization_error = None
+    try:
+        artifacts = artifact_manifest(directory, raw)
+    except ValueError as error:
+        normalization_error = str(error)
+        artifacts = artifact_manifest(directory, {"cases": []})
     artifacts["mapping_snapshot"] = {"file": "mapping-snapshot.json", "sha256": sha256_file(directory / "mapping-snapshot.json")}
     artifacts["mapping_original"] = {"file": "mapping-original.yaml", "sha256": sha256_file(directory / "mapping-original.yaml")}
     receipt = {"schema_version": 1, "run_id": request["run_id"], "project_id": request["bindings"]["project_id"],
@@ -54,6 +59,8 @@ def finish_task_request(request, process, runtime):
                "parameter_provenance_sha256": request["bindings"]["parameter_provenance_sha256"],
                "build_spec_sha256": request["bindings"]["build_spec_sha256"], "sources": request["sources"],
                "process": process, "runtime": runtime, "artifacts": artifacts}
+    if normalization_error:
+        receipt["normalization_error"] = normalization_error
     path = directory / names["structure_receipt"]
     write_json(path, receipt)
     return path

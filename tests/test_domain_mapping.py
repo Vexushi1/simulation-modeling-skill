@@ -33,7 +33,7 @@ def rebind_parameters(path, action):
     return validate_domain_mapping(path)
 
 
-@pytest.mark.parametrize("case", ["static", "feedback", "constant"])
+@pytest.mark.parametrize("case", ["static", "feedback", "constant", "passthrough"])
 def test_source_bound_distinct_native_specs_without_simulation(tmp_path, case):
     path = make_mapping_contract(tmp_path, case=case)
     before = {item: item.read_bytes() for item in tmp_path.iterdir() if item.is_file()}
@@ -117,7 +117,40 @@ def test_internal_mathematical_output_requires_no_root_outport(tmp_path):
     assert validate_build_spec(spec) == spec
 
 
-@pytest.mark.parametrize("case,root_output,gate", [("constant", True, "Output"), ("static", False, "GainK")])
+def test_exact_passthrough_has_one_connection_and_no_parameter_defaults(tmp_path):
+    path = make_mapping_contract(tmp_path, case="passthrough")
+    model = read_contract(tmp_path / "model.json")["designs"][0]["models"][0]
+    assert model["body"]["relations"][0]["expression"] == "y = u"
+    assert {variable["id"] for variable in model["body"]["variables"]} == {"u", "y"}
+    assert all(variable["parameter"] is None for variable in model["body"]["variables"])
+    assert "no states, parameters or initial conditions" in (tmp_path / "statement.txt").read_text(encoding="utf-8")
+    assert "no parameters or default gain" in (tmp_path / "design-foundation.txt").read_text(encoding="utf-8")
+    report = validate_domain_mapping(path, require_mapped=True)
+    assert report["valid"] and report["current_model_approved"] and report["build_ready"]
+    assert report["parameter_validation"]["status"] == "bound"
+    assert report["parameter_validation"]["parameters"] == []
+    spec = report["build_spec"]
+    assert [block["type"] for block in spec["blocks"]] == ["Inport", "Outport"]
+    assert spec["parameters"] == []
+    assert spec["connections"] == [{"source": {"block_id": "Input", "port": 1}, "destination": {"block_id": "Output", "port": 1}}]
+    assert validate_build_spec(spec) == spec
+
+
+def test_internal_constant_has_single_block_zero_connections_and_one_explicit_parameter(tmp_path):
+    path = make_mapping_contract(tmp_path, case="constant", root_output=False)
+    report = validate_domain_mapping(path, require_mapped=True)
+    assert report["valid"] and report["current_model_approved"] and report["build_ready"]
+    spec = report["build_spec"]
+    assert [block["type"] for block in spec["blocks"]] == ["Constant"]
+    assert spec["connections"] == []
+    assert spec["parameters"] == [{"code_name": "k", "value": 2.0, "unit": "1"}]
+    assert spec["blocks"][0]["parameters"] == {"Value": "k"}
+    output = next(trace for trace in read_contract(path)["targets"][0]["traces"] if trace["kind"] == "output")
+    assert output["block_ids"] == ["Coefficient"]
+    assert validate_build_spec(spec) == spec
+
+
+@pytest.mark.parametrize("case,root_output,gate", [("constant", True, "Output"), ("static", False, "GainK"), ("passthrough", True, "Output")])
 def test_optional_root_ports_do_not_relax_required_block_input_connections(tmp_path, case, root_output, gate):
     path = make_mapping_contract(tmp_path, case=case, root_output=root_output)
     report = mutate(path, lambda mapping: mapping["targets"][0].update(connections=[]))

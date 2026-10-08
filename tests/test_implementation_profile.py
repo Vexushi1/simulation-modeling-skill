@@ -130,3 +130,43 @@ def test_expected_bad_port_is_a_real_required_failure_not_a_success_flag(tmp_pat
     receipt["artifacts"]["raw"]["sha256"] = sha256_file(raw_path)
     write_json(receipt_path, receipt)
     assert not validate_implementation_profile(d)["valid"]
+
+
+@pytest.mark.parametrize("value", [{}, {"case_id": "implementation"}, None, ["unexpected"]])
+def test_manifest_rejects_non_array_cases_with_controlled_error_before_file_access(tmp_path, value):
+    with pytest.raises(ValueError, match="canonical JSON array"):
+        producer.artifact_manifest(tmp_path, {"cases": value})
+
+
+def test_postprocessing_failure_preserves_process_record_and_invalid_receipt(tmp_path, monkeypatch):
+    a = make_profile(tmp_path / "a")
+    executable = load_document(a)["runtime"]["executable"]
+    process = {"started_at": "2026-10-01T00:00:00Z", "finished_at": "2026-10-01T00:00:01Z",
+               "process_state": "completed", "exit_code": 0, "pid": 0, "command": ["SYNTHETIC; NO MATLAB"]}
+    def simulated_process(command, directory, timeout):
+        write_json(directory / "raw-implementation.json", {"schema_version": 1, "cases": {"case_id": "implementation"}})
+        return process, "SYNTHETIC invalid raw shape; no MATLAB executed\n"
+    monkeypatch.setattr(producer, "_run_process", simulated_process)
+    directory = tmp_path / "invalid-run"
+    result = producer.run_probe(executable, directory)
+    assert not result["valid"]
+    assert load_document(directory / "process.json") == process
+    receipt = load_document(directory / "implementation-profile-receipt.json")
+    assert receipt["process"] == process and "canonical JSON array" in receipt["normalization_error"]
+    assert load_document(directory / "raw-implementation.json")["cases"] == {"case_id": "implementation"}
+
+
+@pytest.mark.parametrize("field", ["installed_products", "functions", "licenses_inuse", "cases"])
+def test_profile_native_record_arrays_do_not_accept_singleton_objects(tmp_path, field):
+    a = make_profile(tmp_path / "a")
+    d = make_implementation_profile(tmp_path / "d", a)
+    raw_path = d.parent / "raw-implementation.json"
+    raw = load_document(raw_path)
+    raw[field] = raw[field][0]
+    write_json(raw_path, raw)
+    receipt_path = d.parent / "implementation-profile-receipt.json"
+    receipt = load_document(receipt_path)
+    receipt["artifacts"]["raw"]["sha256"] = sha256_file(raw_path)
+    write_json(receipt_path, receipt)
+    result = validate_implementation_profile(d)
+    assert not result["valid"] and "canonical JSON array" in result["errors"][0]

@@ -9,7 +9,7 @@ import re
 import xml.etree.ElementTree as ET
 
 from runtime_common import ROOT, canonical_digest, contained_path, emit, host_fingerprint, load_document, sha256_file
-from validate_environment import _array, _official_function, _path, _time, _version_info, runtime_identity, utc_text
+from validate_environment import _official_function, _path, _time, _version_info, runtime_identity, utc_text
 
 CONTRACT_PATH = "core/implementation_assurance_contract.yaml"
 OPERATION = "simulink.core_build_structure"
@@ -23,6 +23,24 @@ def contract():
 
 def source_identities():
     return {name: sha256_file(ROOT / name) for name in contract()["source_files"]}
+
+
+def record_array(value, label):
+    """Native serialized record collections always use a JSON array, including 0/1."""
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        raise ValueError(label + ": canonical JSON array of records required")
+    return value
+
+
+def validate_raw_arrays(raw):
+    for field in ("installed_products", "functions", "licenses_inuse", "cases"):
+        record_array(raw.get(field), "raw." + field)
+    for case in raw["cases"]:
+        error = case.get("error", {})
+        if not isinstance(error, dict):
+            raise ValueError("raw case error: object required")
+        if "stack" in error:
+            record_array(error["stack"], "raw case error.stack")
 
 
 def validate_build_spec(spec):
@@ -120,7 +138,7 @@ def assert_structure(structure, spec, directory, runtime_root):
     callbacks = structure.get("callbacks")
     if not isinstance(callbacks, dict) or set(callbacks) != {"PreLoadFcn", "PostLoadFcn", "InitFcn", "StartFcn", "StopFcn", "PreSaveFcn", "PostSaveFcn", "CloseFcn"} or any(type(value) is not str or value for value in callbacks.values()):
         raise ValueError("structure: custom callbacks are outside the native baseline")
-    observed = _array(structure.get("blocks", []))
+    observed = record_array(structure.get("blocks"), "structure.blocks")
     by_id = {block["id"]: block for block in observed}
     if len(by_id) != len(observed) or set(by_id) != {block["id"] for block in spec["blocks"]}:
         raise ValueError("structure: actual block set differs from build specification")
@@ -140,10 +158,10 @@ def assert_structure(structure, spec, directory, runtime_root):
         if any(type(line[side]["port"]) is not int for side in ("source", "destination")):
             raise ValueError("structure: actual port indices must be integers")
         return (line["source"]["block_id"], line["source"]["port"], line["destination"]["block_id"], line["destination"]["port"])
-    lines = _array(structure.get("connections", []))
+    lines = record_array(structure.get("connections"), "structure.connections")
     if sorted(map(endpoints, lines)) != sorted(map(endpoints, spec["connections"])):
         raise ValueError("structure: actual connection endpoints differ")
-    parameters = _array(structure.get("parameters", []))
+    parameters = record_array(structure.get("parameters"), "structure.parameters")
     if len(parameters) != len(spec["parameters"]):
         raise ValueError("structure: actual workspace parameter set differs")
     actual_params = {item["code_name"]: item for item in parameters}
@@ -189,19 +207,20 @@ def derive_profile(raw, request, process):
     _validate_request(request)
     if type(raw.get("schema_version")) is not int or raw["schema_version"] != 1:
         raise ValueError("native raw schema version differs")
+    validate_raw_arrays(raw)
     runtime_raw = raw["runtime"]
     root = runtime_raw["matlabroot"]
-    inventory = _array(raw.get("installed_products", []))
+    inventory = record_array(raw.get("installed_products"), "raw.installed_products")
     products = {item["Name"]: item for item in inventory}
-    functions = _array(raw.get("functions", []))
+    functions = record_array(raw.get("functions"), "raw.functions")
     resolutions = {item["name"]: item["path"] for item in functions}
-    library_record = next((item for item in _array(raw.get("cases", [])) if item.get("call_success") is True), None)
+    structures = record_array(raw.get("cases"), "raw.cases")
+    library_record = next((item for item in structures if item.get("call_success") is True), None)
     library_file = ""
     if library_record:
         structure = load_document(contained_path(Path(request["output_directory"]), library_record["structure_file"]))
         library_file = structure.get("library_file", "")
     runtime = runtime_identity({**raw, "operations": [{"functions": functions, "operation_id": "simulink.library_load", "output": {"file_name": library_file}}]}, request["matlab_executable"])
-    structures = _array(raw.get("cases", []))
     expected = request["cases"]
     if len(structures) != len(expected):
         raise ValueError("raw case count differs")
@@ -272,6 +291,8 @@ def validate_implementation_profile(profile_path, *, expected_root=None, expecte
             if raw.get(key) != expected:
                 raise ValueError("native raw identity differs: " + key)
         process = receipt["process"]
+        if receipt.get("normalization_error"):
+            raise ValueError("native receipt normalization failed: " + str(receipt["normalization_error"]))
         if process.get("process_state") != "completed" or type(process.get("exit_code")) is not int or process["exit_code"] != 0:
             raise ValueError("native process did not complete with exit 0")
         times = [_time(process["started_at"]), _time(raw["started_at"]), _time(raw["finished_at"]), _time(process["finished_at"])]
@@ -302,7 +323,7 @@ def validate_implementation_profile(profile_path, *, expected_root=None, expecte
         for key, name in required.items():
             if receipt["artifacts"].get(key, {}).get("file") != name:
                 raise ValueError("native receipt omits required artifact: " + key)
-        for case, actual in zip(request["cases"], _array(raw["cases"])):
+        for case, actual in zip(request["cases"], record_array(raw["cases"], "raw.cases")):
             if not case["expect_failure"]:
                 for kind, filename in (("model", case["build_spec"]["model_name"] + ".slx"), ("structure", actual["structure_file"])):
                     binding = receipt["artifacts"].get(case["case_id"] + "_" + kind, {})

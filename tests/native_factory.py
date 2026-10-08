@@ -54,6 +54,7 @@ def _evidence(request, runtime, *, reference=None):
         "started_at": utc_text(reference - timedelta(seconds=0.05 if task else 1)), "finished_at": utc_text(reference), "simulation_run": False,
         "runtime": {key: runtime[key] for key in ("release", "version", "matlabroot", "platform")},
         "installed_products": [{"Name": "MATLAB", "Version": "25.2"}, {"Name": "Simulink", "Version": "25.2"}],
+        "licenses_inuse": [{"feature": "matlab"}, {"feature": "simulink"}],
         "license_test": 1, "functions": functions, "cases": []}
     for case in request["cases"]:
         actual = {"case_id": case["case_id"], "attempted": True, "call_success": not case["expect_failure"],
