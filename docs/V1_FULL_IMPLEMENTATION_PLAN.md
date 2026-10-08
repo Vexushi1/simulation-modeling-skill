@@ -4,8 +4,8 @@
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
-> 已完成阶段：A–D；D PR #5 合并基线 `91e6e1eb357511cf53562bac2055038ad68e3617`
-> 当前下一阶段：E；实施分支 `phase-e/simulation-runtime`，未通过出口前不登记为已实现
+> 已完成阶段：A–E；E PR #6 合并基线 `6c8cbbf84364c49b85dce62db15aba9b11f55e53`
+> 当前实施阶段：F；实施分支 `phase-f/parameter-studies`，未通过全部出口前不登记为阶段完成
 > 核心纪律：先冻结计划，再按阶段实施；任何阶段不得脱离本计划直接堆功能。
 
 ---
