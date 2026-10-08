@@ -1465,6 +1465,8 @@ solver 值以 typed、有界有限数据登记，记录 StartTime/StopTime、Sol
 
 R2025b 公开 SimulationMetadata 的 SolverInfo 不保证暴露全部容差字段。配置记录与实际观测分开：记录 SimulationInput 施加的完整 typed 参数，实际 solver 名称/类型及公开步长从 SimulationMetadata 读取；只核对公开观测和实际时间覆盖。未公开的容差不声称已独立 get_param readback，也不为此引入自定义运行 callback。输出采样间隔与内部求解步长保持区别。该限制来自本轮官方 API 审查，先保存此计划修订，再实施相关消费者。
 
+初轮真实 R2025b 九案例发现 ExecutionInfo 不含 StopEventTime，直接读取会使已返回的仿真输出在后处理失败中丢失。终止事件继续读实际 StopEvent；实际停止时间以 SimulationOutput.tout 的最后有限采样及各必需输出覆盖独立裁决，并记录观测来源，不能用配置 StopTime 代替。错误/零输出导致 tout 为空时保留 unknown 与失败诊断；受控早停必须有实际时间依据。SimulationOutput 返回后先持久化原始 MAT，再做元数据与格式后处理；失败保留原生部分数据，不提升成成功。此次按实际 API 证据先修订计划，再修正消费者，原九案例保留为失败记录。
+
 Simscape/Stateflow/System Composer 执行、复杂 DAE/事件/多速率支持、实时/codegen、accelerator/rapid accelerator、Fast Restart、并行、参数扫描、辨识/标定/优化以及 solver comparison 保持 deferred。SDI、内部 signal logging/logsout 扩展可以登记待支持，不因推荐 API 出现在 §9.5/§9.6 而自动获得资格。
 
 ### 参数、场景、输入与非破坏执行
