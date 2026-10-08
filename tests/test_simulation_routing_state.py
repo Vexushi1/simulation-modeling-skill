@@ -206,6 +206,17 @@ def test_missing_primary_receipt_propagates_stale_to_descendants(tmp_path):
     assert {'primary_run', 'draft-descendant'} <= set(result['stale_artefacts'])
 
 
+def test_removed_primary_receipt_invalidates_previously_accepted_outputs(tmp_path):
+    state, _ = complete_state(tmp_path)
+    baseline = validate_project_state(state, scope='simulation')
+    assert baseline['valid'] and baseline['primary_run_complete'], baseline['errors']
+    value = load_document(state)
+    (tmp_path / value['primary_run']['path']).unlink()
+    result = validate_project_state(state, scope='simulation')
+    assert not result['valid'] and not result['primary_run_complete']
+    assert {'primary_run', 'run-record', 'output-record'} <= set(result['stale_artefacts'])
+
+
 @pytest.mark.parametrize('field,replacement', [('activated_packs', ['parallel_campaign']),
     ('upstream_skills', ['simulink-run-parallel-simulations']), ('required_gates', [])])
 def test_accepted_route_cannot_admit_deferred_capabilities_or_drop_gates(tmp_path, field, replacement):

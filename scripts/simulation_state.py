@@ -116,7 +116,7 @@ def validate_artifact(item, *, state, result, root, environment_dependents, ance
                 binding = state.get('primary_run')
                 if not binding or path != Path(result['primary_run_path']) or item['sha256'] != binding['sha256']:
                     invalid.append('accepted run differs from primary_run binding')
-            elif result.get('primary_run_path'):
+            elif result['primary_run_complete'] and result.get('primary_run_path'):
                 receipt_path = Path(result['primary_run_path'])
                 receipt = load_document(receipt_path)
                 output_names = {'data', 'mat', 'csv', 'outputs', 'output_json', 'output_mat', 'output_csv'}

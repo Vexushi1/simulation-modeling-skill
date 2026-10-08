@@ -68,6 +68,7 @@ invariants:
   - profile validity does not assert that every solver candidate passed
   - existing evidence directories are never overwritten
   - original project files and owned SLX are byte-preserved; no callbacks references dictionaries masks or arbitrary expressions
+  - reviewed logging.sample_time 0 applies root-Outport continuous sampling temporarily through SimulationInput; original settings are read before after and on reopening
   - process exit zero, simulation return, stop coverage, numeric criteria and diagnostics are checked separately
   - history validates A and E qualifications at execution start; present source and artifact bytes still matter
 deferred: [toolkit MCP execution, Simscape execution, Stateflow execution, System Composer execution, internal signal logging, SDI, fast restart, acceleration, parallel execution, parameter sweeps, calibration, numerical verification, model comparison, validation]

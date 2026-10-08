@@ -59,6 +59,8 @@ record = struct('case_id', identity, 'attempted', true, 'completed', false, ...
     'warnings', {{}}, 'errors', {{}}, 'functions', {{}}, 'outputs', {{}}, ...
     'before_parameters', {{}}, 'applied_parameters', {{}}, 'after_parameters', {{}}, ...
     'reopened_parameters', {{}}, 'source_unchanged', false, 'owned_model_unchanged', false, ...
+    'before_output_sampling', {{}}, 'configured_output_sampling', {{}}, ...
+    'after_output_sampling', {{}}, 'reopened_output_sampling', {{}}, 'output_sampling_restored', false, ...
     'configuration_restored', false, 'parameters_restored', false, 'reopened', false, ...
     'closed_without_save', false, 'model_file', '', 'source_model_file', '', ...
     'mat_file', '', 'raw_mat_file', '', 'data_file', '', 'output_count', 0, 'output_boundary_error', '', ...
@@ -88,6 +90,7 @@ record.model_file = ownedPath;
 record.source_model_file = sourcePath;
 beforeConfig = configurationSnapshot(model);
 record.before_parameters = parameterSnapshot(model, spec.parameters);
+record.before_output_sampling = outputSamplingSnapshot(spec.outputs);
 in = Simulink.SimulationInput(model);
 in = setModelParameter(in, 'SimulationMode', 'normal', 'StartTime', numtext(spec.start_time), ...
     'StopTime', numtext(spec.stop_time), 'CaptureErrors', 'on', 'TimeOut', item.simulation_timeout, ...
@@ -142,6 +145,23 @@ if ~isempty(spec.inputs)
 else
     in = setModelParameter(in, 'LoadExternalInput', 'off');
 end
+% Root output sampling is reviewed separately from the internal solver step.
+% Read back the configured override from the actual SimulationInput object.
+for index = 1:numel(spec.outputs)
+    output = spec.outputs(index);
+    assert(isa(output.sample_time, 'double') && isscalar(output.sample_time) && output.sample_time == 0, ...
+        'PhaseE:OutputSampling', 'Only explicitly reviewed continuous root-output sampling is supported.');
+    in = setBlockParameter(in, output.block_path, 'SampleTime', numtext(output.sample_time));
+end
+blockParameters = in.BlockParameters;
+for index = 1:numel(spec.outputs)
+    output = spec.outputs(index);
+    selected = find(strcmp({blockParameters.BlockPath}, output.block_path) & strcmp({blockParameters.Name}, 'SampleTime'));
+    assert(numel(selected) == 1 && strcmp(blockParameters(selected).Value, '0'), ...
+        'PhaseE:OutputSamplingBinding', 'Expected the exact root Outport continuous sampling override.');
+    record.configured_output_sampling{end+1} = struct('port', output.port, 'block_path', ...
+        blockParameters(selected).BlockPath, 'sample_time', blockParameters(selected).Value); %#ok<AGROW>
+end
 % This only belongs to the fixed independent negative qualification case.
 if strcmp(mode, 'probe') && strcmp(item.expectation, 'error')
     in = setBlockParameter(in, [model '/Forcing'], 'Gain', 'phase_e_missing_runtime_variable');
@@ -181,8 +201,10 @@ record.effective_configuration = struct('StartTime', findMetadataField(modelInfo
     'Solver', record.observed_solver_name);
 checkpoint(record);
 record.after_parameters = parameterSnapshot(model, spec.parameters);
+record.after_output_sampling = outputSamplingSnapshot(spec.outputs);
 record.configuration_restored = isequaln(beforeConfig, configurationSnapshot(model));
 record.parameters_restored = isequaln(record.before_parameters, record.after_parameters);
+record.output_sampling_restored = isequaln(record.before_output_sampling, record.after_output_sampling);
 record = exportOutputs(out, spec, directory, identity, record);
 checkpoint(record);
 close_system(model, 0);
@@ -191,8 +213,10 @@ load_system(ownedPath);
 assertSurface(model, item.build_spec);
 record.reopened = bdIsLoaded(model);
 record.reopened_parameters = parameterSnapshot(model, spec.parameters);
+record.reopened_output_sampling = outputSamplingSnapshot(spec.outputs);
 record.configuration_restored = record.configuration_restored && isequaln(beforeConfig, configurationSnapshot(model));
 record.parameters_restored = record.parameters_restored && isequaln(record.before_parameters, record.reopened_parameters);
+record.output_sampling_restored = record.output_sampling_restored && isequaln(record.before_output_sampling, record.reopened_output_sampling);
 record.source_unchanged = isequal(sourceBytes, fileBytes(sourcePath));
 record.owned_model_unchanged = isequal(ownedBytes, fileBytes(ownedPath));
 record.completed = true;
@@ -228,7 +252,7 @@ if any(strcmp(who(out), 'yout'))
             csvFile = sprintf('%s-output-%d.csv', record.case_id, mapping.port);
             writeCsv(fullfile(directory, csvFile), time, data);
             item = struct('port', mapping.port, 'block_path', mapping.block_path, 'variable_id', mapping.variable_id, ...
-                'unit', mapping.unit, 'observed_unit', values.DataInfo.Units, 'time', {num2cell(time')}, ...
+                'unit', mapping.unit, 'sample_time', mapping.sample_time, 'observed_unit', values.DataInfo.Units, 'time', {num2cell(time')}, ...
                 'values', {num2cell(data')}, 'csv_file', csvFile);
             record.outputs{end+1} = item; %#ok<AGROW>
             output_ports(index,1) = mapping.port;
@@ -336,6 +360,17 @@ end
 function record = parameterRecord(name, parameter)
 assert(isa(parameter, 'Simulink.Parameter'), 'PhaseE:ParameterClass', 'Expected a registered parameter object.');
 record = struct('code_name',name,'value',parameter.Value,'unit',parameter.Unit,'class',class(parameter));
+end
+
+function records = outputSamplingSnapshot(outputs)
+records = {};
+for index = 1:numel(outputs)
+    output = outputs(index);
+    assert(strcmp(get_param(output.block_path, 'BlockType'), 'Outport'), ...
+        'PhaseE:OutputSamplingSurface', 'Sampling readback requires the exact root Outport.');
+    records{end+1} = struct('port', output.port, 'block_path', output.block_path, ...
+        'sample_time', get_param(output.block_path, 'SampleTime')); %#ok<AGROW>
+end
 end
 
 function records = diagnosticRecords(items)

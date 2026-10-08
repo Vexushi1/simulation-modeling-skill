@@ -148,7 +148,7 @@ def make_simulation_protocol(root, *, status="frozen", case="feedback", solver="
                      "requirement_ids": ["R5"], "source_ids": ["scenario_data"]},
         "conditions": {key: selected_model["body"][key] for key in ("initial_conditions", "boundary_conditions")},
         "time": {"start": 0.0, "stop": 1.0, "unit": "s", "requirement_ids": ["R4"]}, "solver": settings,
-        "inputs": inputs, "outputs": outputs, "logging": {"format": "Dataset", "output_variable": "yout", "time_variable": "tout",
+        "inputs": inputs, "outputs": outputs, "logging": {"format": "Dataset", "output_variable": "yout", "time_variable": "tout", "sample_time": 0,
                   "reason": "Root Outport Dataset without adding logging blocks or changing source SLX"},
         "seed": {"value": 1729, "generator": "twister", "reason": "Explicit reproducible infrastructure RNG state, restored after execution"},
         "metrics": [{"id": f"output_{item['port']}_final", "output_port": item["port"], "statistic": "final", "unit": item["unit"],

@@ -66,10 +66,12 @@ def validate_run_spec(spec):
     for label in ("inputs", "outputs"):
         ports = set()
         for item in record_array(spec[label], "run_spec." + label):
-            required = {"port", "block_path", "variable_id", "unit"} | ({"time", "values", "interpolation"} if label == "inputs" else set())
+            required = {"port", "block_path", "variable_id", "unit"} | ({"time", "values", "interpolation"} if label == "inputs" else {"sample_time"})
             if set(item) != required or type(item["port"]) is not int or item["port"] < 1 or item["port"] in ports or not isinstance(item["variable_id"], str) or not item["variable_id"] or not isinstance(item["block_path"], str) or not item["block_path"].startswith(spec["model_name"] + "/") or item["unit"] is not None and not isinstance(item["unit"], str):
                 raise ValueError("run_spec: unique exact root-port binding required")
             ports.add(item["port"])
+            if label == "outputs" and (not finite(item["sample_time"]) or item["sample_time"] != 0):
+                raise ValueError("run_spec: explicit continuous root-output sample_time 0 required")
             if label == "inputs":
                 time = numeric_vector(item["time"], "input.time")
                 values = numeric_vector(item["values"], "input.values")
@@ -136,12 +138,23 @@ def _read_outputs(directory, actual, spec, run_id):
     if not expected or len(records) != len(expected):
         raise ValueError("required complete output set missing")
     try:
-        mat = loadmat(contained_path(directory, actual["mat_file"]), variable_names=["run_id", "output_ports", "output_variables", "output_units", "output_times", "output_values", "saved_time"], squeeze_me=False)
+        mat_path = contained_path(directory, actual["mat_file"])
+        # Inspect complex storage first: mat_dtype=True can discard imaginary
+        # components while restoring MATLAB's class from compact MAT storage.
+        stored = loadmat(mat_path, variable_names=["output_times", "output_values", "saved_time"], squeeze_me=False, mat_dtype=False)
+        if any(key not in stored for key in ("output_times", "output_values", "saved_time")):
+            raise ValueError("native MAT numeric output fields missing")
+        if np.iscomplexobj(stored["saved_time"]) or any(
+                np.iscomplexobj(item) for key in ("output_times", "output_values") for item in stored[key].flat):
+            raise ValueError("native MAT complex data is outside the real-double output boundary")
+        mat = loadmat(mat_path, variable_names=["run_id", "output_ports", "output_variables", "output_units", "output_times", "output_values", "saved_time"], squeeze_me=False, mat_dtype=True)
     except (OSError, ValueError, TypeError, IndexError, MatReadError) as error:
         raise ValueError("native MAT numeric output readback failed: " + str(error)) from error
     if not {"run_id", "output_ports", "output_variables", "output_units", "output_times", "output_values", "saved_time"} <= set(mat):
         raise ValueError("native MAT numeric output fields missing")
-    if mat["saved_time"].dtype != np.dtype("float64") or mat["saved_time"].reshape(-1).tolist() != actual["saved_time"]:
+    if mat["saved_time"].dtype != np.dtype("float64"):
+        raise ValueError("native MAT saved-time class must be double")
+    if mat["saved_time"].reshape(-1).tolist() != actual["saved_time"]:
         raise ValueError("native MAT saved time differs from recorded SimulationOutput.tout")
     text = lambda value: "".join(str(part) for part in value.reshape(-1))
     if text(mat["run_id"]) != run_id or mat["output_ports"].reshape(-1).tolist() != [item["port"] for item in expected]:
@@ -150,14 +163,16 @@ def _read_outputs(directory, actual, spec, run_id):
         if mat[key].shape != (len(expected), 1):
             raise ValueError("MAT output collection shape differs: " + key)
     for index, (item, bound) in enumerate(zip(records, expected)):
-        if set(item) != {"port", "block_path", "variable_id", "unit", "observed_unit", "time", "values", "csv_file"} or type(item.get("port")) is not int or any(item[key] != bound[key] for key in ("port", "block_path", "variable_id", "unit")):
+        if set(item) != {"port", "block_path", "variable_id", "unit", "sample_time", "observed_unit", "time", "values", "csv_file"} or type(item.get("port")) is not int or any(not native_value_equal(item[key], bound[key]) for key in ("port", "block_path", "variable_id", "unit", "sample_time")):
             raise ValueError("actual output binding differs")
         time, values = numeric_vector(item["time"], "output.time"), numeric_vector(item["values"], "output.values")
         if len(time) != len(values) or len(time) < 2 or any(a >= b for a, b in zip(time, time[1:])):
             raise ValueError("output time/value shape or order differs")
         if text(mat["output_variables"][index, 0]) != item["variable_id"] or text(mat["output_units"][index, 0]) != (item["unit"] or ""):
             raise ValueError("MAT variable or declared unit differs")
-        if mat["output_times"][index, 0].dtype != np.dtype("float64") or mat["output_values"][index, 0].dtype != np.dtype("float64") or mat["output_times"][index, 0].reshape(-1).tolist() != time or mat["output_values"][index, 0].reshape(-1).tolist() != values:
+        if mat["output_times"][index, 0].dtype != np.dtype("float64") or mat["output_values"][index, 0].dtype != np.dtype("float64"):
+            raise ValueError("native MAT numeric class must be double")
+        if mat["output_times"][index, 0].reshape(-1).tolist() != time or mat["output_values"][index, 0].reshape(-1).tolist() != values:
             raise ValueError("MAT numeric values differ from JSON")
         with contained_path(directory, item["csv_file"]).open(newline="", encoding="utf-8-sig") as stream:
             rows = list(csv.reader(stream))
@@ -175,15 +190,30 @@ def assert_case(actual, case, directory, run_id):
     if actual.get("framework_error"):
         record_array(actual["framework_error"].get("stack"), "framework_error.stack")
         raise ValueError("simulation framework error: " + str(actual["framework_error"].get("message", "unknown")))
-    for key in ("warnings", "errors", "functions", "before_parameters", "applied_parameters", "after_parameters", "reopened_parameters", "outputs"):
+    for key in ("warnings", "errors", "functions", "before_parameters", "applied_parameters", "after_parameters", "reopened_parameters", "outputs", "before_output_sampling", "configured_output_sampling", "after_output_sampling", "reopened_output_sampling"):
         record_array(actual.get(key), "case." + key)
-    if any(actual.get(key) is not True for key in ("source_unchanged", "owned_model_unchanged", "configuration_restored", "parameters_restored", "reopened", "closed_without_save")):
+    if any(actual.get(key) is not True for key in ("source_unchanged", "owned_model_unchanged", "configuration_restored", "parameters_restored", "output_sampling_restored", "reopened", "closed_without_save")):
         raise ValueError("actual model persistence or restoration check failed")
     spec = case["run_spec"]
     expected_before = [{**item, "value": item["value"] - 0.25 if case["case_id"] != "primary" else item["value"], "unit": item["unit"] or "", "class": "Simulink.Parameter"} for item in spec["parameters"]]
     expected_applied = [{**item, "unit": item["unit"] or "", "class": "Simulink.Parameter"} for item in spec["parameters"]]
     if any(not native_records_equal(actual[key], expected_before) for key in ("before_parameters", "after_parameters", "reopened_parameters")) or not native_records_equal(actual["applied_parameters"], expected_applied):
         raise ValueError("actual workspace parameter override or restoration differs")
+    expected_sampling = [{"port": item["port"], "block_path": item["block_path"], "sample_time": "0"}
+                         for item in spec["outputs"]]
+    before_sampling = actual["before_output_sampling"]
+    for key in ("before_output_sampling", "configured_output_sampling", "after_output_sampling", "reopened_output_sampling"):
+        if len(actual[key]) != len(expected_sampling) or any(
+                set(item) != {"port", "block_path", "sample_time"} or type(item["port"]) is not int
+                or item["port"] != expected["port"] or item["block_path"] != expected["block_path"]
+                or not isinstance(item["sample_time"], str) or not item["sample_time"].strip()
+                for item, expected in zip(actual[key], expected_sampling)):
+            raise ValueError("actual root-output sampling identity missing or differs: " + key)
+    if not native_records_equal(actual["configured_output_sampling"], expected_sampling):
+        raise ValueError("configured root-output sampling differs from explicit continuous sample_time 0")
+    if any(not native_records_equal(actual[key], before_sampling)
+           for key in ("after_output_sampling", "reopened_output_sampling")):
+        raise ValueError("actual root-output sampling restoration differs")
     owned = contained_path(directory, spec["model_name"] + ".slx")
     if _path(actual.get("model_file", "")) != _path(owned) or not owned.is_file():
         raise ValueError("actual model file differs from the owned copy")

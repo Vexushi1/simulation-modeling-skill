@@ -1,12 +1,13 @@
 """Synthetic consumer tests; these fixtures never establish actual MATLAB qualification."""
 import copy
 import math
+import struct
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
 import pytest
-from scipy.io import savemat
+from scipy.io import loadmat, savemat
 
 import probe_simulation as producer
 import run_simulation as runner
@@ -35,6 +36,8 @@ def synthetic_case(case, directory, run_id, *, primary=False):
         model.write_bytes(source.read_bytes())
     before = [{**item, "value": item["value"] if primary else item["value"] - 0.25, "unit": item["unit"] or "", "class": "Simulink.Parameter"} for item in spec["parameters"]]
     applied = [{**item, "unit": item["unit"] or "", "class": "Simulink.Parameter"} for item in spec["parameters"]]
+    original_sampling = [{"port": item["port"], "block_path": item["block_path"], "sample_time": "-1"} for item in spec["outputs"]]
+    configured_sampling = [{**item, "sample_time": "0"} for item in original_sampling]
     configured = {"Solver": spec["solver"]["name"], "SolverType": "Fixed-step" if spec["solver"]["name"] == "ode4" else "Variable-step", "ZeroCrossControl": spec["solver"]["zero_crossing"]}
     for key, field in (("fixed_step","FixedStep"),("max_step","MaxStep"),("min_step","MinStep"),("initial_step","InitialStep"),("rel_tol","RelTol"),("abs_tol","AbsTol")):
         if spec["solver"][key] is not None:
@@ -42,6 +45,9 @@ def synthetic_case(case, directory, run_id, *, primary=False):
     actual = {"case_id": case["case_id"], "attempted": True, "completed": True, "simulation_returned": True,
               "error_message": "", "errors": [], "warnings": [], "functions": [], "before_parameters": before,
               "applied_parameters": applied, "after_parameters": copy.deepcopy(before), "reopened_parameters": copy.deepcopy(before),
+              "before_output_sampling": original_sampling, "configured_output_sampling": configured_sampling,
+              "after_output_sampling": copy.deepcopy(original_sampling), "reopened_output_sampling": copy.deepcopy(original_sampling),
+              "output_sampling_restored": True,
               "source_unchanged": True, "owned_model_unchanged": True, "configuration_restored": True, "parameters_restored": True,
               "reopened": True, "closed_without_save": True, "model_file": str(model), "source_model_file": str(source),
               "requested_solver": spec["solver"], "configured_parameters": configured,
@@ -91,6 +97,34 @@ def synthetic_case(case, directory, run_id, *, primary=False):
     savemat(directory / actual["mat_file"], {"run_id":run_id,"output_ports":np.array([o["port"] for o in actual["outputs"]]).reshape(-1,1),
                                           "output_variables":variables,"output_units":units,"output_times":mat_times,"output_values":mat_values,"saved_time":np.array(actual["saved_time"],dtype=float).reshape(-1,1)}, format="5")
     return actual
+
+
+def replace_constant_mat_storage(path, *, matlab_class):
+    """Real MAT v5 format: integer payload storage can still declare mxDOUBLE.
+
+    This synthetic serialization fixture executes no MATLAB. Changing MATLAB's
+    array flags to mxUINT8/logical supplies genuine wrong-class negative cases.
+    """
+    def element(kind, payload):
+        return struct.pack("<II", kind, len(payload)) + payload + bytes(-len(payload) % 8)
+
+    def matrix(array_class, shape, name, payload):
+        header = element(6, struct.pack("<II", array_class, 0))
+        header += element(5, struct.pack("<" + "i" * len(shape), *shape))
+        header += element(1, name.encode("ascii"))
+        return element(14, header + payload)
+
+    data = {key: value for key, value in loadmat(path, mat_dtype=True).items() if not key.startswith("__")}
+    values = data.pop("output_values")
+    children = b""
+    for value in values[:, 0]:
+        assert np.all(value == np.floor(value)) and np.all((0 <= value) & (value <= 255))
+        payload = np.asarray(value, dtype=np.uint8).tobytes(order="F")
+        children += matrix(matlab_class, value.shape, "", element(2, payload))
+    savemat(path, data, format="5")
+    assert path.read_bytes()[126:128] == b"IM"
+    with path.open("ab") as stream:
+        stream.write(matrix(1, values.shape, "output_values", children))
 
 
 def make_simulation_profile(directory, a_profile, *, age_hours=0):
@@ -535,6 +569,136 @@ def test_output_count_boolean_cannot_satisfy_required_single_output(tmp_path):
     actual["output_count"] = True
     with pytest.raises(ValueError,match="output count"):
         assert_case(actual,case,tmp_path,"synthetic-native-api")
+
+
+@pytest.mark.parametrize("value", [None, False, True, "0", -1, 0.1])
+def test_run_spec_rejects_unreviewed_root_output_sampling_before_execution(tmp_path, value):
+    case = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)[0]
+    case["run_spec"]["outputs"][0]["sample_time"] = value
+    with pytest.raises(ValueError, match="continuous root-output sample_time"):
+        validate_run_spec(case["run_spec"])
+
+
+def test_run_spec_requires_output_sampling_in_every_port(tmp_path):
+    cases = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)
+    assert {len(case["run_spec"]["outputs"]) for case in cases} == {0, 1, 3}
+    for case in cases:
+        assert validate_run_spec(case["run_spec"]) == case["run_spec"]
+        assert all(output["sample_time"] == 0 for output in case["run_spec"]["outputs"])
+    multi = next(case for case in cases if case["case_id"] == "multiple_outputs")
+    del multi["run_spec"]["outputs"][2]["sample_time"]
+    with pytest.raises(ValueError, match="root-port binding"):
+        validate_run_spec(multi["run_spec"])
+
+
+@pytest.mark.parametrize("case_id", ["constant_no_input", "multiple_outputs", "no_output"])
+def test_sampling_records_preserve_zero_one_multiple_port_arrays(tmp_path, case_id):
+    case = next(item for item in producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)
+                if item["case_id"] == case_id)
+    actual = synthetic_case(case, tmp_path, "synthetic-output-sampling")
+    for key in ("before_output_sampling", "configured_output_sampling", "after_output_sampling", "reopened_output_sampling"):
+        assert isinstance(actual[key], list) and len(actual[key]) == len(case["run_spec"]["outputs"])
+    checked = assert_case(actual, case, tmp_path, "synthetic-output-sampling")
+    assert checked["complete"] == (case_id != "no_output")
+
+
+@pytest.mark.parametrize("record_key", ["before_output_sampling", "configured_output_sampling", "after_output_sampling", "reopened_output_sampling"])
+@pytest.mark.parametrize("change", ["missing_port", "object_instead_of_array", "boolean_port", "wrong_path", "numeric_sample", "blank_sample"])
+def test_actual_output_sampling_requires_complete_typed_port_bindings(tmp_path, record_key, change):
+    case = next(item for item in producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)
+                if item["case_id"] == "multiple_outputs")
+    actual = synthetic_case(case, tmp_path, "synthetic-output-sampling")
+    if change == "missing_port":
+        actual[record_key].pop()
+    elif change == "object_instead_of_array":
+        actual[record_key] = actual[record_key][0]
+    else:
+        field, value = {"boolean_port": ("port", True), "wrong_path": ("block_path", "wrong/Output"),
+                        "numeric_sample": ("sample_time", 0), "blank_sample": ("sample_time", " ")}[change]
+        actual[record_key][0][field] = value
+    with pytest.raises(ValueError, match="sampling"):
+        assert_case(actual, case, tmp_path, "synthetic-output-sampling")
+
+
+@pytest.mark.parametrize("record_key", ["configured_output_sampling", "after_output_sampling", "reopened_output_sampling"])
+def test_sampling_configuration_and_restoration_cannot_be_asserted_by_success_flags(tmp_path, record_key):
+    case = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)[0]
+    actual = synthetic_case(case, tmp_path, "synthetic-output-sampling")
+    actual[record_key][0]["sample_time"] = "-1" if record_key == "configured_output_sampling" else "0"
+    with pytest.raises(ValueError, match="sampling"):
+        assert_case(actual, case, tmp_path, "synthetic-output-sampling")
+
+
+def test_native_sampling_restore_flag_must_be_actual_boolean_true(tmp_path):
+    case = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)[0]
+    actual = synthetic_case(case, tmp_path, "synthetic-output-sampling")
+    actual["output_sampling_restored"] = 1
+    with pytest.raises(ValueError, match="restoration"):
+        assert_case(actual, case, tmp_path, "synthetic-output-sampling")
+
+
+def test_single_constant_sample_cannot_substitute_for_native_time_coverage(tmp_path):
+    case = next(item for item in producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)
+                if item["case_id"] == "constant_no_input")
+    actual = synthetic_case(case, tmp_path, "synthetic-output-sampling")
+    data = load_document(tmp_path / actual["data_file"])
+    data["outputs"][0].update(time=[0.0], values=[2.0])
+    write_json(tmp_path / actual["data_file"], data)
+    with pytest.raises(ValueError, match="time/value shape"):
+        assert_case(actual, case, tmp_path, "synthetic-output-sampling")
+
+
+@pytest.mark.parametrize("case_id", ["constant_no_input", "multiple_outputs"])
+def test_compact_mat_integer_storage_preserves_double_class_and_exact_outputs(tmp_path, case_id):
+    case = next(item for item in producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)
+                if item["case_id"] == case_id)
+    actual = synthetic_case(case, tmp_path, "synthetic-compact-mat")
+    path = tmp_path / actual["mat_file"]
+    replace_constant_mat_storage(path, matlab_class=6)  # mxDOUBLE_CLASS; miUINT8 data payload.
+    stored = loadmat(path, mat_dtype=False)["output_values"]
+    restored = loadmat(path, mat_dtype=True)["output_values"]
+    assert all(item.dtype == np.dtype("uint8") for item in stored[:, 0])
+    assert all(item.dtype == np.dtype("float64") for item in restored[:, 0])
+    assert assert_case(actual, case, tmp_path, "synthetic-compact-mat")["complete"]
+
+
+@pytest.mark.parametrize("matlab_class,expected_dtype", [(9, "uint8"), (9 | 0x200, "bool")])
+def test_true_integer_or_logical_matlab_class_is_rejected_without_casting(tmp_path, matlab_class, expected_dtype):
+    case = next(item for item in producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)
+                if item["case_id"] == "constant_no_input")
+    actual = synthetic_case(case, tmp_path, "synthetic-wrong-mat-class")
+    path = tmp_path / actual["mat_file"]
+    replace_constant_mat_storage(path, matlab_class=matlab_class)
+    assert loadmat(path, mat_dtype=True)["output_values"][0, 0].dtype == np.dtype(expected_dtype)
+    with pytest.raises(ValueError, match="numeric class must be double"):
+        assert_case(actual, case, tmp_path, "synthetic-wrong-mat-class")
+
+
+@pytest.mark.parametrize("field", ["output_values", "output_times", "saved_time"])
+def test_complex_matlab_double_cannot_pass_by_dropping_its_imaginary_component(tmp_path, field):
+    case = producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)[0]
+    actual = synthetic_case(case, tmp_path, "synthetic-complex-mat")
+    path = tmp_path / actual["mat_file"]
+    data = {key: value for key, value in loadmat(path).items() if not key.startswith("__")}
+    if field == "saved_time":
+        data[field] = data[field].astype(np.complex128) + 1j
+    else:
+        data[field][0, 0] = data[field][0, 0].astype(np.complex128) + 1j
+    savemat(path, data, format="5")
+    with pytest.raises(ValueError, match="complex data.*real-double"):
+        assert_case(actual, case, tmp_path, "synthetic-complex-mat")
+
+
+def test_restoring_matlab_class_keeps_exact_numeric_equality_requirement(tmp_path):
+    case = next(item for item in producer.qualification_cases("00000000-0000-0000-0000-000000000001", tmp_path)
+                if item["case_id"] == "constant_no_input")
+    actual = synthetic_case(case, tmp_path, "synthetic-exact-mat")
+    path = tmp_path / actual["mat_file"]
+    data = {key: value for key, value in loadmat(path).items() if not key.startswith("__")}
+    data["output_values"][0, 0][0, 0] = np.nextafter(2.0, 3.0)
+    savemat(path, data, format="5")
+    with pytest.raises(ValueError, match="MAT numeric values differ from JSON"):
+        assert_case(actual, case, tmp_path, "synthetic-exact-mat")
 
 
 def test_historical_primary_receipt_retains_execution_time_qualification(tmp_path,monkeypatch):

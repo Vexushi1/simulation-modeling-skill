@@ -74,11 +74,12 @@ properties:
       - {type: 'null'}
       - type: object
         additionalProperties: false
-        required: [format, output_variable, time_variable, reason]
+        required: [format, output_variable, time_variable, sample_time, reason]
         properties:
           format: {const: Dataset}
           output_variable: {const: yout}
           time_variable: {const: tout}
+          sample_time: {type: number, const: 0}
           reason: {$ref: '#/$defs/text'}
   seed:
     anyOf:

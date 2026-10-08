@@ -73,6 +73,7 @@ def qualification_cases(run_id, directory):
             spec["solver"] = solver("ode4")
             spec["solver"]["fixed_step"] = 1e-9
         for output in outputs:
+            output["sample_time"] = 0
             target = (1.7 / parameters[0]["value"] + (0.25 - 1.7 / parameters[0]["value"]) * __import__("math").exp(-parameters[0]["value"] * 2.0)) if feedback else 2.0 if identity in {"constant_no_input", "passthrough"} or output["port"] == 1 else 6.0 if output["port"] == 2 else 7.0
             spec["metrics"].append({"id": "final_" + str(output["port"]), "output_port": output["port"], "statistic": "final", "unit": "1", "lower": target - 2e-5, "upper": target + 2e-5, "reason": "Synthetic infrastructure qualification only; no real-model validity claim."})
         expectation = "error" if identity == "invalid_override" else "early_stop" if identity == "early_stop" else "no_output" if identity == "no_output" else "success"

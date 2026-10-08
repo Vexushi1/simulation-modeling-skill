@@ -59,6 +59,7 @@ def test_current_frozen_contract_exposes_exact_structural_run_spec_without_runti
     assert result["selected_solver"] == solver and result["selected_operation_id"] == "simulink.core_simulation"
     assert spec["start_time"] == 0.0 and spec["stop_time"] == 1.0 and spec["seed"] == 1729
     assert spec["runtime_class"] == "normal_serial" and spec["warning_policy"] == "record"
+    assert all(item["sample_time"] == 0 for item in spec["outputs"])
     assert len(spec["inputs"]) == int(case != "constant") and len(spec["outputs"]) == 1
     if case == "passthrough":
         assert spec["parameters"] == []
@@ -74,6 +75,26 @@ def test_complete_draft_is_not_frozen_and_cannot_execute(tmp_path):
     assert result["valid"] and result["protocol_complete"] and result["run_spec"]
     assert not result["frozen"] and not result["execution_ready"]
     assert not check(path, require_frozen=True)["valid"]
+
+
+@pytest.mark.parametrize("sample_time", [None, False, True, "0", -1, 0.1])
+def test_root_output_sampling_requires_explicit_typed_continuous_setting(tmp_path, sample_time):
+    path = make_simulation_protocol(tmp_path)
+    rewrite(path, lambda value: value["logging"].update(sample_time=sample_time), freeze=False)
+    result = check(path)
+    assert not result["schema_valid"] and not result["execution_ready"]
+
+
+def test_missing_output_sampling_cannot_reuse_existing_freeze(tmp_path):
+    path = make_simulation_protocol(tmp_path)
+    before = check(path)
+    value = load_document(path)
+    del value["logging"]["sample_time"]
+    write_contract(path, value)
+    result = check(path)
+    assert not result["schema_valid"] and not result["frozen"] and not result["execution_ready"]
+    assert sha256_file(Path(before["model_path"])) == before["model_sha256"]
+    assert sha256_file(Path(before["native_model_path"])) == before["native_model_sha256"]
 
 
 def test_historical_ready_d_structure_is_not_rejected_for_current_environment_ttl(tmp_path):

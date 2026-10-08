@@ -16,6 +16,8 @@ solver: null
 inputs: []
 outputs: []
 logging: null
+# A completed protocol must explicitly review logging.sample_time: 0. This applies
+# continuous sampling to root Outports temporarily; it does not set solver steps.
 seed: null
 metrics: []
 runtime_class: normal_serial

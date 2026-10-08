@@ -437,7 +437,8 @@ def validate_simulation_protocol(path, *, project_root=None, require_frozen=Fals
             run_spec = {"schema_version": 1, "model_name": spec["model_name"], "model_path": result["native_model_path"],
                         "model_sha256": result["native_model_sha256"], "parameters": spec["parameters"],
                         "inputs": sorted(native_inputs, key=lambda item: item["port"]),
-                        "outputs": sorted(contract["outputs"], key=lambda item: item["port"]),
+                        "outputs": [{**item, "sample_time": contract["logging"]["sample_time"]}
+                                    for item in sorted(contract["outputs"], key=lambda item: item["port"])],
                         "solver": {key: contract["solver"][key] for key in SOLVER_FIELDS},
                         "start_time": time["start"], "stop_time": time["stop"], "seed": contract["seed"]["value"],
                         "metrics": contract["metrics"], "runtime_class": contract["runtime_class"], "warning_policy": contract["warning_policy"]["action"]}

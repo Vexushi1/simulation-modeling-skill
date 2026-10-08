@@ -43,6 +43,8 @@ Keep full configured API parameters separate from actual public solver metadata.
 
 The actual terminal time comes from saved `SimulationOutput.tout` and required output coverage. Configured `StopTime` cannot substitute for it. Save returned native MAT data before postprocessing; check public solver name/type/step and both warning diagnostics and `lastwarn` under the frozen warning policy.
 
+Freeze `logging.sample_time: 0` explicitly. The runtime applies continuous sampling to each root Outport through `SimulationInput`, checks the applied settings and restores the original port settings. This records constant outputs throughout the interval as actual native samples; it never copies a single recorded value onto a fabricated time axis.
+
 The receipt binds original inputs and sources, execution-time A/E qualifications, process/raw/log evidence and actual MAT v7, JSON and CSV outputs. Numeric fields are independently read across all three formats. The consumer rechecks output identities, finite ordered samples, full time coverage, termination and predeclared metrics. Exit 0, a returned `SimulationOutput`, a nonempty file or plausible waveform is insufficient. Unexpected early stop, errors, required missing data or failed criteria cannot establish `PRIMARY_RUN_COMPLETE`; failure/timeout/partial evidence is retained.
 
 After actual review, an explicit caller can register successful receipt/output bindings and set `PRIMARY_RUN_COMPLETE`. This state is a completed reviewed run awaiting later verification. It does not establish numerical convergence, model truth, real-system validity or accepted publication claims.
