@@ -1292,6 +1292,8 @@ D新增项目IMPLEMENTATION_READY；只有当前真实C批准、完整审查的�
 
 本地受限builder补齐可复现核心结构receipt缺口，输入为经契约校验的显式block/connection/binding指令。初始支持Inport/Outport/Constant/Gain/Sum/Integrator；其他库block、MATLABFunction、自定义mask/callback、modelreference、外部字典、任意代码表达式等仅可登记待支持映射，不能进本地native ready。上游能力选择仍按固定版本、实际资源与当前资格；不把受限builder说成通用数学代码生成器。
 
+2026-10-08 独立边界复核补充：数学模型没有外部输入或不要求根输出端口时，不强迫建立Inport/Outport；已存在的同类根端口编号才需连续、唯一。参数code_name不能与其原生target模型名冲突，mapping build_ready与实际builder应对同一受支持指令作一致裁决。增加Constant→Outport无外部输入案例与名称冲突负测；保存原始复现，并在真实R2025b中执行无外部输入结构回读。
+
 ### 参数绑定
 
 参数登记引用当前C design/model/variable，以原symbol与合法独立code_name、作用域/owner、value或null、unit或null、来源角色/当前source IDs、不确定性状态、tunability及理由绑定。值/单位/来源必须与当前批准C一致；不解析自由文本推导、不识别或校准、不填0/1/零不确定性或默认可调。实现名称/作用域冲突、未知引用、不支持值类型、非有限值和当前来源变化应受控失败。
