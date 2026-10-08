@@ -1499,6 +1499,8 @@ SimulationInput 只独立覆盖已审核的 solver 设置，并通过模型 work
 
 每次 producer 捕获完整协议和输入 snapshot、B/C/D/参数/SLX/结构身份、当前 A/E profile/receipt、源代码集合、runtime/channel/host、实际有效配置、过程 started/finished/state/exit、原始 MATLAB 报告和日志、输出 MAT/JSON/CSV 文件与逐文件 SHA。运行 receipt 不写回协议形成自引用；实际数据从 SimulationOutput/Dataset 读取，记录每个输出的根端口、observable/变量身份、单位、采样时间和值。CSV/JSON 与 MAT 内容/数组形状按同一声明的输出契约核对，不凭非空文件声称正确。
 
+第五轮真实 R2025b 九案例均完成原生执行，常量与多输出端口已取得完整采样，但 MAT 消费者误把存储 payload dtype 当作 MATLAB 数组类型：MAT v7 可将 double 类的整数值压缩为 miUINT8，SciPy loadmat 默认返回存储类型。这不代表原输出是 uint8，且实际 MAT/JSON/CSV 数值完全相同。独立消费者应使用 loadmat(mat_dtype=True, squeeze_me=False) 按 MATLAB 声明类型读取，仍严格要求 float64、完整形状及精确数值一致，不通过强制 cast 或数值容差放宽 Gate。新增 double 类/uint8 payload 的真实格式回归以及真正 uint8/logical 类拒绝检查，保留 v5 原始失败报告，并在修订后的当前源码上重新取得完整原生资格和项目运行。
+
 process.json 在后续 normalization 前保存；异常、超时、raw 缺失、JSON 形状错误、单例/空集记录等保留原始证据并受控失败。raw 中 cases/functions/diagnostics/outputs 等记录集合使用 0/1/N 一致数组协议，MATLAB producer 明确编码，Python 严格校验；不把 object/null 宽松提升为数组。没有输入或参数是合法基数；没有必需输出或缺输出是运行失败，不能把空数组当作完整主结果。
 
 进程 exit0、MATLAB 调用返回、时间轴完整性、预期终止、输出有限性、指标判据与 diagnostics 分开检查。消费 SimulationOutput Error/Warning/StopEvent 等实际终止信息及实际最终时间；错误、非预期早停、时间未达到已冻结 StopTime、缺少/重复/非有限输出或判据失败均不能生成成功主运行 receipt。warning 的接受/阻断策略与理由在协议中明确并按实际内容审查，不静默丢弃 warning，也不把所有 warning 一律当失败。不得只用 exit0 或波形“看着正常”断言成功。
