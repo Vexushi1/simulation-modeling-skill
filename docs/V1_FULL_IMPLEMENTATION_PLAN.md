@@ -1469,6 +1469,8 @@ solver 值以 typed、有界有限数据登记，记录 StartTime/StopTime、Sol
 
 第三轮真实 R2025b 记录了 ode45、ode4、ode15s 的正常终止与对应公开步长，及无状态 constant 的实际 Solver=VariableStepDiscrete。R2025b 引擎会将无连续状态模型编译为对应离散求解器；检查须保留请求与实际方法，按 variable/fixed 类型分别识别 VariableStepDiscrete/FixedStepDiscrete，不能用未经实测的笼统名称 discrete 误拒，也不能声称静态模型实际运行了连续 ODE 求解器。存在 Integrator 的受控目标仍要求实际选定连续方法一致。该轮随后发生原生 Illegal instruction，整个资格失败；部分正常记录只供 API 诊断，不合并或提升为完整资格。
 
+第四轮原生记录进一步发现 Constant 的继承 Inf 采样仅记录初始输出，多输出案例中的 constant 端口也只有一个采样；因此虽然终止正常，仍不满足已冻结的完整时间覆盖。不能通过复制常数到伪造时间轴或放宽覆盖检查过 Gate。E 协议须显式冻结 logging.sample_time=0，将每个根 Outport 的连续采样设置通过 SimulationInput.setBlockParameter 临时应用，保存实际应用的端口/采样设置并核验运行后与重新加载时的原设置恢复；这是根输出记录方式，不改变已批准参数、数学本体或保存的 SLX。无输入 static 仍为合法 primary 场景，须在全新原生九案例及真实项目中验证这个设置确实产生完整采样。保留旧协议、原始单采样与未完成回执，不补写未知进程退出码。
+
 R2025b 公开 SimulationMetadata 的 SolverInfo 不保证暴露全部容差字段。配置记录与实际观测分开：记录 SimulationInput 施加的完整 typed 参数，实际 solver 名称/类型及公开步长从 SimulationMetadata 读取；只核对公开观测和实际时间覆盖。未公开的容差不声称已独立 get_param readback，也不为此引入自定义运行 callback。输出采样间隔与内部求解步长保持区别。该限制来自本轮官方 API 审查，先保存此计划修订，再实施相关消费者。
 
 初轮真实 R2025b 九案例发现 ExecutionInfo 不含 StopEventTime，直接读取会使已返回的仿真输出在后处理失败中丢失。终止事件继续读实际 StopEvent；实际停止时间以 SimulationOutput.tout 的最后有限采样及各必需输出覆盖独立裁决，并记录观测来源，不能用配置 StopTime 代替。错误/零输出导致 tout 为空时保留 unknown 与失败诊断；受控早停必须有实际时间依据。SimulationOutput 返回后先持久化原始 MAT，再做元数据与格式后处理；失败保留原生部分数据，不提升成成功。此次按实际 API 证据先修订计划，再修正消费者，原九案例保留为失败记录。
