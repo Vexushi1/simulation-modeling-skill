@@ -1503,6 +1503,8 @@ SimulationInput 只独立覆盖已审核的 solver 设置，并通过模型 work
 
 独立负例还确认 SciPy 1.18.1 的 mat_dtype=True 会将 complex double 转为实部并发出 ComplexWarning。为保留既有 real-double 边界，先用默认存储类型只读选定数值字段并拒绝任何 complex 数组，再按 MATLAB 声明类型读取校验。不得通过丢弃虚部使本来无效的数据通过；使用实部恰好等于 JSON 的 complex 负例验证此路径。
 
+最终提交附加独立负例发现 MAT 身份字段仍有隐式转换缺口：logical true 可与端口 1 比较相等，数值单位 1 可经 str 转换匹配文本 "1"；端口 row 方向也未区分。该问题没有改变已取得的真实数值输出，但不符合 typed 身份和同一格式的核对目的。现明确冻结 producer 的 MAT 规范：output_ports 为 MATLAB double 类 N×1 正整数端口列；run_id 为单行 char 文本；output_variables/output_units 为 N×1 cell，其成员为单行 char 文本，只有空的声明单位可用空 char。consumer 严格验证声明类、方向和文本，拒绝 logical/整数类伪端口、数值/多行伪文本及方向不符，不经 str/cast 放宽。允许的 null 单位在 JSON 保持 null、MAT 保持空 char，不编码成 JSON []；在受控 passthrough 实例中真实测试 nullable 单位与文本身份出口，保留旧成功和新负例证据后重新取得当前源码资格、真实项目及最终提交检查。
+
 process.json 在后续 normalization 前保存；异常、超时、raw 缺失、JSON 形状错误、单例/空集记录等保留原始证据并受控失败。raw 中 cases/functions/diagnostics/outputs 等记录集合使用 0/1/N 一致数组协议，MATLAB producer 明确编码，Python 严格校验；不把 object/null 宽松提升为数组。没有输入或参数是合法基数；没有必需输出或缺输出是运行失败，不能把空数组当作完整主结果。
 
 进程 exit0、MATLAB 调用返回、时间轴完整性、预期终止、输出有限性、指标判据与 diagnostics 分开检查。消费 SimulationOutput Error/Warning/StopEvent 等实际终止信息及实际最终时间；错误、非预期早停、时间未达到已冻结 StopTime、缺少/重复/非有限输出或判据失败均不能生成成功主运行 receipt。warning 的接受/阻断策略与理由在协议中明确并按实际内容审查，不静默丢弃 warning，也不把所有 warning 一律当失败。不得只用 exit0 或波形“看着正常”断言成功。
