@@ -271,3 +271,137 @@ def test_H_scope_consumes_E_history_without_current_TTL_and_propagates_stale(tmp
     assert not checked['valid'] and not checked['numerically_verified'] and 'H1-record' in checked['stale_artefacts']
     early = validate_project_state(state_path, scope='model')
     assert early['valid'] and not early['numerical_verification_checked'], early['errors']
+
+
+@pytest.mark.parametrize('challenge,eligible', [('non_equilibrium', True), ('linear_a_zero', True),
+    ('zero_vector_field', False), ('equilibrium', False)])
+def test_structural_gate_uses_exact_recomputed_H1_approved_reference_origins(tmp_path, monkeypatch, challenge, eligible):
+    from verification_common import parameters
+    path, plan, runs, _ = h2_fixture(tmp_path, monkeypatch)
+    static, static_ref = run_and_ref(tmp_path / 'static-upstream', 'static')
+    dynamic = runs[plan['runs'][1]['receipt']['path']]
+    static.update(project_id=plan['project_id'], run_id='owner-0', receipt=plan['runs'][0]['receipt'],
+        outputs=[{'port': 1, 'unit': '1', 'time': [0, 1], 'values': [2, 2]}])
+    # Owner read_run fixture isolates H; both upstream identities are openly
+    # synthetic. The same reviewed B/scenario maps separate model C/D graphs.
+    static['protocol_report']['problem_sha256'] = dynamic['protocol_report']['problem_sha256']
+    static['protocol']['scenario']['requirement_ids'] = dynamic['protocol']['scenario']['requirement_ids']
+    runs[plan['runs'][0]['receipt']['path']] = static
+    ps = parameters(dynamic)
+    if challenge in {'linear_a_zero', 'zero_vector_field'}:
+        ps['a']['value'] = 0
+    if challenge == 'zero_vector_field':
+        ps['b']['value'] = 0
+    if not eligible:
+        dynamic['model']['body']['initial_conditions']['value'] = {'x': 2}
+        blocks = dynamic['protocol_report']['mapping_validation']['build_spec']['blocks']
+        next(b for b in blocks if b['type'] == 'Integrator')['parameters']['InitialCondition'] = '2'
+    h1_path = tmp_path / 'h1.json'
+    h1 = load_document(h1_path)
+    h1['runs'][0]['references'] = [static_ref]
+    dynamic_ref = h1['runs'][1]['references'][0]
+    dynamic['outputs'][0]['values'] = analytic_values(dynamic, dynamic_ref, [0, 1])
+    reviewed(h1_path, h1)
+    h1_result = run_verification(h1_path, tmp_path / 'structural-h1-evidence', project_root=tmp_path, kind='H1')
+    checked_h1 = validate_verification_receipt(h1_result['receipt_path'], project_root=tmp_path, kind='H1')
+    assert checked_h1['valid'] and checked_h1['numerically_verified'], checked_h1['errors']
+    dynamic_metadata = checked_h1['ledger'][1]['verified_references'][0]
+    assert dynamic_metadata['structural_eligible'] is eligible
+    assert dynamic_metadata['approved_origins']['a']['reference']['variable_id'] == dynamic_ref['a_parameter']
+    assert dynamic_metadata['approved_origins']['initial']['selector'] == dynamic_ref['initial_selector']
+    assert dynamic_metadata['initial_derivative'] == (1.5 if challenge == 'linear_a_zero' else 1.3125 if eligible else 0)
+    analysis = numerical_analysis('structural_final_comparison', ['r0', 'r1'])
+    analysis.update(threshold=10, solver_changes=[], structural_review={'source_ids': ['reference'],
+        'left_relation_ids': ['kernel'], 'right_relation_ids': ['kernel'], 'material_difference': 'mechanism',
+        'physical_conditions_mapping': 'source-reviewed common physical input and terminal observable',
+        'reason': 'owner comparison of algebraic and dynamic mechanisms; different states acknowledged'})
+    plan['analyses'] = [analysis]
+    plan['requirements'][0]['method'] = 'structural_final_comparison'
+    plan['material_results'][0]['model_comparison_requirement'] = 'required'
+    plan['material_results'][0]['triggers']['user_required'] = True
+    for member in plan['runs']:
+        member['h1_receipt'] = binding(h1_result['receipt_path'])
+    reviewed(path, plan)
+    generated = run_verification(path, tmp_path / 'structural-h2-evidence', project_root=tmp_path, kind='H2')
+    checked = validate_verification_receipt(generated['receipt_path'], project_root=tmp_path, kind='H2')
+    assert checked['valid'] is eligible and checked['model_verified'] is eligible, checked['errors']
+    if eligible:
+        assert checked['analyses'][0]['numeric']['reference_eligibility'][1] == dynamic_metadata
+    else:
+        assert not checked['evidence_complete'] and checked['summary'] is None
+        assert any('nonzero approved initial derivative' in e for e in checked['errors'])
+        assert plan['material_results'][0]['model_comparison_requirement'] == 'required'
+
+
+def test_nested_receipt_and_plan_routes_preserve_verified_project_root(tmp_path, monkeypatch):
+    import verification_analysis
+    import subprocess
+    import sys
+    from resolve_runtime import resolve_runtime
+    path, plan = h1_plan(tmp_path)
+    run, _ = run_and_ref(tmp_path / 'upstream', 'constant')
+    run.update(project_id=plan['project_id'], run_id='owner-nested', receipt=plan['primary'],
+        outputs=[{'port': 1, 'unit': '1', 'time': [0, 1], 'values': [2, 2]}])
+    monkeypatch.setattr(verification_analysis, 'read_run', lambda *a: copy.deepcopy(run))
+    for bound in [plan['primary'], plan['runs'][0]['receipt'], *plan['sources']]:
+        bound['path'] = Path(bound['path']).relative_to(tmp_path).as_posix()
+    nested = tmp_path / 'plans' / 'reviewed-h1.json'
+    nested.parent.mkdir()
+    reviewed(nested, plan)
+    generated = run_verification(nested, tmp_path / 'nested-evidence', project_root=tmp_path, kind='H1')
+    checked = validate_verification_receipt(generated['receipt_path'], kind='H1')
+    assert checked['valid'] and checked['project_root'] == str(tmp_path.resolve()), checked['errors']
+    routed = resolve_runtime('numerical_verification', verification_receipt_path=generated['receipt_path'])
+    assert routed['status'] == 'inspected' and not routed['execution_allowed'], routed['errors']
+    direct = resolve_runtime('numerical_verification', verification_plan_path=nested, verification_project_root=tmp_path)
+    assert direct['status'] == 'inspected' and direct['verification_plan_validation']['reviewed'], direct['errors']
+    cli = subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/resolve_runtime.py'), '--intent', 'numerical_verification',
+        '--verification-plan', str(nested), '--verification-project-root', str(tmp_path)], capture_output=True, text=True)
+    assert cli.returncode == 0 and '"status": "inspected"' in cli.stdout, cli.stderr + cli.stdout
+    wrong = tmp_path / 'other-project'
+    wrong.mkdir()
+    mismatch = resolve_runtime('numerical_verification', verification_receipt_path=generated['receipt_path'], verification_project_root=wrong)
+    assert mismatch['status'] == 'blocked' and any('root differs' in e for e in mismatch['errors'])
+    mismatch = resolve_runtime('numerical_verification', verification_plan_path=nested, verification_project_root=wrong)
+    assert mismatch['status'] == 'blocked' and any('leaves project root' in e for e in mismatch['errors'])
+    state = wrong / 'state.json'
+    write_json(state, {'schema_version': 1, 'project_id': plan['project_id'], 'project_root': '.',
+        'current_stage': 'NEW', 'environment': None, 'artefacts': []})
+    mismatch = resolve_runtime('numerical_verification', state_path=state, verification_plan_path=nested, verification_project_root=tmp_path)
+    assert mismatch['status'] == 'blocked' and any('differs from state root' in e for e in mismatch['errors'])
+    mismatch = resolve_runtime('numerical_verification', state_path=state, verification_receipt_path=generated['receipt_path'])
+    assert mismatch['status'] == 'blocked' and any('root differs' in e for e in mismatch['errors'])
+
+
+@pytest.mark.parametrize('method', ['strict_interruptible_deadline', 'decompressed_memory_guarantee'])
+def test_stronger_required_resource_guarantees_are_blocked(tmp_path, method):
+    path, plan = h1_plan(tmp_path)
+    plan['requirements'].append({'id': 'resource', 'method': method, 'required': True,
+        'reason': 'task requires stronger resource enforcement', 'source_ids': ['reference']})
+    reviewed(path, plan)
+    checked = validate_verification(path)
+    assert not checked['valid'] and not checked['reviewed'] and f'unsupported_required:{method}' in checked['missing_gates']
+
+
+def test_cooperative_timeout_blocks_after_E_consumer_returns_and_small_read_budget(tmp_path, monkeypatch):
+    import verification_common
+    import validate_simulation_receipt as consumer
+    receipt = tmp_path / 'owner-E.json'
+    write_json(receipt, {})
+    budget, returned = Budget(), []
+    monkeypatch.setattr(verification_common, 'preflight_e', lambda *a: None)
+    def blocking_boundary(*a, **k):
+        budget.started -= 121  # Small clock fixture, no sleeping or native call.
+        returned.append(True)
+        return {'valid': True, 'primary_run_complete': True}
+    monkeypatch.setattr(consumer, 'validate_simulation_receipt', blocking_boundary)
+    with pytest.raises(ValueError, match='wall-time budget'):
+        verification_common.read_run(binding(receipt), tmp_path, budget)
+    assert returned == [True]
+    file = tmp_path / 'tiny.txt'
+    file.write_text('abcd', encoding='utf-8')
+    budget = Budget()
+    budget.limits['total_read_bytes'] = 7
+    budget.charge(file)
+    with pytest.raises(ValueError, match='total bound-data read budget'):
+        budget.charge(file)

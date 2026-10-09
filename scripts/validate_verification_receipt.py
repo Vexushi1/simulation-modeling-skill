@@ -53,7 +53,7 @@ def validate_verification_receipt(path, *, project_root=None, kind=None, budget=
         if (path.parent / FILES[2]).read_text(encoding='utf-8') != numeric_csv(result):
             raise ValueError('H numeric CSV differs from recomputation')
         budget.finish()
-        result.update(receipt_path=str(path), receipt_sha256=budget.identities[path])
+        result.update(receipt_path=str(path), receipt_sha256=budget.identities[path], project_root=str(root))
         return result
     except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError) as error:
         failure['errors'].append(str(error))

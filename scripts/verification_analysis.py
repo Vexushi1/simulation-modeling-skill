@@ -6,7 +6,7 @@ from pathlib import Path
 
 from runtime_common import canonical_digest
 from validate_verification import validate_verification
-from verification_common import Budget, finite, read_run, reference_errors, same_protocol, terminal
+from verification_common import Budget, finite, read_run, reference_errors, same_protocol, terminal, verified_reference_metadata
 
 
 def binding_key(binding, root):
@@ -98,9 +98,26 @@ def comparison(analysis, runs, claims):
         # mechanism, not an automatic general symbolic equivalence prover.
         if {_structure_shape(left)['states'], _structure_shape(right)['states']} != {0, 1}:
             raise ValueError('structural comparator outside supported static/first-order mechanism pair')
+        eligibility = []
+        for run, port in zip((left, right), analysis['output_ports']):
+            verified = [r for r in run.get('verified_references', []) if r['output_port'] == port and r['unit'] == analysis['unit']]
+            if len(verified) != 1:
+                raise ValueError('structural comparison needs exact recomputed H1 reference metadata')
+            ref = verified[0]['reference']
+            # Metadata came from the passing exact SHA/runID H1 ledger, and
+            # its reviewed selectors must still match this current member.
+            analytic = reference_errors(run, [r['reference'] for r in run['verified_references']])
+            current = verified_reference_metadata(run, [ref])[0]
+            if not all(c['passed'] for c in analytic) or canonical_digest(current) != canonical_digest(verified[0]):
+                raise ValueError('structural H1 reference/current approved origin differs')
+            eligibility.append(current)
+        if {e['family'] for e in eligibility} != {'static_affine', 'first_order_constant'} or not all(e['structural_eligible'] for e in eligibility):
+            raise ValueError('structural challenge requires finite nonzero approved initial derivative; constant/equilibrium dynamic H1 is insufficient')
         if left['protocol']['scenario']['requirement_ids'] != right['protocol']['scenario']['requirement_ids']:
             raise ValueError('structural comparison scenario requirement basis differs')
-        detail = {'material_review': review, 'left_shape': _structure_shape(left), 'right_shape': _structure_shape(right)}
+        detail = {'material_review': review, 'left_shape': _structure_shape(left), 'right_shape': _structure_shape(right),
+                  'reference_eligibility': eligibility,
+                  'eligibility_scope': 'reviewed finite non-equilibrium challenge; not general structural equivalence proof'}
     if claims[analysis['claim_id']]['domain']['kind'] != 'terminal_pair':
         raise ValueError('terminal comparison cannot verify a different domain claim')
     ta, va = terminal(left, analysis['output_ports'][0], analysis['unit'])
@@ -185,6 +202,7 @@ def analyze(path, *, project_root=None, kind=None, budget=None):
                 if plan['kind'] == 'H1':
                     checks = reference_errors(run, member['references'])
                     passed = all(c['passed'] for c in checks)
+                    verified_refs = verified_reference_metadata(run, member['references']) if passed else []
                 else:
                     match = [r for r in covered if r['status'] == 'completed'
                              and binding_key(r['receipt'], root) == binding_key(run['receipt'], root)
@@ -192,9 +210,12 @@ def analyze(path, *, project_root=None, kind=None, budget=None):
                     if len(match) != 1:
                         raise ValueError('H1 does not exactly cover this E receipt SHA/runID')
                     checks, passed = [], True
+                    verified_refs = match[0].get('verified_references', [])
+                run['verified_references'] = verified_refs
                 runs[member['id']] = run
                 result['ledger'].append({'id': member['id'], 'status': 'completed', 'receipt': run['receipt'],
-                                         'run_id': run['run_id'], 'passed': passed, 'checks': checks})
+                                         'run_id': run['run_id'], 'passed': passed, 'checks': checks,
+                                         'verified_references': verified_refs})
                 if binding_key(member['receipt'], root) == binding_key(plan['primary'], root):
                     pr = run['protocol_report']
                     result['primary_protocol'] = {'path': pr['contract_path'], 'sha256': pr['contract_sha256']}

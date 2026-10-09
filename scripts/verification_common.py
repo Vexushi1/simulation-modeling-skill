@@ -22,7 +22,11 @@ def finite(value):
 
 
 class Budget:
-    """Charge each preflight binding read, including nested qualifications/analyses."""
+    """On-disk byte charges and cooperative completion time checks.
+
+    A blocking E/SciPy call is checked after return, not interrupted. File size
+    does not bound decompressed allocation or process peak memory.
+    """
     def __init__(self):
         self.limits = load_contract(POLICY)['limits']
         self.started = time.monotonic()
@@ -299,6 +303,36 @@ def reference_errors(run, refs):
                        'max_abs_error': max(errors), 'max_scaled_error': max(scaled),
                        'terminal_error': errors[-1], 'passed': max(scaled) <= 1})
     return checks
+
+
+def verified_reference_metadata(run, refs):
+    """Carry reviewed reference selectors and current approved numeric origins.
+
+    Called only after the complete H1 error check; H2 recomputes this metadata
+    against its exact covered current E member, never guesses parameter IDs.
+    """
+    metadata = []
+    for ref in refs:
+        item = {'reference': copy.deepcopy(ref), 'family': ref['family'],
+                'output_port': ref['output_port'], 'unit': ref['unit'],
+                'approved_origins': None, 'initial_derivative': None,
+                'structural_eligible': ref['family'] == 'static_affine'}
+        if ref['family'] == 'first_order_constant':
+            ps = parameters(run)
+            a, b = ps[ref['a_parameter']], ps[ref['b_parameter']]
+            inp = next(p for p in run['spec']['inputs'] if p['variable_id'] == ref['input_id'])
+            x0 = initial_value(run, ref['initial_selector'])
+            derivative = b['value'] * constant_input(run, ref['input_id']) - a['value'] * x0
+            # H1 constant/equilibrium trajectories remain valid; only the
+            # conservative first structural challenge requires nonzero slope.
+            item.update(approved_origins={'a': copy.deepcopy(a), 'b': copy.deepcopy(b),
+                'input': copy.deepcopy(inp), 'initial': {'state_id': ref['state_id'],
+                    'selector': copy.deepcopy(ref['initial_selector']), 'value': x0,
+                    'condition': copy.deepcopy(run['model']['body']['initial_conditions'])}},
+                initial_derivative=derivative if finite(derivative) else None,
+                structural_eligible=finite(derivative) and derivative != 0)
+        metadata.append(item)
+    return metadata
 
 
 def same_protocol(left, right, method, changes):

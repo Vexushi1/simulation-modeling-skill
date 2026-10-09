@@ -1,7 +1,7 @@
 """Finite H inspection and historical recomputation, without native permission."""
 from pathlib import Path
 
-from runtime_common import contained_path, load_document
+from runtime_common import load_document
 from validate_verification import validate_verification
 from validate_verification_receipt import validate_verification_receipt
 from verification_state import primary_errors
@@ -10,11 +10,18 @@ METHODS = {'sensitivity_analysis': 'scenario_response', 'robustness_analysis': '
            'model_comparison': 'structural_final_comparison', 'solver_comparison': 'solver_final_comparison'}
 
 
-def verification_route(result, *, resources, state_result, state_path, plan_path, receipt_path, requested):
+def verification_route(result, *, resources, state_result, state_path, plan_path, receipt_path, requested,
+                       project_root=None):
     intent = result['intent']
     kind = 'H1' if intent == 'numerical_verification' else 'H2'
     anchor = 'numerical_verification' if kind == 'H1' else 'model_verification'
-    root = Path(state_result['project_root']) if state_result else None
+    state_root = Path(state_result['project_root']).resolve() if state_result else None
+    explicit_root = Path(project_root).resolve() if project_root is not None else None
+    if state_root is not None and explicit_root is not None and state_root != explicit_root:
+        result.update(status='blocked', missing_gates=['H_project_root_matches'],
+                      errors=['explicit H project root differs from state root'])
+        return result
+    root = state_root or explicit_root
     result.update(execution_scope='historical_verification', activated_modules=[intent],
                   activated_resources=list(resources), activated_packs=['packs/evidence/convergence.md'] if kind == 'H1'
                   else ['packs/evidence/' + {'sensitivity_analysis': 'sensitivity', 'robustness_analysis': 'sensitivity',
@@ -44,13 +51,15 @@ def verification_route(result, *, resources, state_result, state_path, plan_path
         if invalid:
             result.update(status='blocked', missing_gates=['H_evidence_current'], errors=invalid)
             return result
+        # Returned only after the consumer checks captured root, exact inputs,
+        # source identities and numeric recomputation. Preserve that binding
+        # base for nested project-relative plans.
+        root = Path(report['project_root']).resolve()
         plan_path = Path(report['plan_path'])
     if plan_path is None:
         result.update(status='inspected', missing_gates=['H_plan_supplied'],
                       next_step='Prepare a source-bound H draft; numerical or model claims need recomputed evidence.')
         return result
-    if root is not None:
-        plan_path = contained_path(root, str(Path(plan_path).resolve()))
     report = validate_verification(plan_path, project_root=root, kind=kind)
     result['verification_plan_validation'] = report
     if not report['valid']:

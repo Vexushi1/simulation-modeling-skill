@@ -11,6 +11,11 @@ limits:
   total_read_bytes: 67108864
   wall_seconds: 120
 native_execution: false
+resource_guarantees:
+  wall_seconds: cooperative_completion_gate_after_blocking_calls_return; not_interruptible_deadline
+  byte_limits: on_disk_file_sizes_and_bound_data_read_charges; not_decompressed_or_peak_memory_guarantee
+  strict_interruptible_deadline: unsupported_required_check
+  decompressed_memory_guarantee: unsupported_required_check
 source_files:
 - adapters/mathworks/experiment_methods.md
 - adapters/mathworks/parameter_study_methods.md
