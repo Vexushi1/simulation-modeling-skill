@@ -2061,6 +2061,20 @@ source/reference/criteria/上游/输出变更传递 stale，采用现行 whole-P
 
 ---
 
+## 12.15 独立源码复核修订：有效结构挑战与项目上下文
+
+独立审查在 candidate 80865b3 上用公开标注的纯语义 fixture 确认两项缺陷：y=c=7 与 x'=0、x0=7、y=x 的恒常表示被仅有的 0/1 Integrator 检查误授 MODEL_VERIFIED；无 state 的合法嵌套 H receipt 虽已通过消费，随后 plan 重验却丢失真实 project_root。这不是 native MATLAB 故障，修订先于消费者修复。
+
+首版 structural_final_comparison 必须使用逐 receipt 已重算通过的 H1 typed reference 与当前批准参数/输入/初值，不能只按状态块数量选 family。动态候选须在本次冻结的常输入、初值和时间域形成有信息的非恒常挑战：由批准的一阶关系计算初始导数 b*u-a*x0，要求其为有限且非零；零向量场、恒常/平衡轨迹和冗余常量状态在首版不构成合格结构挑战。它们仍可通过正确的 H1 解析核验；H2 的 required 结构比较保持 blocked，不自动 NA、不自动更改输入/初值或接受静态模型。该规则是有限方法的保守适用边界，不是一般结构等价证明；不得用观测值是否不同来判结构是否不同。需新的非平衡挑战时另行审查其物理条件并走现有 C/D/E 审批及冻结链。报告保留来源审查、有效 family/eligibility 及此限制。
+
+H 只读 routing 支持无 state 的项目上下文：receipt consumer 在全部 SHA/source/root 校验后返回其已验证 project_root，route 后续 plan 检查须复用该 root。仅 plan 的嵌套目录调用可显式提供 verification_project_root（CLI --verification-project-root）；已有 state root、显式 root、receipt captured root 若不一致必须阻断，不能重基相对路径或借上下文切换绕过 binding。无 state 的合法检查不新增 environment/model approval/state 写入要求。
+
+独立审查另记录一项未做 native 压力复现的资源风险：120 秒检查为协作式完成准入阈值，单次阻塞 E/SciPy 调用不能被当前进程内检查中断；16/64 MiB 是文件在磁盘上的大小/读取预算，不是解压后内存保证。源码、合同和模块必须明确这些边界，超时返回后仍阻断完成，不能声称硬 deadline 或峰值内存已验证。要求严格可中断期限或解压内存保证的任务，在首版作为 unsupported required resource check 阻断；不以多进程/压力大数组补虚假保证。独立验证使用小 fixture 证明源预算/超时 gate，真实任务只消费受控来源并维持串行两核/单数值线程。
+
+修复出口包括：恒常/平衡动态 H1 仍合法但结构 H2 拒绝、真实非平衡 family 可比较、nested receipt 和显式 root 的 plan-only routes、state/explicit/captured root mismatch 拒绝；独立作者重跑其原始反例并记录 exact 新 head。源闭包、最终全量、native、CI、merge/main 回读按 §12.14 不变。
+
+---
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
