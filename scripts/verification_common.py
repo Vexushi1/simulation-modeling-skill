@@ -75,39 +75,43 @@ class Budget:
         return {'read_bytes': self.bytes, 'actual_E_runs': len(self.run_ids)}
 
 
-def preflight_e(receipt_path, root, budget):
+def preflight_e(receipt_path, root, budget, *, path_bindings=None):
     """Bound files before the existing E consumer can open native/JSON/CSV data.
 
     Walk exact binding records and evidence-directory artefacts, never MATLAB
-    installation inventory strings. Qualification bindings are included.
+    installation inventory strings. Qualification bindings are included, but
+    their numerical arrays are not selected H outputs. G supplies its typed
+    owned-directory bindings explicitly; other path bindings use project root.
     """
-    pending = [Path(receipt_path).resolve()]
+    pending = [(Path(receipt_path).resolve(), None)]
     seen = set()
     while pending:
-        path = pending.pop()
+        path, expected_sha = pending.pop()
         if path in seen:
+            if expected_sha is not None and budget.identities[path] != expected_sha:
+                raise ValueError('H file SHA differs: ' + str(path))
             continue
         seen.add(path)
         budget.charge(path)
+        if expected_sha is not None and budget.identities[path] != expected_sha:
+            raise ValueError('H file SHA differs: ' + str(path))
         if path.suffix.lower() not in {'.json', '.yaml', '.yml'}:
             continue
         value = load_document(path)
         if path.name.endswith('receipt.json') or path.name.endswith('profile.json'):
-            pending.extend(item.resolve() for item in path.parent.iterdir() if item.is_file())
+            pending.extend((item.resolve(), None) for item in path.parent.iterdir() if item.is_file())
 
         def walk(item):
             if isinstance(item, dict):
-                if isinstance(item.get('time'), list) and isinstance(item.get('values'), list) and len(item['time']) > budget.limits['samples_per_signal']:
-                    raise ValueError('H per-signal sample budget exceeded before numerical consumption')
                 if 'sha256' in item and ('path' in item or 'file' in item):
                     name = item.get('path', item.get('file'))
                     if isinstance(name, str):
-                        candidate = Path(name)
+                        candidate = (path_bindings or {}).get((name, item['sha256']), Path(name))
                         if not candidate.is_absolute():
                             candidate = (path.parent / name) if 'file' in item else (root / name)
                         if not candidate.is_file():
                             raise ValueError('bound historical input is missing: ' + str(candidate))
-                        pending.append(candidate.resolve())
+                        pending.append((candidate.resolve(), item['sha256']))
                 for child in item.values():
                     walk(child)
             elif isinstance(item, list):
@@ -116,10 +120,103 @@ def preflight_e(receipt_path, root, budget):
         walk(value)
 
 
+def bounded_outputs(outputs, budget):
+    """Shape/sample guard for explicitly selected actual E outputs only."""
+    from validate_simulation_profile import record_array
+    outputs = record_array(outputs, 'selected E outputs')
+    if not 1 <= len(outputs) <= budget.limits['signals']:
+        raise ValueError('H signal count exceeds scope before numerical consumption')
+    for item in outputs:
+        times, values = item.get('time'), item.get('values')
+        if not isinstance(times, list) or not isinstance(values, list) or len(times) != len(values):
+            raise ValueError('H selected E time/values shape differs before numerical consumption')
+        if not 2 <= len(times) <= budget.limits['samples_per_signal']:
+            raise ValueError('H per-signal sample budget exceeded before numerical consumption')
+        if not all(finite(x) for x in times + values):
+            raise ValueError('H selected E requires finite flat real time/values before numerical consumption')
+    return outputs
+
+
+def preflight_selected_e(receipt_path, root, budget):
+    """Resolve primary input/raw/data roles from the bound actual E receipt.
+
+    This is an early H budget gate, not an alternative E admissibility check.
+    The existing E consumer still verifies qualifications, MAT classes/shapes,
+    raw/JSON/CSV agreement, frozen protocol and historical execution bindings.
+    """
+    from validate_simulation_profile import contract, record_array
+    path = Path(receipt_path).resolve()
+    receipt = budget.read(path)
+    names = contract()['evidence']
+    if path.name != names['run_receipt']:
+        raise ValueError('H selected E requires the actual run receipt role')
+    def artifact(role):
+        binding = receipt['artifacts'][role]
+        if not isinstance(binding, dict) or set(binding) != {'file', 'sha256'}:
+            raise ValueError('H selected E artifact role binding differs')
+        target = budget.bind({'path': binding['file'], 'sha256': binding['sha256']}, path.parent)
+        if role in {'input', 'raw'} and target != path.parent / names[role]:
+            raise ValueError('H selected E input/raw role differs from E contract')
+        return target
+    request = budget.read(artifact('input'))
+    raw = budget.read(artifact('raw'))
+    cases = record_array(raw.get('cases'), 'selected E raw.cases')
+    requested = record_array(request.get('cases'), 'selected E input.cases')
+    if (request.get('mode') != 'primary' or len(cases) != 1 or len(requested) != 1
+            or cases[0].get('case_id') != 'primary' or requested[0].get('case_id') != 'primary'
+            or receipt['run_id'] != request.get('run_id') or receipt['run_id'] != raw.get('run_id')):
+        raise ValueError('H selected E primary case/run identity differs')
+    bounded_outputs(cases[0].get('outputs'), budget)
+    data_path = artifact('data')
+    if data_path != contained_path(path.parent, cases[0]['data_file']):
+        raise ValueError('H selected E primary data role differs from actual raw case')
+    data = budget.read(data_path)
+    if data.get('run_id') != receipt['run_id']:
+        raise ValueError('H selected E primary data run identity differs')
+    bounded_outputs(data.get('outputs'), budget)
+
+
+def preflight_campaign(path, root, budget, selected_bindings):
+    """Guard every selected G member before G can invoke its E consumers."""
+    from run_experiment import LEDGER, RECEIPT
+    path = Path(path).resolve()
+    receipt = budget.read(path)
+    if path.name != RECEIPT:
+        raise ValueError('H2 requires the actual G campaign receipt role')
+    for name, item in receipt['artifacts'].items():
+        budget.bind({'path': name, 'sha256': item['sha256']}, path.parent)
+    ledger = budget.read(contained_path(path.parent, LEDGER))
+    if LEDGER not in receipt['artifacts'] or ledger['rows'] != receipt['rows']:
+        raise ValueError('H2 campaign ledger/receipt role binding differs')
+    rows = ledger['rows']
+    if not isinstance(rows, list) or not 1 <= len(rows) <= 16:
+        raise ValueError('H2 needs exact ordered H1 coverage for every actual G draw, including repeats')
+    actual = []
+    path_bindings = {}
+    for row in rows:
+        binding = row.get('receipt')
+        if row.get('status') != 'completed' or not isinstance(binding, dict):
+            raise ValueError('H2 needs exact ordered H1 coverage for every actual G draw, including repeats')
+        member_path = budget.bind(binding, path.parent)
+        actual.append((str(member_path), binding['sha256']))
+        path_bindings[(binding['path'], binding['sha256'])] = member_path
+    expected = [(str(contained_path(root, b['path'])), b['sha256']) for b in selected_bindings]
+    if actual != expected:
+        raise ValueError('H2 needs exact ordered H1 coverage for every actual G draw, including repeats')
+    sampling = receipt['sampling_receipt']
+    sampling_path = budget.bind(sampling, path.parent)
+    path_bindings[(sampling['path'], sampling['sha256'])] = sampling_path
+    for member_path, _ in actual:
+        preflight_selected_e(member_path, root, budget)
+        preflight_e(member_path, root, budget)
+    preflight_e(path, root, budget, path_bindings=path_bindings)
+
+
 def read_run(binding, root, budget):
     from validate_simulation_receipt import validate_simulation_receipt
     from validate_simulation_protocol import validate_simulation_protocol
     path = budget.bind(binding, root)
+    preflight_selected_e(path, root, budget)
     preflight_e(path, root, budget)
     checked = validate_simulation_receipt(path, project_root=root)
     budget.check()
@@ -131,14 +228,7 @@ def read_run(binding, root, budget):
     request = budget.read(path.parent / 'simulation-inputs.json')
     raw = budget.read(checked['raw_path'])
     data = budget.read(checked['data_path'])
-    outputs = data['outputs']
-    if isinstance(outputs, dict):
-        outputs = [outputs]
-    if not 1 <= len(outputs) <= budget.limits['signals']:
-        raise ValueError('H signal count exceeds scope')
-    for item in outputs:
-        if not 2 <= len(item['time']) <= budget.limits['samples_per_signal']:
-            raise ValueError('H per-signal sample budget exceeded')
+    outputs = bounded_outputs(data['outputs'], budget)
     receipt = budget.read(path)
     run_id = receipt['run_id']
     budget.run_ids.add(run_id)

@@ -13,6 +13,51 @@ from validate_verification_receipt import validate_verification_receipt
 from verification_common import analytic_values, Budget
 
 
+def selected_e_fixture(directory, *, qualification=True):
+    """Typed JSON boundary fixture; never represents native qualification."""
+    directory.mkdir(parents=True, exist_ok=True)
+    run_id = 'owner-' + directory.name
+    output = {'port': 1, 'unit': '1', 'time': list(range(5)), 'values': [1.0] * 5}
+    request = {'run_id': run_id, 'mode': 'primary', 'cases': [{'case_id': 'primary'}], 'bindings': {}}
+    qualified_raw = None
+    if qualification:
+        folder = directory.parent / ('qualification-' + directory.name)
+        folder.mkdir()
+        qualified_raw = folder / 'raw-simulation.json'
+        large = {'port': 1, 'time': list(range(3645)), 'values': [1.0] * 3645}
+        write_json(qualified_raw, {'cases': [{'case_id': 'early_stop', 'outputs': [large]},
+            {'case_id': 'multiple_outputs', 'outputs': [output] * 3}]})
+        profile = folder / 'simulation-profile.json'
+        write_json(profile, {'artifacts': {'raw': {'file': qualified_raw.name, 'sha256': sha256_file(qualified_raw)}}})
+        request['bindings']['simulation_profile'] = binding(profile)
+    write_json(directory / 'simulation-inputs.json', request)
+    write_json(directory / 'primary-outputs.json', {'run_id': run_id, 'outputs': [output]})
+    write_json(directory / 'raw-simulation.json', {'run_id': run_id,
+        'cases': [{'case_id': 'primary', 'data_file': 'primary-outputs.json', 'outputs': [output]}]})
+    receipt = directory / 'simulation-receipt.json'
+    refresh_e_fixture(receipt, run_id)
+    return receipt, qualified_raw
+
+
+def refresh_e_fixture(receipt, run_id=None):
+    old = load_document(receipt) if receipt.exists() else {'run_id': run_id}
+    old['artifacts'] = {role: {'file': name, 'sha256': sha256_file(receipt.parent / name)}
+        for role, name in [('input', 'simulation-inputs.json'), ('raw', 'raw-simulation.json'), ('data', 'primary-outputs.json')]}
+    write_json(receipt, old)
+
+
+def campaign_fixture(directory, rows):
+    from run_experiment import artifact_manifest, LEDGER, RECEIPT
+    write_json(directory / LEDGER, {'rows': rows})
+    sample = directory / 'sampling' / 'sample-receipt.json'
+    sample.parent.mkdir(exist_ok=True)
+    write_json(sample, {'notice': 'owner sampling binding boundary only'})
+    path = directory / RECEIPT
+    write_json(path, {'rows': rows, 'sampling_receipt': {'path': 'sampling/' + sample.name, 'sha256': sha256_file(sample)},
+                     'artifacts': artifact_manifest(directory)})
+    return path
+
+
 def h2_fixture(root, monkeypatch):
     import verification_analysis
     h1_path, h1 = h1_plan(root)
@@ -184,19 +229,18 @@ def test_finite_campaign_requires_ordered_receipts_complete_domain_and_total_bud
     from verification_analysis import campaign_response
     monkeypatch.setattr(consumer, 'validate_experiment_receipt', lambda *a, **k:
         {'valid': True, 'errors': [], 'campaign_complete': True, 'method': 'monte_carlo_catalog'})
-    campaign = tmp_path / 'campaign.json'
-    write_json(campaign, {'notice': 'owner mocked G history only'})
+    directory = tmp_path / 'campaign'
+    directory.mkdir()
     run, _ = run_and_ref(tmp_path / 'upstream')
     runs = {}
     rows = []
     for i in range(2):
         r = copy.deepcopy(run)
-        e = tmp_path / f'e{i}.json'
-        write_json(e, {'owner': i})
+        e, _ = selected_e_fixture(directory / f'draw-{i+1:03d}')
         r.update(receipt=binding(e), run_id=f'owner-{i}', outputs=[{'port': 1, 'unit': '1', 'time': [0, 1], 'values': [.25, 1.0]}])
         runs[f'r{i}'] = r
-        rows.append({'receipt': binding(e)})
-    write_json(tmp_path / 'campaign-ledger.json', {'rows': rows})
+        rows.append({'status': 'completed', 'receipt': {'path': e.relative_to(directory).as_posix(), 'sha256': sha256_file(e)}})
+    campaign = campaign_fixture(directory, rows)
     analysis = numerical_analysis('scenario_response', ['r0', 'r1'])
     analysis.update(campaign=binding(campaign), output_ports=[1], threshold=2)
     claim = {'claim': {'domain': {'kind': 'actual_draws'}}}
@@ -218,7 +262,8 @@ def test_finite_campaign_requires_ordered_receipts_complete_domain_and_total_bud
     budget.scenario_ids.update((str(i), str(i)) for i in range(16))
     with pytest.raises(ValueError, match='total finite scenario budget'):
         campaign_response(analysis, runs, claim, tmp_path, budget)
-    write_json(tmp_path / 'campaign-ledger.json', {'rows': rows[::-1]})
+    campaign = campaign_fixture(directory, rows[::-1])
+    analysis['campaign'] = binding(campaign)
     with pytest.raises(ValueError, match='exact ordered'):
         campaign_response(analysis, runs, claim, tmp_path, Budget())
 
@@ -390,6 +435,7 @@ def test_cooperative_timeout_blocks_after_E_consumer_returns_and_small_read_budg
     write_json(receipt, {})
     budget, returned = Budget(), []
     monkeypatch.setattr(verification_common, 'preflight_e', lambda *a: None)
+    monkeypatch.setattr(verification_common, 'preflight_selected_e', lambda *a: None)
     def blocking_boundary(*a, **k):
         budget.started -= 121  # Small clock fixture, no sleeping or native call.
         returned.append(True)
@@ -405,3 +451,187 @@ def test_cooperative_timeout_blocks_after_E_consumer_returns_and_small_read_budg
     budget.charge(file)
     with pytest.raises(ValueError, match='total bound-data read budget'):
         budget.charge(file)
+
+
+def test_small_selected_E_preserves_large_and_three_output_qualification_before_consumer(tmp_path, monkeypatch):
+    import verification_common as common
+    import validate_simulation_receipt as consumer
+    receipt, qualified_raw = selected_e_fixture(tmp_path / 'actual')
+    budget, entered = Budget(), []
+    def full_e_boundary(*args, **kwargs):
+        # E still receives its complete qualification binding and actual input.
+        assert qualified_raw.resolve() in budget.identities
+        assert budget.identities[qualified_raw.resolve()] == sha256_file(qualified_raw)
+        entered.append(True)
+        raise StopIteration('entered existing E consumer')
+    monkeypatch.setattr(consumer, 'validate_simulation_receipt', full_e_boundary)
+    with pytest.raises(StopIteration, match='entered existing E consumer'):
+        common.read_run(binding(receipt), tmp_path, budget)
+    assert entered == [True]
+    assert budget.finish()['read_bytes'] >= qualified_raw.stat().st_size
+
+
+@pytest.mark.parametrize('role', ['raw', 'data'])
+@pytest.mark.parametrize('defect,message', [('samples', 'sample budget'), ('signals', 'signal count'),
+    ('length', 'shape differs'), ('nested_time', 'finite flat real'), ('nested_values', 'finite flat real'),
+    ('boolean', 'finite flat real')])
+def test_selected_E_raw_and_primary_shapes_block_before_E_numerical_consumer(tmp_path, monkeypatch, role, defect, message):
+    import verification_common as common
+    import validate_simulation_receipt as consumer
+    receipt, _ = selected_e_fixture(tmp_path / 'actual')
+    file = receipt.parent / ('raw-simulation.json' if role == 'raw' else 'primary-outputs.json')
+    doc = load_document(file)
+    outputs = doc['cases'][0]['outputs'] if role == 'raw' else doc['outputs']
+    signal = outputs[0]
+    if defect == 'samples':
+        signal.update(time=list(range(302)), values=[1.0] * 302)
+    elif defect == 'signals':
+        outputs.extend([copy.deepcopy(signal), copy.deepcopy(signal)])
+    elif defect == 'length':
+        signal['values'].pop()
+    elif defect == 'nested_time':
+        signal['time'][0] = [0, 1, 2]
+    elif defect == 'nested_values':
+        signal['values'][0] = [1.0, 2.0]
+    else:
+        signal['values'][0] = True
+    write_json(file, doc)
+    refresh_e_fixture(receipt)
+    entered = []
+    monkeypatch.setattr(consumer, 'validate_simulation_receipt', lambda *a, **k: entered.append(True))
+    with pytest.raises(ValueError, match=message):
+        common.read_run(binding(receipt), tmp_path, Budget())
+    assert not entered
+
+
+@pytest.mark.parametrize('defect', ['case_identity', 'data_identity', 'data_role', 'input_role', 'artifact_SHA'])
+def test_selected_E_exact_role_and_identity_block_before_consumer(tmp_path, monkeypatch, defect):
+    import verification_common as common
+    import validate_simulation_receipt as consumer
+    receipt, _ = selected_e_fixture(tmp_path / 'actual')
+    if defect in {'case_identity', 'data_role'}:
+        file = receipt.parent / 'raw-simulation.json'
+        doc = load_document(file)
+        doc['cases'][0]['case_id' if defect == 'case_identity' else 'data_file'] = 'qualification'
+        write_json(file, doc)
+        refresh_e_fixture(receipt)
+    elif defect == 'data_identity':
+        file = receipt.parent / 'primary-outputs.json'
+        doc = load_document(file)
+        doc['run_id'] = 'different-actual-run'
+        write_json(file, doc)
+        refresh_e_fixture(receipt)
+    else:
+        doc = load_document(receipt)
+        if defect == 'input_role':
+            doc['artifacts']['input'] = doc['artifacts']['data']
+        else:
+            doc['artifacts']['data']['sha256'] = '0' * 64
+        write_json(receipt, doc)
+    entered = []
+    monkeypatch.setattr(consumer, 'validate_simulation_receipt', lambda *a, **k: entered.append(True))
+    with pytest.raises(ValueError):
+        common.read_run(binding(receipt), tmp_path, Budget())
+    assert not entered
+
+
+@pytest.mark.parametrize('defect,message', [('missing', 'missing'), ('tamper', 'SHA differs'),
+    ('file_bytes', 'file byte limit'), ('total_bytes', 'total bound-data read budget')])
+def test_qualification_bound_files_keep_SHA_presence_and_byte_guards(tmp_path, monkeypatch, defect, message):
+    import verification_common as common
+    import validate_simulation_receipt as consumer
+    receipt, qualified_raw = selected_e_fixture(tmp_path / 'actual')
+    budget, entered = Budget(), []
+    if defect == 'missing':
+        qualified_raw.unlink()
+    elif defect == 'tamper':
+        qualified_raw.write_text('{}', encoding='utf-8')
+    elif defect == 'file_bytes':
+        budget.limits['input_file_bytes'] = qualified_raw.stat().st_size - 1
+    else:
+        budget.limits['total_read_bytes'] = qualified_raw.stat().st_size - 1
+    monkeypatch.setattr(consumer, 'validate_simulation_receipt', lambda *a, **k: entered.append(True))
+    with pytest.raises((ValueError, OSError), match=message):
+        common.read_run(binding(receipt), tmp_path, budget)
+    assert not entered
+
+
+def test_qualification_change_after_consumer_is_caught_by_shared_budget(tmp_path, monkeypatch):
+    import verification_common as common
+    import validate_simulation_receipt as consumer
+    receipt, qualified_raw = selected_e_fixture(tmp_path / 'actual')
+    budget = Budget()
+    def changed(*a, **k):
+        qualified_raw.write_text('{}', encoding='utf-8')
+        raise StopIteration('E boundary returned')
+    monkeypatch.setattr(consumer, 'validate_simulation_receipt', changed)
+    with pytest.raises(StopIteration):
+        common.read_run(binding(receipt), tmp_path, budget)
+    with pytest.raises(ValueError, match='bound input changed'):
+        budget.finish()
+
+
+@pytest.mark.parametrize('defect', [None, 'oversized', 'oversized_raw', 'uncovered'])
+def test_G_nested_E_preflight_precedes_campaign_consumer_and_shares_budget(tmp_path, monkeypatch, defect):
+    from verification_analysis import campaign_response
+    import validate_experiment_receipt as consumer
+    import validate_simulation_receipt as e_consumer
+    directory = tmp_path / 'campaign'
+    directory.mkdir()
+    receipt, qualified_raw = selected_e_fixture(directory / 'draw-001')
+    if defect in {'oversized', 'oversized_raw'}:
+        file = receipt.parent / ('primary-outputs.json' if defect == 'oversized' else 'raw-simulation.json')
+        doc = load_document(file)
+        outputs = doc['outputs'] if defect == 'oversized' else doc['cases'][0]['outputs']
+        outputs[0].update(time=list(range(302)), values=[1.0] * 302)
+        write_json(file, doc)
+        refresh_e_fixture(receipt)
+    rows = [{'status': 'completed', 'receipt': {'path': 'draw-001/' + receipt.name, 'sha256': sha256_file(receipt)}}]
+    campaign = campaign_fixture(directory, rows)
+    run, _ = run_and_ref(tmp_path / 'upstream')
+    run.update(receipt=binding(receipt), run_id='owner-actual', outputs=[{'port': 1, 'unit': '1', 'time': [0, 1], 'values': [1., 1.]}])
+    if defect == 'uncovered':
+        run['receipt']['sha256'] = '0' * 64
+    analysis = numerical_analysis('scenario_response', ['r0'])
+    analysis.update(campaign=binding(campaign), output_ports=[1], threshold=2)
+    budget, entered, e_entered = Budget(), [], []
+    budget.run_ids.add('earlier-nested-H1')
+    def nested_E_boundary(*a, **k):
+        # G's real consumer invokes E/SciPy; all selected actual JSON guards
+        # must already have run when this boundary is entered.
+        assert qualified_raw.resolve() in budget.identities
+        assert (receipt.parent / 'primary-outputs.json').resolve() in budget.identities
+        entered.append(True)
+        e_consumer.validate_simulation_receipt(receipt, project_root=tmp_path)
+        return {'valid': True, 'errors': [], 'campaign_complete': True, 'method': 'scenario_matrix'}
+    monkeypatch.setattr(e_consumer, 'validate_simulation_receipt', lambda *a, **k: e_entered.append(True))
+    monkeypatch.setattr(consumer, 'validate_experiment_receipt', nested_E_boundary)
+    if defect:
+        with pytest.raises(ValueError, match='sample budget|exact ordered'):
+            campaign_response(analysis, {'r0': run}, {'claim': {'domain': {'kind': 'actual_draws'}}}, tmp_path, budget)
+        assert not entered
+        assert not e_entered
+    else:
+        assert campaign_response(analysis, {'r0': run}, {'claim': {'domain': {'kind': 'actual_draws'}}}, tmp_path, budget)['passed']
+        assert entered == [True]
+        assert e_entered == [True]
+        assert budget.finish()['actual_E_runs'] == 1
+
+
+@pytest.mark.parametrize('order', ['bad_first', 'good_first', 'late_discovered'])
+def test_conflicting_bound_SHA_never_evades_seen_file_checks(tmp_path, order):
+    from verification_common import preflight_e
+    file = tmp_path / 'source.txt'
+    file.write_text('small reviewed source', encoding='utf-8')
+    good = {'file': file.name, 'sha256': sha256_file(file)}
+    bad = {'file': file.name, 'sha256': '0' * 64}
+    if order == 'late_discovered':
+        nested = tmp_path / 'nested.json'
+        write_json(nested, {'later_reference': bad})
+        doc = {'nested': {'file': nested.name, 'sha256': sha256_file(nested)}, 'direct': good}
+    else:
+        doc = {'first': good, 'second': bad} if order == 'bad_first' else {'first': bad, 'second': good}
+    path = tmp_path / 'binding-metadata.json'
+    write_json(path, doc)
+    with pytest.raises(ValueError, match='SHA differs'):
+        preflight_e(path, tmp_path, Budget())

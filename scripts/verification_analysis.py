@@ -133,19 +133,13 @@ def campaign_response(analysis, runs, claims, root, budget):
     if analysis['campaign'] is None or len(analysis['run_ids']) > 16 or len(analysis['output_ports']) != 1:
         raise ValueError('finite response requires a complete G campaign and one observable')
     path = budget.bind(analysis['campaign'], root)
-    from verification_common import preflight_e
-    preflight_e(path, root, budget)
+    from verification_common import preflight_campaign
+    selected = [runs[r] for r in analysis['run_ids']]
+    preflight_campaign(path, root, budget, [run['receipt'] for run in selected])
     report = validate_experiment_receipt(path, project_root=root)
     budget.check()
     if not report['valid'] or not report['campaign_complete']:
         raise ValueError('H2 requires complete current G history: ' + '; '.join(report['errors']))
-    ledger = budget.read(path.parent / 'campaign-ledger.json')
-    rows = ledger['rows'] if isinstance(ledger, dict) else ledger
-    selected = [runs[r] for r in analysis['run_ids']]
-    actual = [binding_key({'path': str(path.parent / row['receipt']['path']), 'sha256': row['receipt']['sha256']}, root) for row in rows]
-    expected = [binding_key(run['receipt'], root) for run in selected]
-    if actual != expected or len(rows) > 16:
-        raise ValueError('H2 needs exact ordered H1 coverage for every actual G draw, including repeats')
     # Independent model/protocol identities may share one physical scenario.
     budget.scenario_ids.update(canonical_digest({'inputs': _physical_inputs(run),
         'time': [run['spec']['start_time'], run['spec']['stop_time']], 'seed': run['spec']['seed'],
