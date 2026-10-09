@@ -8,7 +8,7 @@ Select exactly the implemented method needed by the task:
 - [Calibration](../packs/task/calibration.md): one bounded scalar Simulink gain.
 - [Optimization](../packs/task/optimization.md): a one/two dimensional explicit normalized-square objective with finite linear inequalities.
 
-These are limited candidate operations. Dynamic/high-order/nonlinear identification, arbitrary model calibration, global/multiobjective/surrogate algorithms and G–K remain deferred. Record an unneeded analysis with its technical reason and claim limits instead of fabricating results.
+These are limited candidate operations. Dynamic/high-order/nonlinear identification, arbitrary model calibration, global/multiobjective/surrogate algorithms general G workflows, advanced H and I–K remain deferred. Record an unneeded analysis with its technical reason and claim limits instead of fabricating results.
 
 ## Prepare and review
 

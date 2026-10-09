@@ -9,6 +9,7 @@ from simulation_state import STAGES as E_STAGES, HISTORICAL_ROLES as E_HISTORICA
 
 from parameter_study_state import STAGES as F_STAGES, HISTORICAL_ROLES as F_HISTORICAL_ROLES, CURRENT_ROLES as F_CURRENT_ROLES
 from experiment_state import STAGES as G_STAGES, HISTORICAL_ROLES as G_HISTORICAL_ROLES, CURRENT_ROLES as G_CURRENT_ROLES
+from verification_state import STAGES as H_STAGES, SCOPES as H_SCOPES, HISTORICAL_ROLES as H_HISTORICAL_ROLES
 
 D_EVIDENCE_ROLES = {"mapping_contract", "parameter_provenance", "implementation_model", "structure_evidence"}
 
@@ -40,14 +41,16 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                                    "implementation": "problem_model_and_implementation_only",
                                    "simulation": "problem_model_implementation_and_simulation_only",
                                    "parameter_study": "problem_model_and_parameter_study_only",
-                                   "experiment": "problem_model_implementation_and_experiment_only"}.get(scope),
+                                   "experiment": "problem_model_implementation_and_experiment_only",
+                                   "numerical_verification": "primary_history_and_H1_only",
+                                   "model_verification": "primary_history_H1_and_H2_bundle"}.get(scope),
               "problem_path": None, "problem_contract_sha256": None,
               "model_path": None, "model_contract_sha256": None,
               "approval_path": None, "approval_sha256": None, "model_approved": False,
               "mapping_path": None, "mapping_contract_sha256": None,
               "environment_path": None, "implementation_environment_path": None,
               "project_root": None}
-    if scope not in ("all", "problem", "model", "implementation", "simulation", "parameter_study", "experiment"):
+    if scope not in {"all", "problem", "model", "implementation", "simulation", "parameter_study", "experiment"} | H_SCOPES:
         return {**result, "valid": False, "errors": [f"unknown validation scope: {scope}"],
                 "stale_artefacts": [], "current_stage": None}
     try:
@@ -113,7 +116,7 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
         bound_problem = None
         problem_report = None
         problem_status = None
-        model_stages = {"MODEL_PROPOSED", "MODEL_CHALLENGED", "MODEL_APPROVED", "IMPLEMENTATION_READY"} | E_STAGES | F_STAGES
+        model_stages = {"MODEL_PROPOSED", "MODEL_CHALLENGED", "MODEL_APPROVED", "IMPLEMENTATION_READY"} | E_STAGES | F_STAGES | G_STAGES | H_STAGES
         if problem:
             from validate_problem_contract import validate_problem_contract
 
@@ -162,7 +165,7 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                 bound_model, project_root=project_root, problem_path=bound_problem,
                 approval_path=bound_approval, require_proposed=stage == "MODEL_PROPOSED",
                 require_challenged=stage == "MODEL_CHALLENGED",
-                require_approved=stage in {"MODEL_APPROVED", "IMPLEMENTATION_READY"} | E_STAGES | F_STAGES)
+                require_approved=stage in {"MODEL_APPROVED", "IMPLEMENTATION_READY"} | E_STAGES | F_STAGES | G_STAGES | H_STAGES)
             result["model_validation"] = model_report
             result["model_contract_sha256"] = model_report["contract_sha256"]
             result["approval_path"] = model_report.get("approval_path")
@@ -203,7 +206,7 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                 "MODEL_APPROVED": {"approved"},
                 "IMPLEMENTATION_READY": {"approved"},
             }
-            required_statuses.update({item: {"approved"} for item in E_STAGES | F_STAGES})
+            required_statuses.update({item: {"approved"} for item in E_STAGES | F_STAGES | G_STAGES | H_STAGES})
             if stage in required_statuses and model_status not in required_statuses[stage]:
                 errors.append(f"{stage} requires the corresponding declared model status")
                 stale.add("model")
@@ -214,14 +217,14 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
         mapping = state.get("mapping")
         bound_mapping = contained_path(project_root, mapping["path"]) if mapping else None
         mapping_report = None
-        if scope in {"all", "implementation", "simulation", "experiment"} and mapping:
+        if scope in {"all", "implementation", "simulation", "experiment"} | H_SCOPES and mapping:
             from validate_domain_mapping import validate_domain_mapping
 
             result["implementation_checked"] = True
             result["mapping_path"] = str(bound_mapping)
             mapping_report = validate_domain_mapping(
                 bound_mapping, project_root=project_root,
-                require_ready=stage == "IMPLEMENTATION_READY" or stage in E_STAGES | G_STAGES)
+                require_ready=stage == "IMPLEMENTATION_READY" or stage in E_STAGES | G_STAGES | H_STAGES)
             result["mapping_validation"] = mapping_report
             result["mapping_contract_sha256"] = mapping_report["contract_sha256"]
             if mapping_report["contract_sha256"] != mapping["sha256"]:
@@ -242,7 +245,7 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                 stale.add("mapping")
             result["implementation_ready"] = bool(
                 mapping_report["implementation_ready"] and result["model_approved"] and "mapping" not in stale)
-            if (stage == "IMPLEMENTATION_READY" or stage in E_STAGES | G_STAGES) and not result["implementation_ready"]:
+            if (stage == "IMPLEMENTATION_READY" or stage in E_STAGES | G_STAGES | H_STAGES) and not result["implementation_ready"]:
                 errors.append("IMPLEMENTATION_READY requires current mapping, parameter and actual structure evidence")
                 stale.add("mapping")
 
@@ -252,6 +255,8 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
         validate_f_bindings(state, project_root, result, errors, stale, scope, parameter_study_profile_path)
         from experiment_state import validate_bindings as validate_g_bindings, validate_artifact as validate_g_artifact
         validate_g_bindings(state, project_root, result, errors, stale, scope, experiment_profile_path)
+        from verification_state import validate_bindings as validate_h_bindings, validate_artifact as validate_h_artifact, enforce_stage as enforce_h_stage
+        validate_h_bindings(state, project_root, result, errors, stale, scope)
         artefacts = state["artefacts"]
         by_id = {item["id"]: item for item in artefacts}
         if len(by_id) != len(artefacts):
@@ -266,12 +271,12 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
         anchors |= ({"model"} if model else set()) | ({"approval"} if approval else set())
         anchors |= ({"mapping"} if mapping else set())
         anchors |= ({"implementation_environment"} if implementation_environment else set())
-        anchors |= {anchor for anchor in ("protocol", "primary_run", "simulation_environment", "study", "parameter_trial", "parameter_environment", "experiment_design", "campaign", "experiment_environment") if state.get(anchor)}
+        anchors |= {anchor for anchor in ("protocol", "primary_run", "simulation_environment", "study", "parameter_trial", "parameter_environment", "experiment_design", "campaign", "experiment_environment", "numerical_verification", "model_verification") if state.get(anchor)}
         known = set(by_id) | anchors
         scoped_roles = {"problem_contract"}
-        if scope in {"model", "implementation", "simulation", "parameter_study", "experiment"}:
+        if scope in {"model", "implementation", "simulation", "parameter_study", "experiment"} | H_SCOPES:
             scoped_roles |= {"model_contract", "model_approval"}
-        if scope in {"implementation", "simulation", "experiment"}:
+        if scope in {"implementation", "simulation", "experiment"} | H_SCOPES:
             scoped_roles |= D_EVIDENCE_ROLES
         if scope == "simulation":
             scoped_roles |= E_HISTORICAL_ROLES
@@ -279,6 +284,10 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
             scoped_roles |= F_HISTORICAL_ROLES
         if scope == "experiment":
             scoped_roles |= G_HISTORICAL_ROLES
+        if scope in H_SCOPES:
+            scoped_roles |= E_HISTORICAL_ROLES | {'numerical_verification'}
+        if scope == 'model_verification':
+            scoped_roles |= {'model_verification'}
         checked_ids = set(by_id) if scope == "all" else {
             item["id"] for item in artefacts if item["role"] in scoped_roles}
         if scope != "all":
@@ -423,6 +432,13 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                     if invalid:
                         errors.extend(f"{item['id']}: {error}" for error in invalid)
                         stale.add(item["id"])
+                    continue
+                if item['role'] in H_HISTORICAL_ROLES:
+                    invalid = validate_h_artifact(item, state=state, result=result, root=project_root,
+                                                  environment_dependents=environment_dependents, ancestor_roles=ancestor_roles)
+                    if invalid:
+                        errors.extend(f"{item['id']}: {error}" for error in invalid)
+                        stale.add(item['id'])
                     continue
                 if item["role"] in G_HISTORICAL_ROLES | G_CURRENT_ROLES:
                     if scope != "all" and item["role"] in G_CURRENT_ROLES:
@@ -569,7 +585,16 @@ def validate_project_state(state_path: Path, *, profile_path: Path | None = None
                 errors.append("EXPERIMENT_DESIGN_REVIEWED cannot retain stale design or implementation dependencies")
             if stage == "CAMPAIGN_COMPLETE" and not result["campaign_complete"]:
                 errors.append("CAMPAIGN_COMPLETE cannot retain stale campaign dependencies")
-        if ((stage == "IMPLEMENTATION_READY" or stage in E_STAGES | G_STAGES) and scope in {"all", "implementation", "simulation", "experiment"} and
+        if scope in {'all'} | H_SCOPES:
+            if (not result['implementation_ready'] or not result['primary_run_complete'] or
+                    {'problem', 'model', 'approval', 'mapping', 'protocol', 'primary_run', 'numerical_verification'} & stale or
+                    any(item['id'] in stale and item['role'] in E_HISTORICAL_ROLES | {'numerical_verification'} for item in artefacts if item['id'] in checked_ids)):
+                result['numerically_verified'] = False
+            if (not result['numerically_verified'] or 'model_verification' in stale or
+                    any(item['id'] in stale and item['role'] == 'model_verification' for item in artefacts if item['id'] in checked_ids)):
+                result['model_verification_decided'] = result['model_verified'] = False
+            enforce_h_stage(state, result, errors, scope)
+        if ((stage == "IMPLEMENTATION_READY" or stage in E_STAGES | G_STAGES | H_STAGES) and scope in {"all", "implementation", "simulation", "experiment"} | H_SCOPES and
                 not result["implementation_ready"]):
             errors.append("IMPLEMENTATION_READY cannot retain stale implementation dependencies")
         for item in artefacts:
@@ -589,7 +614,7 @@ def main() -> int:
     parser.add_argument("--simulation-profile", type=Path)
     parser.add_argument("--parameter-study-profile", type=Path)
     parser.add_argument("--experiment-profile", type=Path)
-    parser.add_argument("--scope", choices=["all", "problem", "model", "implementation", "simulation", "parameter_study", "experiment"], default="all")
+    parser.add_argument("--scope", choices=["all", "problem", "model", "implementation", "simulation", "parameter_study", "experiment", "numerical_verification", "model_verification"], default="all")
     args = parser.parse_args()
     result = validate_project_state(args.state, profile_path=args.profile,
                                     implementation_profile_path=args.implementation_profile,

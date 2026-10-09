@@ -29,6 +29,8 @@ class Budget:
         self.bytes = 0
         self.identities = {}
         self.run_ids = set()
+        self.model_ids = set()
+        self.scenario_ids = set()
 
     def check(self):
         if time.monotonic() - self.started > self.limits['wall_seconds']:
@@ -139,6 +141,7 @@ def read_run(binding, root, budget):
     if len(budget.run_ids) > 32:
         raise ValueError('H total actual E attempt budget exceeded')
     model_contract = budget.read(protocol['model_path'])
+    budget.model_ids.add((protocol['model_sha256'], protocol['design_id'], protocol['model_id']))
     design = next(d for d in model_contract['designs'] if d['id'] == protocol['design_id'])
     model = next(m for m in design['models'] if m['id'] == protocol['model_id'])
     actual = raw['cases'][0] if isinstance(raw['cases'], list) else raw['cases']

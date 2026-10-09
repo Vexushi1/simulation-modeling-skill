@@ -1,7 +1,7 @@
 schema_version: 1
 name: simulation-modeling-skill
-version: 0.7.0
-status: phase_g_implementation
+version: 0.8.0
+status: phase_h_implementation
 primary_runtime:
   product: MATLAB
   release: R2025b
@@ -56,3 +56,9 @@ active_authorities:
 - core/experiment_design.schema.yaml
 - core/experiment_assurance_contract.yaml
 - modules/06_experiment_design.md
+
+- core/verification.schema.yaml
+- core/numerical_verification_contract.yaml
+- core/model_verification_contract.yaml
+- modules/07_numerical_verification.md
+- modules/08_model_verification.md

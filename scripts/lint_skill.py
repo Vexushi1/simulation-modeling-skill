@@ -42,6 +42,9 @@ def lint(root: Path = ROOT) -> list[str]:
             "parameter_study_assurance": "core/parameter_study_assurance_contract.yaml",
             "experiment_design": "core/experiment_design.schema.yaml",
             "experiment_assurance": "core/experiment_assurance_contract.yaml",
+            "verification": "core/verification.schema.yaml",
+            "numerical_verification": "core/numerical_verification_contract.yaml",
+            "model_verification": "core/model_verification_contract.yaml",
         }
         if bootstrap["runtime_entry"] != bindings:
             errors.append("bootstrap runtime entry differs from implemented consumers")
@@ -64,6 +67,9 @@ def lint(root: Path = ROOT) -> list[str]:
         router_bindings["parameter_study_assurance_contract"] = bindings["parameter_study_assurance"]
         router_bindings["experiment_design_schema"] = bindings["experiment_design"]
         router_bindings["experiment_assurance_contract"] = bindings["experiment_assurance"]
+        router_bindings['verification_schema'] = bindings['verification']
+        router_bindings['numerical_verification_contract'] = bindings['numerical_verification']
+        router_bindings['model_verification_contract'] = bindings['model_verification']
         if any(router.get(key) != value for key, value in router_bindings.items()):
             errors.append("router Authority references differ from implemented consumers")
         upstream = {"simulink_execution": "matlab/simulink-agentic-toolkit",
@@ -111,7 +117,9 @@ def lint(root: Path = ROOT) -> list[str]:
                                    "domain_mapping": "D", "simulink_build": "D",
                                    "simulation_protocol": "E", "simulation_execution": "E", "solver_diagnostics": "E", "parameter_study": "F", "parameter_candidate_review": "F",
                                    "parameter_identification": "F", "calibration": "F", "optimization": "F",
-                                   "experiment_design": "G", "experiment_campaign": "G", "campaign_review": "G"}
+                                   "experiment_design": "G", "experiment_campaign": "G", "campaign_review": "G",
+                                   "numerical_verification": "H", "sensitivity_analysis": "H", "robustness_analysis": "H",
+                                   "model_comparison": "H", "solver_comparison": "H", "model_verification_review": "H"}
                 if identity not in expected_phases or module["phase"] != expected_phases[identity]:
                     errors.append(f"business capability activated before implementation: {identity}")
                 for path in module["resources"]:
@@ -120,7 +128,7 @@ def lint(root: Path = ROOT) -> list[str]:
             elif module["status"] != "deferred" or module["resources"]:
                 errors.append(f"invalid deferred module: {identity}")
         for identity, item in taxonomy["capabilities"].items():
-            expected_status = "implemented" if identity in ("problem_audit", "model_design", "domain_mapping", "simulink_build", "simulation_execution", "solver_diagnostics", "parameter_identification", "calibration", "optimization") else "deferred"
+            expected_status = "implemented" if identity in ("problem_audit", "model_design", "domain_mapping", "simulink_build", "simulation_execution", "solver_diagnostics", "parameter_identification", "calibration", "optimization", "numerical_verification", "sensitivity_analysis", "robustness_analysis", "model_comparison", "solver_comparison") else "deferred"
             if identity not in modules or modules[identity]["status"] != expected_status or modules[identity]["phase"] != item["phase"]:
                 errors.append(f"taxonomy availability mismatch: {identity}")
         if router["intents"]["inspect"]["execution_allowed"] is not False:
@@ -267,6 +275,24 @@ def lint(root: Path = ROOT) -> list[str]:
             errors.append('a G campaign cannot claim primary-run completion')
         if output['parameter_study_evidence'].get('primary_run_complete') is not False:
             errors.append('F candidate evidence cannot complete a primary simulation')
+        h = load_document(root / bindings['numerical_verification'])
+        for intent in ('numerical_verification', 'sensitivity_analysis', 'robustness_analysis', 'model_comparison', 'solver_comparison', 'model_verification_review'):
+            route = router['intents'][intent]
+            if route['execution_allowed'] or route['profile_required'] or modules[intent]['required_operations']:
+                errors.append(f'{intent} must remain a read-only historical analysis route')
+            expected_scope = 'numerical_verification' if intent == 'numerical_verification' else 'model_verification'
+            if route.get('state_validation_scope') != expected_scope:
+                errors.append(f'{intent} has an incorrect H history scope')
+        closures = [simulation['source_files'], study['source_files'], experiment['source_files'], h['source_files']]
+        if any(len(c) != len(set(c)) for c in closures) or any(set(c) != set(closures[0]) for c in closures[1:]):
+            errors.append('E/F/G/H must have identical unique shared consumer source closure')
+        for name in h['source_files']:
+            if not (root / name).is_file():
+                errors.append(f'missing H shared source: {name}')
+        if not {bindings['verification'], bindings['numerical_verification'], bindings['model_verification']} <= set(manifest['active_authorities']):
+            errors.append('H contracts are not active Authorities')
+        if output['verification_evidence']['native_execution_allowed'] or output['verification_evidence']['physical_validity_claim']:
+            errors.append('H cannot grant native execution or physical validity')
 
         graph = bootstrap["authority_graph"]
         edges = {node: [] for node in graph["nodes"]}

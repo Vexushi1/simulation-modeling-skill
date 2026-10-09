@@ -158,7 +158,8 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
                     implementation_profile_path=None, protocol_path=None,
                     simulation_profile_path=None, run_receipt_path=None, study_path=None,
                     parameter_study_profile_path=None, parameter_trial_receipt_path=None,
-                    design_path=None, experiment_profile_path=None, campaign_receipt_path=None) -> dict:
+                    design_path=None, experiment_profile_path=None, campaign_receipt_path=None,
+                    verification_plan_path=None, verification_receipt_path=None) -> dict:
     router = load_contract("core/workflow_router.yaml")
     taxonomy = load_contract(router["capability_taxonomy"])["capabilities"]
     manifest = load_contract(router["module_manifest"])["modules"]
@@ -295,6 +296,12 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         result.update(status="inspected", activated_modules=[module_id],
                       activated_resources=list(resources))
         return result
+
+    if intent in {"numerical_verification", "sensitivity_analysis", "robustness_analysis", "model_comparison", "solver_comparison", "model_verification_review"}:
+        from verification_route import verification_route
+        return verification_route(result, resources=resources, state_result=state_result,
+            state_path=state_path, plan_path=verification_plan_path,
+            receipt_path=verification_receipt_path, requested=requested)
 
     if intent in {"experiment_design", "experiment_campaign", "campaign_review"}:
         from experiment_route import experiment_route
@@ -499,6 +506,8 @@ def main() -> int:
     parser.add_argument("--experiment-design", type=Path)
     parser.add_argument("--experiment-profile", type=Path)
     parser.add_argument("--campaign-receipt", type=Path)
+    parser.add_argument("--verification-plan", type=Path)
+    parser.add_argument("--verification-receipt", type=Path)
     parser.add_argument("--require-operation", action="append", default=[])
     parser.add_argument("--matlab-root", type=Path)
     args = parser.parse_args()
@@ -513,7 +522,9 @@ def main() -> int:
                                  parameter_study_profile_path=args.parameter_study_profile,
                                  parameter_trial_receipt_path=args.parameter_trial_receipt,
                                  design_path=args.experiment_design, experiment_profile_path=args.experiment_profile,
-                                 campaign_receipt_path=args.campaign_receipt)
+                                 campaign_receipt_path=args.campaign_receipt,
+                                 verification_plan_path=args.verification_plan,
+                                 verification_receipt_path=args.verification_receipt)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         result = {"status": "blocked", "execution_allowed": False,
                   "business_execution_allowed": False, "simulation_execution_allowed": False,

@@ -1,6 +1,6 @@
 # v1.0.0 Implementation Roadmap
 
-> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. Version 0.7.0 adds the optional finite serial Phase G catalog experiment branch to A–F. Other D domains, general parameter sweeps, continuous Monte Carlo, LHS, parallelism and Phases H–K remain deferred; qualification and merge evidence are recorded separately in the development PR.
+> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. Version 0.8.0 adds finite historical Phase H verification to A–G. Other D domains, general parameter sweeps, continuous Monte Carlo, LHS, parallelism and advanced H and Phases I–K remain deferred; qualification and merge evidence are recorded separately in the development PR.
 
 ## Phase A — Runtime, governance, and trusted root
 
@@ -71,12 +71,12 @@ New mutation requires current A plus independent D profile evidence. The native 
 
 Exit checks: domain_mapping_checks, parameter_binding_checks, native_simulink_structure_qualification, mapping_route_and_state, source_and_stale_checks, upstream_compatibility_and_authority, authority_and_indexes, all A/B/C regressions, independent original-input behavior testing and exact-commit review, Windows/Ubuntu CI, merge and post-merge readback.
 
-## Later phases — deferred
+## Advanced methods and later phases — deferred
 
 | Phase | Planned scope |
 |---|---|
-| G | Experiment design, campaigns, uncertainty sampling, and parallel simulation |
-| H | Primary numerical verification, sensitivity/robustness decisions, and structural/solver comparison |
+| G advanced | General parameter sweeps, continuous uncertainty sampling, LHS and parallel simulation |
+| H advanced | General analytic/conservation/event checks, continuous uncertainty and global sensitivity, and whole-trajectory comparison |
 | I | Verification and claim-scoped validation, including applicable test and safety tools |
 | J | Accepted figures, result-to-claim trace, evidence package, and paper handoff |
 | K | Full semantic audit, representative R2025b end-to-end qualification, and release review |
@@ -91,7 +91,7 @@ The v1.0.0 gate remains the full plan's release definition: all phases qualified
 
 The full plan §9.9 is the detailed Authority. Version 0.5.0 adds a source-bound draft/frozen protocol, independent A/E operation and individual solver qualification, normal serial scalar core execution, actual Dataset root outputs, cross-format MAT/JSON/CSV numeric receipts and SIMULATION_PROTOCOL_FROZEN/PRIMARY_RUN_COMPLETE. Original C/D evidence and all nineteen D source identities remain unchanged. Optional Statistics diagnostics are distinct from explicit operation requirements.
 
-E success does not grant numerical V&V or publication claims. Read-only consumers never freeze or update state. Historical qualification and current TTL are separate. Exit requires real R2025b positive/negative/cardinality cases, all prior regressions, independent behavior/final-source review, dual-platform CI, merge and readback. Advanced solver/domain and G–K workflows remain deferred.
+E success does not grant numerical V&V or publication claims. Read-only consumers never freeze or update state. Historical qualification and current TTL are separate. Exit requires real R2025b positive/negative/cardinality cases, all prior regressions, independent behavior/final-source review, dual-platform CI, merge and readback. Advanced solver/domain, general G workflows, advanced H and I–K remain deferred.
 
 ## Phase F — Optional reviewed parameter studies
 
@@ -106,3 +106,7 @@ The separate trial ledger, raw/process evidence and cross-checked MAT/JSON candi
 The detailed Authority is the full plan §11.7–11.12. Read [the G module](../modules/06_experiment_design.md). The implemented surface is scenario matrices, complete one/two-factor finite grids and fixed-size iid categorical Monte Carlo over independently frozen E protocols. Factors, ordered probability meanings, seed, event and budgets are source-bound and independently reviewed. Each draw executes through E in a fresh directory, serially. A/E/G qualifications remain independent and required operations propagate individually.
 
 Only complete fixed-size campaigns may summarize every actual admissible draw. Technical failure, source drift or budget exhaustion preserves a partial ledger with no complete summary. Event samples remain in the denominator; nominal Wilson intervals are conditional on the declared finite iid law. General parameter changes, continuous sampling, LHS, parallelism, numerical verification and physical validation remain separate or deferred gates. Exit requires real sample qualification and campaigns, independent original-input and final-head review, all prior regressions, Windows/Ubuntu CI, merge and readback. Current runtime expiry blocks new execution while immutable historical source/evidence identities remain required.
+
+## Phase H — Finite historical verification
+
+[H1](../modules/07_numerical_verification.md) implements source-bound static/scalar first-order references and conditional three-layer ode4 refinement. [H2](../modules/08_model_verification.md) implements complete finite G response/catalog robustness and terminal continuous-solver/material static/first-order comparison. Each actual E receipt needs recomputed passing H1; each material claim needs a reviewed structural required/technical-NA decision. Required unsupported analyses block completion. Completed reject/modify decisions remain distinct from supported claims. Native execution uses existing E/G gates; H routes and consumers are pure Python, read only and never promote state. Version metadata alone proves no qualification, independent actual behavior, CI, merge or release; these exits are recorded separately under plan §§12.9–12.14.

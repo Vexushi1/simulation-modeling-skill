@@ -129,6 +129,12 @@ def campaign_response(analysis, runs, claims, root, budget):
     expected = [binding_key(run['receipt'], root) for run in selected]
     if actual != expected or len(rows) > 16:
         raise ValueError('H2 needs exact ordered H1 coverage for every actual G draw, including repeats')
+    # Independent model/protocol identities may share one physical scenario.
+    budget.scenario_ids.update(canonical_digest({'inputs': _physical_inputs(run),
+        'time': [run['spec']['start_time'], run['spec']['stop_time']], 'seed': run['spec']['seed'],
+        'requirement_ids': run['protocol']['scenario']['requirement_ids']}) for run in selected)
+    if len(budget.scenario_ids) > 16:
+        raise ValueError('H2 total finite scenario budget exceeded')
     domain = claims[analysis['claim_id']]['domain']['kind']
     method = report['method']
     if analysis['method'] == 'finite_domain_robustness' and (method not in {'scenario_matrix', 'full_factorial'} or domain != 'complete_catalog'):
@@ -204,7 +210,7 @@ def analyze(path, *, project_root=None, kind=None, budget=None):
             raise ValueError('primary numerical error criterion failed; no H2 permission')
         claims = {c['id']: c for c in plan['material_results']}
         models = {(r['protocol_report']['model_sha256'], r['protocol_report']['design_id'], r['protocol_report']['model_id']) for r in runs.values()}
-        if plan['kind'] == 'H2' and len(models) > 2:
+        if plan['kind'] == 'H2' and len(models | budget.model_ids) > 2:
             raise ValueError('H2 model budget exceeded')
         for analysis in plan['analyses']:
             if plan['kind'] == 'H1':

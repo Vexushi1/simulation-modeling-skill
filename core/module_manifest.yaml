@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.7.0
+version: 0.8.0
 modules:
   environment_assurance:
     phase: A
@@ -181,24 +181,84 @@ modules:
     resources: []
   numerical_verification:
     phase: H
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/07_numerical_verification.md
+    - core/verification.schema.yaml
+    - core/numerical_verification_contract.yaml
+    - core/model_verification_contract.yaml
+    - scripts/verification_analysis.py
+    - scripts/run_verification.py
+    - scripts/validate_verification_receipt.py
+    - scripts/verification_route.py
+    - scripts/verification_state.py
+    required_operations: []
+    execution_scope: historical_verification
+    qualification_scope: finite recorded samples and declared terminal criteria; pure Python historical analysis
   sensitivity_analysis:
     phase: H
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/08_model_verification.md
+    - core/verification.schema.yaml
+    - core/numerical_verification_contract.yaml
+    - core/model_verification_contract.yaml
+    - scripts/verification_analysis.py
+    - scripts/run_verification.py
+    - scripts/validate_verification_receipt.py
+    - scripts/verification_route.py
+    - scripts/verification_state.py
+    required_operations: []
+    execution_scope: historical_verification
+    qualification_scope: finite recorded samples and declared terminal criteria; pure Python historical analysis
   robustness_analysis:
     phase: H
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/08_model_verification.md
+    - core/verification.schema.yaml
+    - core/numerical_verification_contract.yaml
+    - core/model_verification_contract.yaml
+    - scripts/verification_analysis.py
+    - scripts/run_verification.py
+    - scripts/validate_verification_receipt.py
+    - scripts/verification_route.py
+    - scripts/verification_state.py
+    required_operations: []
+    execution_scope: historical_verification
+    qualification_scope: finite recorded samples and declared terminal criteria; pure Python historical analysis
   model_comparison:
     phase: H
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/08_model_verification.md
+    - core/verification.schema.yaml
+    - core/numerical_verification_contract.yaml
+    - core/model_verification_contract.yaml
+    - scripts/verification_analysis.py
+    - scripts/run_verification.py
+    - scripts/validate_verification_receipt.py
+    - scripts/verification_route.py
+    - scripts/verification_state.py
+    required_operations: []
+    execution_scope: historical_verification
+    qualification_scope: finite recorded samples and declared terminal criteria; pure Python historical analysis
   solver_comparison:
     phase: H
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/08_model_verification.md
+    - core/verification.schema.yaml
+    - core/numerical_verification_contract.yaml
+    - core/model_verification_contract.yaml
+    - scripts/verification_analysis.py
+    - scripts/run_verification.py
+    - scripts/validate_verification_receipt.py
+    - scripts/verification_route.py
+    - scripts/verification_state.py
+    required_operations: []
+    execution_scope: historical_verification
+    qualification_scope: finite recorded samples and declared terminal criteria; pure Python historical analysis
   validation:
     phase: I
     status: deferred
@@ -348,3 +408,14 @@ modules:
     - packs/design_of_experiments.md
     - packs/monte_carlo.md
     - adapters/mathworks/experiment_methods.md
+
+  model_verification_review:
+    phase: H
+    status: implemented
+    resources:
+    - modules/08_model_verification.md
+    - core/model_verification_contract.yaml
+    - scripts/validate_model_verification.py
+    - scripts/validate_verification_receipt.py
+    required_operations: []
+    execution_scope: historical_verification

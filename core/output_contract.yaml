@@ -1,6 +1,6 @@
 schema_version: 1
-version: 0.7.0
-phase: G
+version: 0.8.0
+phase: H
 runtime_evidence:
   producer: scripts/probe_environment.py
   consumer: scripts/validate_environment.py
@@ -50,6 +50,10 @@ project_state:
     - sha256
     campaign:
     - sha256
+    numerical_verification:
+    - sha256
+    model_verification:
+    - sha256
     experiment_environment:
     - profile_sha256
     - receipt_sha256
@@ -57,6 +61,8 @@ project_state:
   stale_propagation: transitive_dependents_of_changed_ids
   preserve_history: true
   validation_scopes:
+    numerical_verification: primary B/C/D/E and recomputed H1 history; current runtime unassessed
+    model_verification: primary history and H1/H2 bundle with independent member dependencies; current runtime unassessed
     all: validate every implemented evidence role and current runtime requirements
     problem: validate problem identity and dependencies; environment, model and implementation readiness
       are unassessed; E readiness unassessed
@@ -236,3 +242,15 @@ experiment_evidence:
   complete_summary: only all fixed-n actual E draws admissible; technical failure preserves partial ledger
     and null summary
   claim_limit: synthetic/infrastructure and declared finite law; H/I remain gated
+
+verification_evidence:
+  producer: scripts/run_verification.py
+  consumer: scripts/validate_verification_receipt.py
+  directory_policy: new_directory_per_invocation
+  artifacts: [verification-inputs.json, verification-result.json, verification-numeric.csv, verification-receipt.json]
+  native_execution_allowed: false
+  state_writes: explicit_caller_only
+  primary_H1_state: NUMERICALLY_VERIFIED
+  complete_H2_decision_state: MODEL_VERIFICATION_DECIDED
+  supported_claims_without_open_actions_state: MODEL_VERIFIED
+  physical_validity_claim: false

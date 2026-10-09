@@ -131,6 +131,15 @@ source_files:
 - templates/contracts/model_verification.yaml
 - templates/contracts/numerical_verification.yaml
 - tests/test_verification.py
+- scripts/verification_route.py
+- scripts/verification_state.py
+- modules/07_numerical_verification.md
+- modules/08_model_verification.md
+- packs/evidence/convergence.md
+- packs/evidence/sensitivity.md
+- packs/evidence/model_comparison.md
+- packs/evidence/solver_comparison.md
+- tests/test_verification_integration.py
 evidence:
   input: simulation-inputs.json
   raw: raw-simulation.json

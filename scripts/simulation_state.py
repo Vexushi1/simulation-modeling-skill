@@ -30,7 +30,7 @@ def validate_bindings(state, root, result, errors, stale, scope, requested_profi
             errors.extend('simulation environment: ' + error for error in report['errors'])
             errors.append('simulation environment qualification or SHA binding is invalid')
             stale.add('simulation_environment')
-    if scope not in {'all', 'simulation'}:
+    if scope not in {'all', 'simulation', 'numerical_verification', 'model_verification'}:
         return
     result['simulation_checked'] = True
     binding = state.get('protocol')

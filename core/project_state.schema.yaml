@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-title: Phase A through G project state with optional parameter-study and finite experiment branches
+title: Phase A through H project state with finite historical verification decisions
 type: object
 additionalProperties: false
 required:
@@ -34,6 +34,9 @@ properties:
     - PARAMETER_CANDIDATE_COMPLETE
     - EXPERIMENT_DESIGN_REVIEWED
     - CAMPAIGN_COMPLETE
+    - NUMERICALLY_VERIFIED
+    - MODEL_VERIFICATION_DECIDED
+    - MODEL_VERIFIED
   implementation_environment:
     $ref: '#/$defs/environment_binding'
   environment:
@@ -109,6 +112,8 @@ properties:
             - experiment_design
             - campaign
             - experiment_environment
+            - numerical_verification
+            - model_verification
         role:
           enum:
           - environment_profile
@@ -137,6 +142,8 @@ properties:
           - experiment_summary
           - experiment_profile
           - experiment_route_decision
+          - numerical_verification
+          - model_verification
         path:
           type: string
           minLength: 1
@@ -172,6 +179,10 @@ properties:
     $ref: '#/$defs/contract_binding'
   experiment_environment:
     $ref: '#/$defs/environment_binding'
+  numerical_verification:
+    $ref: '#/$defs/contract_binding'
+  model_verification:
+    $ref: '#/$defs/contract_binding'
 allOf:
 - if:
     properties:
@@ -327,6 +338,28 @@ allOf:
     properties:
       campaign:
         type: object
+- if:
+    properties:
+      current_stage:
+        enum: [NUMERICALLY_VERIFIED, MODEL_VERIFICATION_DECIDED, MODEL_VERIFIED]
+  then:
+    required: [problem, model, approval, mapping, protocol, primary_run, numerical_verification]
+    properties:
+      problem: {type: object}
+      model: {type: object}
+      approval: {type: object}
+      mapping: {type: object}
+      protocol: {type: object}
+      primary_run: {type: object}
+      numerical_verification: {type: object}
+- if:
+    properties:
+      current_stage:
+        enum: [MODEL_VERIFICATION_DECIDED, MODEL_VERIFIED]
+  then:
+    required: [model_verification]
+    properties:
+      model_verification: {type: object}
 $defs:
   environment_binding:
     oneOf:

@@ -1,5 +1,5 @@
 schema_version: 1
-phase: G
+phase: H
 module_manifest: core/module_manifest.yaml
 capability_taxonomy: core/capability_taxonomy.yaml
 runtime_contract: core/runtime_assurance_contract.yaml
@@ -292,6 +292,66 @@ intents:
     - campaign_review
     next_step: Read the actual sample and each E receipt before discussing fixed-size statistics; H/I
       claims remain gated.
+  numerical_verification:
+    phase: H
+    mode: read_only
+    module: numerical_verification
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: numerical_verification
+    required_gates: [H_plan_sources_current, H_required_methods_supported, H_review_current_if_required, H_complete_recomputed_evidence_for_claims]
+    expected_artefacts: [verification_plan, verification_receipt, verification_numeric_table]
+    next_step: Review the fixed H plan and analyze existing E/G history in a fresh directory; update state explicitly.
+  sensitivity_analysis:
+    phase: H
+    mode: read_only
+    module: sensitivity_analysis
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates: [H_plan_sources_current, H_required_methods_supported, H_review_current_if_required, H_complete_recomputed_evidence_for_claims]
+    expected_artefacts: [verification_plan, verification_receipt, verification_numeric_table]
+    next_step: Review the fixed H plan and analyze existing E/G history in a fresh directory; update state explicitly.
+  robustness_analysis:
+    phase: H
+    mode: read_only
+    module: robustness_analysis
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates: [H_plan_sources_current, H_required_methods_supported, H_review_current_if_required, H_complete_recomputed_evidence_for_claims]
+    expected_artefacts: [verification_plan, verification_receipt, verification_numeric_table]
+    next_step: Review the fixed H plan and analyze existing E/G history in a fresh directory; update state explicitly.
+  model_comparison:
+    phase: H
+    mode: read_only
+    module: model_comparison
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates: [H_plan_sources_current, H_required_methods_supported, H_review_current_if_required, H_complete_recomputed_evidence_for_claims]
+    expected_artefacts: [verification_plan, verification_receipt, verification_numeric_table]
+    next_step: Review the fixed H plan and analyze existing E/G history in a fresh directory; update state explicitly.
+  solver_comparison:
+    phase: H
+    mode: read_only
+    module: solver_comparison
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates: [H_plan_sources_current, H_required_methods_supported, H_review_current_if_required, H_complete_recomputed_evidence_for_claims]
+    expected_artefacts: [verification_plan, verification_receipt, verification_numeric_table]
+    next_step: Review the fixed H plan and analyze existing E/G history in a fresh directory; update state explicitly.
+  model_verification_review:
+    phase: H
+    mode: read_only
+    module: model_verification_review
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates: [H_plan_sources_current, H_required_methods_supported, H_review_current_if_required, H_complete_recomputed_evidence_for_claims]
+    expected_artefacts: [verification_plan, verification_receipt, verification_numeric_table]
+    next_step: Review the fixed H plan and analyze existing E/G history in a fresh directory; update state explicitly.
 operation_selection:
   defaults_from: module_manifest.modules.environment_assurance.required_operations
   optional_policy: explicit_request_only
@@ -422,3 +482,7 @@ parameter_study_schema: core/parameter_study.schema.yaml
 parameter_study_assurance_contract: core/parameter_study_assurance_contract.yaml
 experiment_design_schema: core/experiment_design.schema.yaml
 experiment_assurance_contract: core/experiment_assurance_contract.yaml
+
+verification_schema: core/verification.schema.yaml
+numerical_verification_contract: core/numerical_verification_contract.yaml
+model_verification_contract: core/model_verification_contract.yaml

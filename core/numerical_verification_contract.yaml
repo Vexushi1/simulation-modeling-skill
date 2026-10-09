@@ -106,4 +106,13 @@ source_files:
 - tests/test_experiment_runtime.py
 - tests/test_experiment_sampling.py
 - tests/test_verification.py
+- scripts/verification_route.py
+- scripts/verification_state.py
+- modules/07_numerical_verification.md
+- modules/08_model_verification.md
+- packs/evidence/convergence.md
+- packs/evidence/sensitivity.md
+- packs/evidence/model_comparison.md
+- packs/evidence/solver_comparison.md
+- tests/test_verification_integration.py
 claim_limit: finite recorded samples and declared terminal differences only; no physical validation
