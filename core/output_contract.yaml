@@ -1,6 +1,6 @@
 schema_version: 1
-version: 0.6.0
-phase: F
+version: 0.7.0
+phase: G
 runtime_evidence:
   producer: scripts/probe_environment.py
   consumer: scripts/validate_environment.py
@@ -11,8 +11,8 @@ route_decision:
   producer: scripts/resolve_runtime.py
   output: json_stdout
   mutates_project_state: false
-  business_execution_allowed: simulation_execution or parameter_trial only after their distinct required
-    gates
+  business_execution_allowed: simulation_execution, parameter_trial or experiment_campaign only after
+    their distinct required gates
 project_state:
   schema: core/project_state.schema.yaml
   validator: scripts/validate_project_state.py
@@ -46,6 +46,13 @@ project_state:
     parameter_environment:
     - profile_sha256
     - receipt_sha256
+    experiment_design:
+    - sha256
+    campaign:
+    - sha256
+    experiment_environment:
+    - profile_sha256
+    - receipt_sha256
   artefact_paths: inside_declared_project_root
   stale_propagation: transitive_dependents_of_changed_ids
   preserve_history: true
@@ -58,6 +65,9 @@ project_state:
     implementation: validate B/C/D including historical model structure; current environment readiness
       is unassessed; E readiness unassessed
     simulation: validate B/C/D/E and historical run evidence; current environment readiness unassessed
+    parameter_study: validate B/C/F and historical trial; current runtime and D/E unassessed
+    experiment: validate B/C/D and finite design/campaign historical evidence; current runtime unassessed;
+      primary E run and F unassessed
 problem_contract:
   schema: core/problem_contract.schema.yaml
   consumer: scripts/validate_problem_contract.py
@@ -206,3 +216,23 @@ parameter_study_evidence:
   primary_run_complete: false
   numerical_verification: false
   physical_validation: false
+experiment_design:
+  schema: core/experiment_design.schema.yaml
+  consumer: scripts/validate_experiment_design.py
+  template: templates/experiment/experiment_design.yaml
+  writer: explicit authorized caller only
+  methods:
+  - scenario_matrix
+  - full_factorial
+  - monte_carlo_catalog
+experiment_evidence:
+  contract: core/experiment_assurance_contract.yaml
+  producer: scripts/run_experiment.py
+  consumer: scripts/validate_experiment_receipt.py
+  execution_scope: experiment_campaign
+  directory_policy: new directory per invocation; independent E attempt per draw
+  primary_run_complete: false
+  qualification_scope: sample_plan only; A/E independently required
+  complete_summary: only all fixed-n actual E draws admissible; technical failure preserves partial ledger
+    and null summary
+  claim_limit: synthetic/infrastructure and declared finite law; H/I remain gated

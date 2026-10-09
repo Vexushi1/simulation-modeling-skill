@@ -2,11 +2,11 @@
 
 Competition simulation methodology and evidence orchestration for **MATLAB R2025b + Simulink 25.2**.
 
-Version **0.6.0** adds reviewed standalone parameter studies and operation-specific ARX, scalar Simulink-gain calibration and bounded quadratic optimization to A–E. Local checks, CI, independent review, merge, and release are separate results recorded in the relevant development PR.
+Version **0.7.0** adds reviewed finite serial scenario, factorial and categorical catalog experiments to A–F. Every selected draw executes a complete independently frozen E protocol in a fresh directory. Local checks, actual MATLAB qualification, CI, independent review, merge and release are separate results recorded in the relevant development PR.
 
 ## Current behavior
 
-Start from [SKILL.md](SKILL.md) and [core/bootstrap.yaml](core/bootstrap.yaml). Active routes support environment inspection and assurance, [problem audit](modules/01_problem_audit.md), [text model design](modules/02_model_design.md), and [approved mapping and core construction](modules/03_domain_mapping.md). [Frozen protocols and core simulation](modules/04_simulation_protocol.md) are now active. Advanced domains, numerical V&V and paper workflows in Phases G–K remain deferred.
+Start from [SKILL.md](SKILL.md) and [core/bootstrap.yaml](core/bootstrap.yaml). Active routes support environment inspection and assurance, [problem audit](modules/01_problem_audit.md), [text model design](modules/02_model_design.md), [approved mapping and core construction](modules/03_domain_mapping.md), [frozen protocols and core simulation](modules/04_simulation_protocol.md), bounded [parameter studies](modules/05_identification_calibration_optimization.md) and [finite serial experiments](modules/06_experiment_design.md). Advanced domains, numerical V&V and paper workflows in Phases H–K remain deferred. General parameter overrides, continuous Monte Carlo, LHS and parallel simulation remain deferred.
 
 Problem audit binds the original materials and review text, maps literal requirements, records variable and data roles, and checks the question dependency graph. The [Problem Contract](core/problem_contract.schema.yaml) distinguishes a legal draft, an audit-complete result, readiness to freeze, and a frozen contract with a current review decision. Text review and validation need no MATLAB profile. A freeze decision follows the actual task authorization and resolution of critical ambiguities; it does not require separate repeated approval of every question. Validators and the resolver do not freeze a contract or write project state.
 
@@ -18,7 +18,7 @@ The [Model Approval contract](core/model_approval_contract.yaml) requires an act
 
 Structural digests identify registered expressions and do not prove symbolic equivalence. Equivalent rewritten equations or renamed variables can change a digest; a meaningful structural comparator still requires review of actual mechanisms, abstraction, or mathematical differences.
 
-Text design requires no runtime profile. Model-scoped state validation checks B/C and reports environment readiness as unassessed; problem-scoped validation does not assess the model. Validators and routing never write approvals, locked specifications, or state. Model approval is required for formal D mapping but does not qualify native mutation or numerical execution. Simscape/Stateflow/System Composer construction and Phases G–K remain deferred.
+Text design requires no runtime profile. Model-scoped state validation checks B/C and reports environment readiness as unassessed; problem-scoped validation does not assess the model. Validators and routing never write approvals, locked specifications, or state. Model approval is required for formal D mapping but does not qualify native mutation or numerical execution. Simscape/Stateflow/System Composer construction and Phases H–K remain deferred.
 
 Phase C conservatively binds the entire Problem and its current source evidence. Changed statements, attachments, Briefs, decisions, or locked files invalidate the relevant bindings and accepted dependents. It does not claim fine-grained source impact analysis. Runtime expiry alone does not invalidate unchanged text design.
 
@@ -36,7 +36,7 @@ Development Phase A–K gates are distinct from a user's project states. Phase A
 
 ## v1 target and integrations
 
-The target workflow continues from text model design and approval to implementation, simulation protocols, identification or optimization when needed, numerical verification, model comparison decisions, validation, and scientific evidence for paper handoff. A–F infrastructure is active in 0.6.0 within the declared method boundaries; campaigns, numerical V&V and subsequent stages remain planned.
+The target workflow continues from text model design and approval to implementation, simulation protocols, identification or optimization when needed, experiments, numerical verification, model comparison decisions, validation and scientific evidence for paper handoff. A–G infrastructure is active in 0.7.0 within the declared method boundaries; numerical V&V and subsequent stages remain planned.
 
 This repository owns competition methodology, routing, evidence, and claim boundaries. Execution adapters prefer `matlab/simulink-agentic-toolkit` and `matlab/matlab-agentic-toolkit`, subject to operation and composition qualification. `Vexushi1/mathmodel-skill` is a methodology and paper-writing reference, not a core runtime dependency. Integration ownership and admission rules live in [core/upstream_integration_policy.md](core/upstream_integration_policy.md).
 

@@ -1,0 +1,161 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Reviewed finite frozen-E experiment catalog
+type: object
+additionalProperties: false
+required: [schema_version, project_id, status, mapping, selection, method, catalog, factors, probabilities, sample_count, seed, metric_id, event, budget, sources, settings_source_ref, required_A_operations, claim_limit, review_record]
+properties:
+  schema_version: {const: 1}
+  project_id: {$ref: '#/$defs/id'}
+  status: {enum: [draft, reviewed]}
+  mapping: {$ref: '#/$defs/nullable_file'}
+  selection:
+    oneOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [design_id, model_id, target_id]
+        properties:
+          design_id: {$ref: '#/$defs/id'}
+          model_id: {$ref: '#/$defs/id'}
+          target_id: {$ref: '#/$defs/id'}
+  method: {enum: [null, scenario_matrix, full_factorial, monte_carlo_catalog]}
+  catalog: {type: array, maxItems: 16, items: {$ref: '#/$defs/member'}}
+  factors: {type: array, maxItems: 2, items: {$ref: '#/$defs/factor'}}
+  probabilities:
+    oneOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [values, role, reason, source_ref]
+        properties:
+          values: {type: array, maxItems: 16, items: {$ref: '#/$defs/nullable_number'}}
+          role: {enum: [given, assumed, design_law]}
+          reason: {$ref: '#/$defs/text'}
+          source_ref: {$ref: '#/$defs/nullable_source_ref'}
+  sample_count: {type: [integer, 'null'], minimum: 1, maximum: 16}
+  seed:
+    oneOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [algorithm, value]
+        properties:
+          algorithm: {const: mt19937ar}
+          value: {type: [integer, 'null'], minimum: 0, maximum: 4294967295}
+  metric_id: {type: [string, 'null'], minLength: 1}
+  event:
+    oneOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [comparator, threshold, unit, confidence, interval]
+        properties:
+          comparator: {enum: [gt, lt]}
+          threshold: {$ref: '#/$defs/nullable_number'}
+          unit: {type: [string, 'null'], minLength: 1}
+          confidence: {const: 0.95}
+          interval: {const: wilson_95}
+  budget:
+    oneOf:
+      - {type: 'null'}
+      - type: object
+        additionalProperties: false
+        required: [max_cases, total_timeout, member_process_timeout, member_simulation_timeout, max_artifact_bytes]
+        properties:
+          max_cases: {type: [integer, 'null'], minimum: 1, maximum: 16}
+          total_timeout: {type: [number, 'null'], exclusiveMinimum: 0, maximum: 3600}
+          member_process_timeout: {type: [number, 'null'], exclusiveMinimum: 0, maximum: 360}
+          member_simulation_timeout: {type: [number, 'null'], exclusiveMinimum: 0, maximum: 60}
+          max_artifact_bytes: {type: [integer, 'null'], minimum: 1, maximum: 536870912}
+  sources:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, path, sha256, role]
+      properties:
+        id: {$ref: '#/$defs/id'}
+        path: {$ref: '#/$defs/text'}
+        sha256: {$ref: '#/$defs/sha'}
+        role: {enum: [input_levels, probabilities, settings]}
+  settings_source_ref: {$ref: '#/$defs/nullable_source_ref'}
+  required_A_operations:
+    type: array
+    uniqueItems: true
+    items: {enum: [matlab.basic_execution, simulink.library_load, statistics.fitlm, statistics.lhsdesign, statistics.normcdf]}
+  claim_limit: {$ref: '#/$defs/text'}
+  review_record: {$ref: '#/$defs/nullable_file'}
+$defs:
+  id: {type: string, minLength: 1, pattern: '^[A-Za-z][A-Za-z0-9_.-]*$'}
+  text: {type: string, minLength: 1, pattern: '\S'}
+  sha: {type: string, pattern: '^[a-f0-9]{64}$'}
+  nullable_number: {type: [number, 'null']}
+  file:
+    type: object
+    additionalProperties: false
+    required: [path, sha256]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+  nullable_file:
+    oneOf: [{type: 'null'}, {$ref: '#/$defs/file'}]
+  source_ref:
+    type: object
+    additionalProperties: false
+    required: [source_id, selector]
+    properties:
+      source_id: {$ref: '#/$defs/id'}
+      selector:
+        type: array
+        items:
+          oneOf: [{type: string, minLength: 1}, {type: integer, minimum: 0}]
+  nullable_source_ref:
+    oneOf: [{type: 'null'}, {$ref: '#/$defs/source_ref'}]
+  factor:
+    type: object
+    additionalProperties: false
+    required: [id, input_port, variable_id, unit, levels, source_ref]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      input_port: {type: [integer, 'null'], minimum: 1}
+      variable_id: {type: [string, 'null'], minLength: 1}
+      unit: {type: [string, 'null'], minLength: 1}
+      levels: {type: array, maxItems: 4, items: {$ref: '#/$defs/nullable_number'}}
+      source_ref: {$ref: '#/$defs/nullable_source_ref'}
+  member:
+    type: object
+    additionalProperties: false
+    required: [id, protocol, factor_values]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      protocol: {$ref: '#/$defs/nullable_file'}
+      factor_values:
+        type: array
+        maxItems: 2
+        items:
+          type: object
+          additionalProperties: false
+          required: [factor_id, value]
+          properties:
+            factor_id: {$ref: '#/$defs/id'}
+            value: {$ref: '#/$defs/nullable_number'}
+  review_record:
+    type: object
+    additionalProperties: false
+    required: [schema_version, project_id, experiment_semantic_sha256, decision]
+    properties:
+      schema_version: {const: 1}
+      project_id: {$ref: '#/$defs/id'}
+      experiment_semantic_sha256: {$ref: '#/$defs/sha'}
+      decision:
+        type: object
+        additionalProperties: false
+        required: [path, sha256, start, end, quote, reviewed_by, action]
+        properties:
+          path: {$ref: '#/$defs/text'}
+          sha256: {$ref: '#/$defs/sha'}
+          start: {type: integer, minimum: 0}
+          end: {type: integer, minimum: 1}
+          quote: {$ref: '#/$defs/text'}
+          reviewed_by: {$ref: '#/$defs/text'}
+          action: {const: review}

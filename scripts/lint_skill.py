@@ -40,6 +40,8 @@ def lint(root: Path = ROOT) -> list[str]:
             "simulation_assurance": "core/simulation_assurance_contract.yaml",
             "parameter_study": "core/parameter_study.schema.yaml",
             "parameter_study_assurance": "core/parameter_study_assurance_contract.yaml",
+            "experiment_design": "core/experiment_design.schema.yaml",
+            "experiment_assurance": "core/experiment_assurance_contract.yaml",
         }
         if bootstrap["runtime_entry"] != bindings:
             errors.append("bootstrap runtime entry differs from implemented consumers")
@@ -60,6 +62,8 @@ def lint(root: Path = ROOT) -> list[str]:
         router_bindings["simulation_assurance_contract"] = bindings["simulation_assurance"]
         router_bindings["parameter_study_schema"] = bindings["parameter_study"]
         router_bindings["parameter_study_assurance_contract"] = bindings["parameter_study_assurance"]
+        router_bindings["experiment_design_schema"] = bindings["experiment_design"]
+        router_bindings["experiment_assurance_contract"] = bindings["experiment_assurance"]
         if any(router.get(key) != value for key, value in router_bindings.items()):
             errors.append("router Authority references differ from implemented consumers")
         upstream = {"simulink_execution": "matlab/simulink-agentic-toolkit",
@@ -106,7 +110,8 @@ def lint(root: Path = ROOT) -> list[str]:
                 expected_phases = {"environment_assurance": "A", "problem_audit": "B", "model_design": "C",
                                    "domain_mapping": "D", "simulink_build": "D",
                                    "simulation_protocol": "E", "simulation_execution": "E", "solver_diagnostics": "E", "parameter_study": "F", "parameter_candidate_review": "F",
-                                   "parameter_identification": "F", "calibration": "F", "optimization": "F"}
+                                   "parameter_identification": "F", "calibration": "F", "optimization": "F",
+                                   "experiment_design": "G", "experiment_campaign": "G", "campaign_review": "G"}
                 if identity not in expected_phases or module["phase"] != expected_phases[identity]:
                     errors.append(f"business capability activated before implementation: {identity}")
                 for path in module["resources"]:
@@ -241,6 +246,25 @@ def lint(root: Path = ROOT) -> list[str]:
                 errors.append(f'{intent} must remain a read-only text route')
         if not {bindings['parameter_study'],bindings['parameter_study_assurance']} <= set(manifest['active_authorities']):
             errors.append('F contracts are not active Authorities')
+        experiment = load_document(root / bindings['experiment_assurance'])
+        methods = {'scenario_matrix', 'full_factorial', 'monte_carlo_catalog'}
+        if set(experiment.get('methods', {})) != methods or experiment.get('scope', '').split(';')[0] != 'sample_plan only':
+            errors.append('G must declare exactly three finite sample-plan methods')
+        for name in experiment.get('source_files', []):
+            if not (root / name).is_file():
+                errors.append(f'missing G source binding: {name}')
+        for intent in ('experiment_design', 'campaign_review', 'experiment_campaign'):
+            route = router['intents'][intent]
+            if route.get('state_validation_scope') != 'experiment':
+                errors.append(f'{intent} lacks a scoped G state check')
+            if route['execution_allowed'] != (intent == 'experiment_campaign'):
+                errors.append(f'{intent} has an incorrect mutation scope')
+        if modules['experiment_campaign'].get('execution_scope') != 'experiment_campaign':
+            errors.append('G execution scope must remain distinct from a primary E run')
+        if not {bindings['experiment_design'], bindings['experiment_assurance']} <= set(manifest['active_authorities']):
+            errors.append('G authorities are absent from the root manifest')
+        if output['experiment_evidence'].get('primary_run_complete') is not False:
+            errors.append('a G campaign cannot claim primary-run completion')
         if output['parameter_study_evidence'].get('primary_run_complete') is not False:
             errors.append('F candidate evidence cannot complete a primary simulation')
 
