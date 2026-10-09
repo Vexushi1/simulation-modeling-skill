@@ -143,6 +143,7 @@ def validate_experiment_receipt(path, *, project_root=None, design_report=None):
             row_start, row_finish = _time(row['started_at']), _time(row['finished_at'])
             if not previous_finish <= row_start <= row_finish <= finish:
                 raise ValueError('campaign members were not sequential within recorded execution')
+            verify_request(request, historical_start=row_start)
             previous_finish = row_finish
             binding = row['receipt']
             if binding is None:
@@ -164,6 +165,14 @@ def validate_experiment_receipt(path, *, project_root=None, design_report=None):
             if not row_start <= e_start <= e_finish <= row_finish:
                 raise ValueError('actual E process leaves its draw chronology')
             e_input = load_document(e_path.parent / simulation_contract()['evidence']['input'])
+            e_bindings = e_input['bindings']
+            for name in ('environment_profile', 'environment_receipt', 'simulation_profile', 'simulation_profile_receipt'):
+                if e_bindings[name] != request['bindings'][name]:
+                    raise ValueError('actual E qualification differs from campaign binding: ' + name)
+            expected_operations = list(dict.fromkeys(member['protocol_report']['required_A_operations']
+                                                     + request['required_A_operations']))
+            if e_bindings['required_A_operations'] != expected_operations:
+                raise ValueError('actual E required A operations differ from the complete campaign union')
             e_cases = e_input['cases']
             if (not isinstance(e_cases, list) or len(e_cases) != 1
                     or not finite(e_cases[0]['simulation_timeout'])

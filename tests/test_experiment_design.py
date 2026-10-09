@@ -181,6 +181,16 @@ def test_actual_draft_template_preserves_unknowns_and_has_no_readiness(tmp_path)
     assert report['missing_gates'] and not report['environment_checked']
 
 
+def test_equal_member_timeouts_cannot_produce_a_reviewed_ready_design(tmp_path, monkeypatch):
+    catalog = SyntheticCatalog(tmp_path, monkeypatch)
+    catalog.design['budget']['member_process_timeout'] = catalog.design['budget']['member_simulation_timeout']
+    catalog.sync_settings()
+    catalog.review()
+    report = catalog.check(require_reviewed=True)
+    assert not report['valid'] and not report['design_ready'] and not report['campaign_execution_ready']
+    assert any('invalid finite budget' in error for error in report['errors']), report['errors']
+
+
 def test_complete_draft_is_not_an_independent_review(tmp_path, monkeypatch):
     catalog = SyntheticCatalog(tmp_path, monkeypatch)
     catalog.design.update(status='draft', review_record=None)

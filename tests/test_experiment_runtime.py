@@ -46,7 +46,8 @@ def campaign(tmp_path, monkeypatch):
             'protocol_semantic_sha256': identity, 'run_spec_sha256': identity,
             'protocol_report': {'execution_ready': True, 'frozen': True, 'contract_sha256': sha256_file(protocol),
                 'implementation_receipt_path': str(d_receipt), 'run_spec': {'solver': {'name': 'ode4'}},
-                'contract_path': str(protocol), 'synthetic_metric_value': value}})
+                'contract_path': str(protocol), 'synthetic_metric_value': value,
+                'required_A_operations': ['matlab.basic_execution', 'simulink.library_load']}})
     report = {'valid': True, 'schema_valid': True, 'design_ready': True, 'reviewed': True,
         'campaign_execution_ready': True, 'errors': [], 'missing_gates': [], 'project_root': str(tmp_path),
         'project_id': 'synthetic', 'contract_path': str(design_path), 'design_sha256': sha256_file(design_path),
@@ -84,8 +85,16 @@ def campaign(tmp_path, monkeypatch):
         directory = Path(directory)
         directory.mkdir()
         started = runner.utc_now()
+        member = next(item for item in catalog if item['protocol_path'] == str(protocol))
+        e_operations = list(dict.fromkeys(member['protocol_report']['required_A_operations']
+                                         + kwargs['required_operations']))
         runner.checkpoint(directory / 'simulation-inputs.json',
-                          {'cases': [{'simulation_timeout': kwargs['simulation_timeout']}]})
+                          {'cases': [{'simulation_timeout': kwargs['simulation_timeout']}], 'bindings': {
+                              'environment_profile': runner.file_binding(kwargs['environment_profile']),
+                              'environment_receipt': runner.file_binding(Path(kwargs['environment_profile']).parent / 'receipt.json'),
+                              'simulation_profile': runner.file_binding(kwargs['simulation_profile']),
+                              'simulation_profile_receipt': runner.file_binding(Path(kwargs['simulation_profile']).parent / 'simulation-profile-receipt.json'),
+                              'required_A_operations': e_operations}})
         path = directory / 'simulation-receipt.json'
         runner.checkpoint(path, {'run_id': str(uuid.uuid4()), 'runtime': runtime, 'protocol': str(protocol),
             'value': load_document(protocol)['value'], 'process': {'started_at': started, 'finished_at': runner.utc_now()}})
@@ -118,7 +127,8 @@ def campaign(tmp_path, monkeypatch):
         return runner.run_experiment(design_path, executable, tmp_path / 'campaign', environment_profile=profiles['a'],
             simulation_profile=profiles['e'], experiment_profile=profiles['g'], project_root=tmp_path, **kwargs)
     return {'run': run, 'root': tmp_path, 'report': report, 'calls': calls, 'a_calls': a_calls,
-            'indices': indices, 'e_run': fake_run, 'design': design_path, 'profiles': profiles}
+            'indices': indices, 'e_run': fake_run, 'design': design_path, 'profiles': profiles,
+            'g_profile_validator': fake_g_profile}
 
 
 def reseal(directory, receipt):
@@ -215,6 +225,59 @@ def test_resealed_member_budget_evidence_is_required(campaign, attack):
     result = consumer.validate_experiment_receipt(directory / runner.RECEIPT, project_root=campaign['root'])
     assert not result['valid'] and not result['campaign_complete']
     assert any('reviewed member budget' in error for error in result['errors']), result['errors']
+
+
+@pytest.mark.parametrize('attack', ['drop_caller_operation', 'replace_profile'])
+def test_member_requires_exact_campaign_qualification_and_operations(campaign, attack):
+    assert campaign['run'](required_operations=['statistics.lhsdesign'])['valid']
+    directory = campaign['root'] / 'campaign'
+    receipt = load_document(directory / runner.RECEIPT)
+    e_input_path = Path(receipt['rows'][1]['receipt']['path']).parent / 'simulation-inputs.json'
+    e_input = load_document(e_input_path)
+    if attack == 'drop_caller_operation':
+        e_input['bindings']['required_A_operations'].remove('statistics.lhsdesign')
+    else:
+        other = campaign['root'] / 'other-same-runtime-profile.json'
+        runner.checkpoint(other, load_document(campaign['profiles']['e']))
+        e_input['bindings']['simulation_profile'] = runner.file_binding(other)
+    runner.checkpoint(e_input_path, e_input)
+    reseal(directory, receipt)
+    result = consumer.validate_experiment_receipt(directory / runner.RECEIPT)
+    assert not result['valid'] and not result['campaign_complete']
+    assert any('actual E qualification' in error or 'complete campaign union' in error
+               for error in result['errors']), result['errors']
+
+
+def test_member_historical_start_rechecks_campaign_ttl(campaign, monkeypatch):
+    import validate_experiment_profile
+    assert campaign['run']()['valid']
+    directory = campaign['root'] / 'campaign'
+    receipt = load_document(directory / runner.RECEIPT)
+    expires = consumer._time(receipt['rows'][1]['started_at'])
+    checked_times = []
+    def bounded_g(path, **kwargs):
+        now = kwargs.get('now')
+        checked_times.append(now)
+        result = campaign['g_profile_validator'](path, **kwargs)
+        if now is not None and now >= expires:
+            result.update(valid=False, errors=['G expired at this member start'])
+        return result
+    monkeypatch.setattr(validate_experiment_profile, 'validate_experiment_profile', bounded_g)
+    result = consumer.validate_experiment_receipt(directory / runner.RECEIPT)
+    assert not result['valid'] and not result['campaign_complete']
+    assert expires in checked_times
+    assert any('G expired at this member start' in error for error in result['errors'])
+
+
+def test_member_operation_order_matches_public_e_producer(campaign):
+    campaign['report']['catalog'][1]['protocol_report']['required_A_operations'].reverse()
+    result = campaign['run'](required_operations=['statistics.lhsdesign'])
+    assert result['valid'], result['errors']
+    directory = campaign['root'] / 'campaign'
+    receipt = load_document(directory / runner.RECEIPT)
+    e_input = load_document(Path(receipt['rows'][0]['receipt']['path']).parent / 'simulation-inputs.json')
+    assert e_input['bindings']['required_A_operations'] == [
+        'simulink.library_load', 'matlab.basic_execution', 'statistics.lhsdesign']
 
 
 def test_failure_stops_without_replacing_samples_or_publishing_ci(campaign, monkeypatch):

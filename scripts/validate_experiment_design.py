@@ -320,7 +320,7 @@ def validate_experiment_design(path, *, project_root=None, require_reviewed=Fals
         elif (not all(finite_scalar(value) and value > 0 for value in budget.values())
               or type(budget["max_cases"]) is not int or type(budget["max_artifact_bytes"]) is not int
               or (count is not None and budget["max_cases"] < count)
-              or budget["member_simulation_timeout"] > budget["member_process_timeout"]):
+              or budget["member_simulation_timeout"] >= budget["member_process_timeout"]):
             errors.append("invalid finite budget or planned cases exceed reviewed limit")
         result["design_ready"] = not errors and not missing
         if result["design_ready"]:
