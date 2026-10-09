@@ -2111,6 +2111,26 @@ archive 与当前 mapping 均计入相同 H 文件/读取字节、变更及协�
 
 ---
 
+## 12.19 真实 H2 组合预算修订：操作内不可变字节捕获
+
+最终 fdd09cb 的独立原始 v3 任务已实际完成两份 D、八份 E（五份直接运行、三份完整 G 成员）及三份 H1；H2 在六条 E ledger 和三份重算 H1 后进入 campaign_response/preflight_campaign 时，因累计读取预算阻断。独立只读 trace 逐次委托原 Budget.charge：2384 次 charge 尝试累计 67,131,394 B，超过 64 MiB（67,108,864 B）；280 个不同物理文件只有 5,865,416 B。1,091,595 B Simulink library 和 E qualification metadata 各被 charge 14 次。现有 charge 每次按文件大小入账并重新读取 SHA；read 随后又从磁盘解析，nested H1/E/G 闭包重复执行这些步骤。该组合缺陷不是原始阈值错误或已完成的业务 reject：失败 H2 的 summary=null、evidence_complete/model_verification_decided/model_verified 均 false，原失败记录保留。
+
+先提交本裁决，再作有限修复。一个顶层 H 操作的 Budget 持有有界、不可变 raw bytes 缓存，nested H1/G 共享同一 Budget 和协作式时钟，不跨操作、native 运行或 runtime/TTL 校验复用。条目以 canonical resolved path 标识，记录实际捕获 SHA、文件身份/大小/时间 metadata 及绑定路径关系。不同 resolved path 不因相同内容或 hardlink 身份免于计费；同一 canonical path 的合法 alias 可共享捕获，但每项 rooted binding 的 containment、解析身份和声明 SHA 仍分别核验。不得新增 decoded-object 或验证结果缓存，不能用 cache hit 替代合同要求的完整 D/E/G/H1 历史消费、数值重算、source、执行时资格或 TTL gate。
+
+首次捕获先检查普通文件身份、16 MiB 单文件上限和剩余 64 MiB 预算，再作有界读取与分配；实际读到的字节全部入账，增长、超限、读取期间身份变化或不完整捕获阻断，不先无界 read_bytes 再计费。复用时检查路径/metadata 和已捕获身份，不重复读取 payload；每个首次或随后发现的 SHA 声明必须等于捕获字节的 SHA，冲突不能覆盖、只核首项或被 seen 分支跳过。missing、replacement、增长、alias 重定向/escape 和已知身份变化均阻断。
+
+document 每次从已捕获 bytes 新解码，保持现有 runtime_common.load_document 的 UTF-8/BOM、重复 JSON/YAML key、非有限 JSON constant、YAML error 与顶层 object 语义；不得改受保护 runtime_common.py、容忍非法数据或让调用者修改一次解码结果后污染下一次读取。preflight_e 的 charge 后磁盘 load_document、D archive 完整原始文本比较和 H plan/review/CSV 等受 Budget 控制的直接文本读取须使用同一捕获，避免“核一个 SHA、消费另一份字节”。§12.17 selected actual E raw/primary JSON 的有限 scalar/shape/sample gate 和 §12.18 精确 D capture 角色、archive/current 双绑定继续生效；资格的数值数组不误作目标输出，current-role 和先后 SHA 冲突仍严格。
+
+每次合同要求的完成核验仍 fresh、绕过缓存：重新核路径/文件身份，以有界读取重算实际文件 SHA，与捕获 SHA 精确比较。完成核验的真实读取字节也计入同一 64 MiB 预算并检查协作式 120 秒；nested 完成核验不能因共享缓存而变免费。仅 stat 相同不构成最终证明，同大小修改、恢复 mtime 或 alias 身份变化不能形成完成证据。资源或身份失败保留 partial/unattempted 和 null summary，不生成完整数值验证/业务决定。
+
+明确资源保证范围：16 MiB 限制每份 H 捕获/核验文件；64 MiB 计 H Budget 实际控制的捕获加 fresh 完成核验读取，不是“unique bytes”计数，也不是整个进程所有 I/O 的保证。未改写的 D/E/G 历史消费者、SciPy MAT 解码及其内部 runtime/source 检查仍执行自己的 live 读取；这些额外读取、解压与解析对象不能被宣传为该缓存已计量或限制。实现时同步 H resource_guarantees/模块，分开报告捕获、fresh 核验和合计字节。120 秒仍是阻塞调用返回后的协作式完成 gate，不是可中断 deadline；峰值/解压内存和进程总读取保证仍是 unsupported required resource check。保留 16/64 MiB、120 秒、301 样本、两信号及全部 runs/models/scenarios 上限，不以扩大预算、削除资格或缓存验证结果解决失败。
+
+回归用小 fixture 核重复 metadata 捕获与 fresh decode 隔离、多个 unique 文件/单文件超限在分配前拒绝、first/late SHA 冲突、missing/replacement/growth/同大小修改及恢复时间、alias/escape、严格 parser、nested shared Budget 和时间/完成核验计费；原 selected E shape 与 authenticated D capture 正负例全部保留。真实 v3 只读诊断可独立展示新捕获/核验预算行为；源码变化后其 native/H1 仍 stale，不得把诊断当作 fully-current H2 或改写失败 receipt。保持 A7/B2/D19 的 23 unique 保护字节和 E/F/G/H 同一 103 文件闭包。
+
+修复后先 focused/相关 route-state/static、clean commit、source/保护/原材料证明并临时交独立复核；通过后才执行最终全量、最终源码受影响 E/F/G 重资格、新 native v4 与原始 MAT/JSON/CSV 独立审计及技术负例。保留 legacy1840、v1 full99/v2 full268/v3 full292、所有原始数学/阈值和旧失败。最终 PR/CI/merge/main 门槛不减；云端 Python 检查不供应 MATLAB 资格或真实人类批准，I–K、release、安装和自动状态升级不激活。
+
+---
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
