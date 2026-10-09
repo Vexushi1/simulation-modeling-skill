@@ -75,7 +75,86 @@ class Budget:
         return {'read_bytes': self.bytes, 'actual_E_runs': len(self.run_ids)}
 
 
-def preflight_e(receipt_path, root, budget, *, path_bindings=None):
+def historical_mapping_role(receipt_path, root, budget):
+    """Authenticate the selected E's D capture, without granting D readiness.
+
+    Only the precise origin field in its owned input gets an archive role.
+    Current mapping and every other binding retain their current-byte role;
+    the existing E consumer still performs complete historical D validation.
+    """
+    from validate_simulation_profile import contract as e_contract
+    from validate_implementation_profile import _validate_request, contract as d_contract
+    from validate_domain_mapping import semantic_digest as mapping_digest
+    path = Path(receipt_path).resolve()
+    e_names, d_names = e_contract()['evidence'], d_contract()['evidence']
+    if path.name != e_names['run_receipt']:
+        return {}, []
+    e_receipt = budget.read(path)
+    e_input = e_receipt['artifacts']['input']
+    if set(e_input) != {'file', 'sha256'} or e_input['file'] != e_names['input']:
+        raise ValueError('selected E input role differs before D capture resolution')
+    e_request = budget.read(budget.bind({'path': e_input['file'], 'sha256': e_input['sha256']}, path.parent))
+    if e_request.get('mode') != 'primary' or e_request.get('run_id') != e_receipt['run_id']:
+        raise ValueError('selected E input identity differs before D capture resolution')
+    binding = e_request['bindings'].get('implementation_receipt')
+    if binding is None:
+        return {}, []  # No D origin exemption; full E will enforce its surface.
+    d_path = budget.bind(binding, root)
+    if d_path.name != d_names['structure_receipt']:
+        raise ValueError('selected E implementation receipt role differs')
+    receipt = budget.read(d_path)
+    manifest = receipt['artifacts']
+    def owned(role, name):
+        item = manifest[role]
+        if set(item) != {'file', 'sha256'} or item['file'] != name:
+            raise ValueError('D historical capture artifact role differs: ' + role)
+        return budget.bind({'path': item['file'], 'sha256': item['sha256']}, d_path.parent)
+    input_path = owned('input', d_names['input'])
+    request = budget.read(input_path)
+    _validate_request(request)
+    b = request['bindings']
+    if (request['mode'] != 'implementation' or Path(request['output_directory']).resolve() != d_path.parent
+            or type(receipt.get('schema_version')) is not int or receipt['schema_version'] != 1
+            or receipt.get('run_id') != request['run_id']
+            or receipt.get('sources') != request['sources'] or len(request['cases']) != 1
+            or request['cases'][0]['case_id'] != 'implementation' or request['cases'][0]['expect_failure'] is not False):
+        raise ValueError('D historical capture receipt/input identity differs')
+    for name in ('project_id', 'mapping_semantic_sha256', 'parameter_provenance_sha256', 'build_spec_sha256'):
+        if receipt.get(name) != b[name]:
+            raise ValueError('D historical capture receipt binding differs: ' + name)
+    if canonical_digest(request['cases'][0]['build_spec']) != b['build_spec_sha256']:
+        raise ValueError('D historical capture build specification identity differs')
+    expected = {'input': d_names['input'], 'raw': d_names['raw'], 'log': d_names['log'],
+                'mapping_snapshot': 'mapping-snapshot.json', 'mapping_original': 'mapping-original.yaml',
+                'implementation_model': request['cases'][0]['build_spec']['model_name'] + '.slx',
+                'implementation_structure': 'implementation-structure.json'}
+    if set(manifest) != set(expected):
+        raise ValueError('D historical capture artifact manifest differs')
+    artifacts = {role: owned(role, name) for role, name in expected.items()}
+    raw = budget.read(artifacts['raw'])
+    if any(raw.get(name) != request[name] for name in ('run_id', 'channel', 'host_fingerprint', 'input_identity', 'source_identity')):
+        raise ValueError('D historical capture raw/input identity differs')
+    original, snapshot = artifacts['mapping_original'], budget.read(artifacts['mapping_snapshot'])
+    origin = b['mapping_input']
+    if not isinstance(origin, dict) or set(origin) != {'path', 'sha256'}:
+        raise ValueError('D historical mapping origin exact binding differs')
+    current = contained_path(root, origin['path'])
+    current_mapping = budget.read(current)
+    archived_mapping = budget.read(original)
+    if (original.read_bytes() != b['mapping_original_text'].encode('utf-8')
+            or budget.identities[original] != origin['sha256']
+            or canonical_digest(snapshot) != canonical_digest(b['mapping_snapshot'])
+            or any(doc.get('project_id') != b['project_id'] or mapping_digest(doc) != b['mapping_semantic_sha256']
+                   for doc in (snapshot, archived_mapping, current_mapping))):
+        raise ValueError('D historical mapping original text/SHA or snapshot/current semantics differ')
+    attached = current_mapping.get('implementation')
+    if attached is not None and (contained_path(root, attached['path']) != d_path or attached['sha256'] != budget.identities[d_path]):
+        raise ValueError('current mapping implementation attachment differs from selected D receipt')
+    role = (input_path, ('bindings', 'mapping_input'))
+    return {role: (origin, original, budget.identities[input_path])}, [current]
+
+
+def preflight_e(receipt_path, root, budget, *, path_bindings=None, historical_roles=None):
     """Bound files before the existing E consumer can open native/JSON/CSV data.
 
     Walk exact binding records and evidence-directory artefacts, never MATLAB
@@ -83,7 +162,14 @@ def preflight_e(receipt_path, root, budget, *, path_bindings=None):
     their numerical arrays are not selected H outputs. G supplies its typed
     owned-directory bindings explicitly; other path bindings use project root.
     """
+    roles = dict(historical_roles or {})
+    captured, current = historical_mapping_role(receipt_path, root, budget)
+    for location, role in captured.items():
+        if location in roles and roles[location] != role:
+            raise ValueError('conflicting D historical mapping role')
+        roles[location] = role
     pending = [(Path(receipt_path).resolve(), None)]
+    pending.extend((path, None) for path in current)
     seen = set()
     while pending:
         path, expected_sha = pending.pop()
@@ -101,23 +187,31 @@ def preflight_e(receipt_path, root, budget, *, path_bindings=None):
         if path.name.endswith('receipt.json') or path.name.endswith('profile.json'):
             pending.extend((item.resolve(), None) for item in path.parent.iterdir() if item.is_file())
 
-        def walk(item):
+        def walk(item, location=()):
             if isinstance(item, dict):
                 if 'sha256' in item and ('path' in item or 'file' in item):
                     name = item.get('path', item.get('file'))
                     if isinstance(name, str):
-                        candidate = (path_bindings or {}).get((name, item['sha256']), Path(name))
+                        role = roles.get((path, location))
+                        if role is not None:
+                            origin, archive, input_sha = role
+                            if item != origin or budget.identities[path] != input_sha:
+                                raise ValueError('D historical mapping origin role changed')
+                            candidate = archive
+                        else:
+                            candidate = (path_bindings or {}).get((name, item['sha256']), Path(name))
                         if not candidate.is_absolute():
                             candidate = (path.parent / name) if 'file' in item else (root / name)
                         if not candidate.is_file():
                             raise ValueError('bound historical input is missing: ' + str(candidate))
                         pending.append((candidate.resolve(), item['sha256']))
-                for child in item.values():
-                    walk(child)
+                for key, child in item.items():
+                    walk(child, location + (key,))
             elif isinstance(item, list):
-                for child in item:
-                    walk(child)
+                for index, child in enumerate(item):
+                    walk(child, location + (index,))
         walk(value)
+    return roles
 
 
 def bounded_outputs(outputs, budget):
@@ -206,10 +300,11 @@ def preflight_campaign(path, root, budget, selected_bindings):
     sampling = receipt['sampling_receipt']
     sampling_path = budget.bind(sampling, path.parent)
     path_bindings[(sampling['path'], sampling['sha256'])] = sampling_path
+    historical_roles = {}
     for member_path, _ in actual:
         preflight_selected_e(member_path, root, budget)
-        preflight_e(member_path, root, budget)
-    preflight_e(path, root, budget, path_bindings=path_bindings)
+        historical_roles.update(preflight_e(member_path, root, budget))
+    preflight_e(path, root, budget, path_bindings=path_bindings, historical_roles=historical_roles)
 
 
 def read_run(binding, root, budget):

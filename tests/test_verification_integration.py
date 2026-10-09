@@ -635,3 +635,209 @@ def test_conflicting_bound_SHA_never_evades_seen_file_checks(tmp_path, order):
     write_json(path, doc)
     with pytest.raises(ValueError, match='SHA differs'):
         preflight_e(path, tmp_path, Budget())
+
+
+def historical_D_fixture(root):
+    """Capture-role infrastructure only: model bytes are not native evidence."""
+    import json
+    from probe_implementation import make_request, qualification_cases
+    from runtime_common import canonical_digest
+    from validate_domain_mapping import semantic_digest as mapping_digest
+    e, _ = selected_e_fixture(root / 'actual-E', qualification=False)
+    directory = root / 'native-D'
+    directory.mkdir()
+    mapping = root / 'mapping.json'
+    original = {'schema_version': 1, 'project_id': 'owner-history-role', 'status': 'mapped',
+                'implementation': None, 'mathematics': {'slope': 2.5}}
+    text = json.dumps(original, indent=2) + '\n'
+    mapping.write_bytes(text.encode('utf-8'))
+    (directory / 'mapping-original.yaml').write_bytes(text.encode('utf-8'))
+    snapshot = {k: v for k, v in original.items() if k not in {'status', 'implementation'}}
+    write_json(directory / 'mapping-snapshot.json', snapshot)
+    identity = '12a62a6d-15bc-4567-890a-abcdef123456'
+    spec = qualification_cases(identity)[0]['build_spec']
+    b = {'project_id': original['project_id'], 'mapping_semantic_sha256': mapping_digest(original),
+         'mapping_snapshot': snapshot, 'mapping_original_text': text, 'mapping_input': binding(mapping),
+         'parameter_provenance_sha256': 'a' * 64, 'build_spec_sha256': canonical_digest(spec), 'bound_files': []}
+    request = make_request('owner-no-native.exe', directory, run_id=identity, mode='implementation',
+                           cases=[{'case_id': 'implementation', 'expect_failure': False, 'build_spec': spec}], bindings=b)
+    write_json(directory / 'inputs.json', request)
+    write_json(directory / 'raw-implementation.json', {k: request[k] for k in
+        ('run_id', 'channel', 'host_fingerprint', 'input_identity', 'source_identity')})
+    (directory / 'matlab-batch.log').write_text('OWNER BOUNDARY FIXTURE; no native run', encoding='utf-8')
+    (directory / (spec['model_name'] + '.slx')).write_bytes(b'OWNER NON-NATIVE PLACEHOLDER')
+    write_json(directory / 'implementation-structure.json', {'notice': 'not native evidence'})
+    d = directory / 'implementation-receipt.json'
+    write_json(d, {'schema_version': 1, 'run_id': identity, 'sources': request['sources'],
+                  **{k: b[k] for k in ('project_id', 'mapping_semantic_sha256', 'parameter_provenance_sha256', 'build_spec_sha256')}})
+    refresh_historical_fixture(e, d, mapping)
+    return e, d, mapping
+
+
+def refresh_historical_fixture(e, d, mapping, *, restamp_input=True):
+    from runtime_common import canonical_digest
+    request = load_document(d.parent / 'inputs.json')
+    if restamp_input:
+        request['input_identity'] = canonical_digest({k: v for k, v in request.items() if k != 'input_identity'})
+        write_json(d.parent / 'inputs.json', request)
+        write_json(d.parent / 'raw-implementation.json', {k: request[k] for k in
+            ('run_id', 'channel', 'host_fingerprint', 'input_identity', 'source_identity')})
+    doc = load_document(d)
+    spec = request['cases'][0]['build_spec']
+    expected = {'input': 'inputs.json', 'raw': 'raw-implementation.json', 'log': 'matlab-batch.log',
+                'mapping_original': 'mapping-original.yaml', 'mapping_snapshot': 'mapping-snapshot.json',
+                'implementation_model': spec['model_name'] + '.slx', 'implementation_structure': 'implementation-structure.json'}
+    doc['artifacts'] = {role: {'file': name, 'sha256': sha256_file(d.parent / name)} for role, name in expected.items()}
+    write_json(d, doc)
+    refresh_historical_attachment(e, d, mapping)
+
+
+def refresh_historical_attachment(e, d, mapping):
+    current = load_document(mapping)
+    current.update(status='implemented', implementation=binding(d))
+    write_json(mapping, current)
+    request = load_document(e.parent / 'simulation-inputs.json')
+    request['bindings'].update(implementation_receipt=binding(d), bound_files=[binding(mapping)])
+    write_json(e.parent / 'simulation-inputs.json', request)
+    refresh_e_fixture(e)
+
+
+def test_D_archived_origin_allows_only_authenticated_attachment_and_charges_current(tmp_path, monkeypatch):
+    from verification_common import read_run
+    import validate_simulation_receipt as consumer
+    e, d, mapping = historical_D_fixture(tmp_path)
+    archive = d.parent / 'mapping-original.yaml'
+    assert sha256_file(archive) != sha256_file(mapping)
+    budget, entered = Budget(), []
+    def stop(*a, **k):
+        assert mapping.resolve() in budget.identities and archive.resolve() in budget.identities
+        assert budget.identities[mapping.resolve()] == sha256_file(mapping)
+        assert budget.identities[archive.resolve()] == sha256_file(archive)
+        entered.append(True)
+        raise StopIteration('existing E still must validate full history')
+    monkeypatch.setattr(consumer, 'validate_simulation_receipt', stop)
+    with pytest.raises(StopIteration, match='full history'):
+        read_run(binding(e), tmp_path, budget)
+    assert entered == [True]
+    budget.finish()
+
+
+@pytest.mark.parametrize('defect', ['archive_SHA', 'text', 'origin_SHA', 'snapshot_semantics', 'current_semantics',
+    'attachment', 'manifest_missing', 'archive_escape', 'input_role', 'origin_escape', 'raw_identity',
+    'receipt_identity', 'input_identity', 'nested_current_binding', 'receipt_schema', 'build_identity', 'project_identity'])
+def test_D_capture_tamper_blocks_before_E_without_historical_exemptions(tmp_path, monkeypatch, defect):
+    from verification_common import read_run
+    import validate_simulation_receipt as consumer
+    e, d, mapping = historical_D_fixture(tmp_path)
+    input_path = d.parent / 'inputs.json'
+    if defect in {'text', 'origin_SHA', 'origin_escape', 'input_identity', 'build_identity', 'project_identity'}:
+        doc = load_document(input_path)
+        if defect == 'text':
+            doc['bindings']['mapping_original_text'] += ' '
+        elif defect == 'origin_SHA':
+            doc['bindings']['mapping_input']['sha256'] = '0' * 64
+        elif defect == 'origin_escape':
+            doc['bindings']['mapping_input']['path'] = str(tmp_path.parent / 'escaped-mapping.json')
+        elif defect == 'build_identity':
+            doc['bindings']['build_spec_sha256'] = '0' * 64
+            receipt = load_document(d)
+            receipt['build_spec_sha256'] = '0' * 64
+            write_json(d, receipt)
+        elif defect == 'project_identity':
+            doc['bindings']['project_id'] = 'different-from-captured-project'
+            receipt = load_document(d)
+            receipt['project_id'] = doc['bindings']['project_id']
+            write_json(d, receipt)
+        else:
+            doc['bindings']['mapping_original_text'] += ' '
+        write_json(input_path, doc)
+        refresh_historical_fixture(e, d, mapping, restamp_input=defect != 'input_identity')
+    elif defect in {'archive_SHA', 'snapshot_semantics'}:
+        file = d.parent / ('mapping-original.yaml' if defect == 'archive_SHA' else 'mapping-snapshot.json')
+        doc = load_document(file)
+        doc['mathematics']['slope'] = 3.0
+        write_json(file, doc)
+        # A newly hashed manifest cannot repair the declared capture identity.
+        refresh_historical_fixture(e, d, mapping)
+    elif defect in {'manifest_missing', 'archive_escape', 'input_role', 'receipt_identity', 'receipt_schema'}:
+        doc = load_document(d)
+        if defect == 'manifest_missing':
+            doc['artifacts'].pop('implementation_structure')
+        elif defect == 'archive_escape':
+            doc['artifacts']['mapping_original']['file'] = '../mapping-original.yaml'
+        elif defect == 'input_role':
+            doc['artifacts']['input'] = doc['artifacts']['mapping_snapshot']
+        elif defect == 'receipt_schema':
+            doc['schema_version'] = True
+        else:
+            doc['project_id'] = 'different-owner-project'
+        write_json(d, doc)
+        refresh_historical_attachment(e, d, mapping)
+    elif defect == 'raw_identity':
+        raw = load_document(d.parent / 'raw-implementation.json')
+        raw['run_id'] = 'different-owner-run'
+        write_json(d.parent / 'raw-implementation.json', raw)
+        refresh_historical_fixture(e, d, mapping, restamp_input=False)
+    elif defect in {'current_semantics', 'attachment'}:
+        doc = load_document(mapping)
+        if defect == 'current_semantics':
+            doc['mathematics']['slope'] = 3.0
+        else:
+            doc['implementation']['sha256'] = '0' * 64
+        write_json(mapping, doc)
+        request = load_document(e.parent / 'simulation-inputs.json')
+        request['bindings']['bound_files'] = [binding(mapping)]
+        write_json(e.parent / 'simulation-inputs.json', request)
+        refresh_e_fixture(e)
+    else:
+        request = load_document(e.parent / 'simulation-inputs.json')
+        request['bindings']['protocol_snapshot'] = {'mapping': {'path': str(mapping), 'sha256': sha256_file(d.parent / 'mapping-original.yaml')}}
+        write_json(e.parent / 'simulation-inputs.json', request)
+        refresh_e_fixture(e)
+    entered = []
+    monkeypatch.setattr(consumer, 'validate_simulation_receipt', lambda *a, **k: entered.append(True))
+    with pytest.raises((ValueError, KeyError, OSError)):
+        read_run(binding(e), tmp_path, Budget())
+    assert not entered
+
+
+@pytest.mark.parametrize('order', ['bad_first', 'good_first'])
+def test_D_archive_same_role_conflicting_SHA_is_not_overridden(tmp_path, monkeypatch, order):
+    from verification_common import read_run
+    import validate_simulation_receipt as consumer
+    e, d, mapping = historical_D_fixture(tmp_path)
+    archive = d.parent / 'mapping-original.yaml'
+    good, bad = binding(archive), {'path': str(archive), 'sha256': '0' * 64}
+    request = load_document(d.parent / 'inputs.json')
+    request['bindings']['bound_files'] = [good, bad] if order == 'bad_first' else [bad, good]
+    write_json(d.parent / 'inputs.json', request)
+    refresh_historical_fixture(e, d, mapping)
+    entered = []
+    monkeypatch.setattr(consumer, 'validate_simulation_receipt', lambda *a, **k: entered.append(True))
+    with pytest.raises(ValueError, match='SHA differs'):
+        read_run(binding(e), tmp_path, Budget())
+    assert not entered
+
+
+def test_unselected_fake_D_manifest_cannot_assign_origin_role(tmp_path):
+    from verification_common import preflight_e
+    e, d, mapping = historical_D_fixture(tmp_path)
+    fake = tmp_path / 'arbitrary-source.json'
+    doc = load_document(d.parent / 'inputs.json')
+    doc['artifacts'] = {role: {**item, 'file': str(d.parent / item['file'])}
+                        for role, item in load_document(d)['artifacts'].items()}
+    write_json(fake, doc)
+    with pytest.raises(ValueError, match='SHA differs'):
+        preflight_e(fake, tmp_path, Budget())
+
+
+def test_G_reuses_only_selected_D_capture_context_before_nested_E_consumption(tmp_path):
+    from verification_common import preflight_campaign
+    e, d, mapping = historical_D_fixture(tmp_path)
+    rows = [{'status': 'completed', 'receipt': {'path': e.relative_to(tmp_path).as_posix(), 'sha256': sha256_file(e)}}]
+    g = campaign_fixture(tmp_path, rows)
+    budget = Budget()
+    preflight_campaign(g, tmp_path, budget, [binding(e)])
+    assert budget.identities[mapping.resolve()] == sha256_file(mapping)
+    assert budget.identities[(d.parent / 'mapping-original.yaml').resolve()] == sha256_file(d.parent / 'mapping-original.yaml')
+    budget.finish()
