@@ -2087,6 +2087,18 @@ v2 首先报告 schema、语义有效性、具体 missing_gates 和阶段 readin
 
 ---
 
+## 12.17 真实 H 消费修订：样本预算的证据角色
+
+v2 原始任务实际完成两份 D、五份直接 E 和完整三成员 G；首次 H1 消费失败并保留其 failed/not_attempted ledger 与空 summary。独立只读定位发现当前 coarse E 的输出只有 5 个样本，而 H 来源 preflight 将绑定 E qualification 同目录的 early_stop 原始数据（3645 样本）误计为当前 H 输出。E 必需资格用例也包含三输出检查，不应按 H 目标运行最多两信号的范围限制。该问题是产品预算作用域错误；先修订本节，再改消费者，不提高 301 或两信号上限。
+
+H 的 signal/sample 上限只作用于本次明确选中的每份实际 E 输出，包括其绑定 raw JSON 和 primary JSON 的一致数值表示。必须在现有 E 历史消费者读取该运行的 MAT/执行数值检查前，对明确身份的目标 JSON 做样本/信号 preflight，并在成功消费后复核实际输出。资格、审批、协议、来源文件中的其他 time/values 字段不因此成为目标输出；不能按文件 basename、任意键名或目录中邻近文件推断数值角色。保留 qualification 的 exact SHA、源码、执行时身份与现有 E 完整消费；所有绑定输入仍计入文件/总读取字节、变更及协作式时间预算。不得删除资格文件、跳过其历史验证、放弃原始数值一致性或消除失败来使 H 通过。
+
+回归须真实区分“小目标输出＋大资格用例”与“目标输出超限”：前者保留资格完整验证且可进入分析，后者在 E 数值消费前拒绝；目标超过两信号、time/values 长度异常、资格文件缺失/篡改/超字节预算和来源变更仍阻断，nested H2 仍共享预算。采用小规模明确角色的回归 fixture，另由独立作者用新的真实资格和原始任务确认；fixture 不能替代 native 源链。
+
+verification_common 属于 E/F/G/H 共享 critical source；修复后记录新候选和同一 103 文件闭包，完成受影响测试、全量回归、lint/index/Skill 检查和独立复核。重新取得 E/F/G 当前资格及实际旧功能回归，新 H 原始任务在全新 v3 项目形成 D/E/G/H 与原始数值审计。A/D 受保护源码未变时，只能在逐字核身份及当前有效期后复用其实际资格；不改标签复用旧 E/F/G/H。v1/v2 原始数学、阈值、所有成功及失败记录完整保留，v3 数学字节与原始封存一致。最终 CI/PR/main 检查仍依 §12.14；更大资源保证和 I–K 不激活。
+
+---
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
