@@ -1,0 +1,109 @@
+schema_version: 1
+phase: H
+kind: H1
+plan_schema: core/verification.schema.yaml
+methods: [analytic_reference, step_refinement]
+limits:
+  runs: 16
+  signals: 2
+  samples_per_signal: 301
+  input_file_bytes: 16777216
+  total_read_bytes: 67108864
+  wall_seconds: 120
+native_execution: false
+source_files:
+- adapters/mathworks/experiment_methods.md
+- adapters/mathworks/parameter_study_methods.md
+- core/bootstrap.yaml
+- core/capability_profile.schema.yaml
+- core/capability_taxonomy.yaml
+- core/domain_mapping.schema.yaml
+- core/experiment_assurance_contract.yaml
+- core/experiment_design.schema.yaml
+- core/implementation_assurance_contract.yaml
+- core/model_approval_contract.yaml
+- core/model_contract.schema.yaml
+- core/model_verification_contract.yaml
+- core/module_manifest.yaml
+- core/numerical_verification_contract.yaml
+- core/output_contract.yaml
+- core/parameter_provenance.schema.yaml
+- core/parameter_study_assurance_contract.yaml
+- core/parameter_study.schema.yaml
+- core/problem_contract.schema.yaml
+- core/project_state.schema.yaml
+- core/runtime_assurance_contract.yaml
+- core/simulation_assurance_contract.yaml
+- core/simulation_protocol.schema.yaml
+- core/verification.schema.yaml
+- core/workflow_router.yaml
+- modules/04_simulation_protocol.md
+- modules/05_identification_calibration_optimization.md
+- modules/06_experiment_design.md
+- packs/design_of_experiments.md
+- packs/monte_carlo.md
+- packs/task/calibration.md
+- packs/task/optimization.md
+- packs/task/parameter_identification.md
+- requirements.txt
+- scripts/experiment_common.py
+- scripts/experiment_route.py
+- scripts/experiment_sampling.py
+- scripts/experiment_state.py
+- scripts/matlab/probe_environment.m
+- scripts/matlab/probe_implementation.m
+- scripts/matlab/run_parameter_study.m
+- scripts/matlab/run_simulation.m
+- scripts/matlab/sample_experiment.m
+- scripts/parameter_study_common.py
+- scripts/parameter_study_route.py
+- scripts/parameter_study_state.py
+- scripts/probe_environment.py
+- scripts/probe_experiment.py
+- scripts/probe_implementation.py
+- scripts/probe_parameter_study.py
+- scripts/probe_simulation.py
+- scripts/resolve_runtime.py
+- scripts/run_experiment.py
+- scripts/run_implementation.py
+- scripts/run_model_verification.py
+- scripts/run_numerical_verification.py
+- scripts/run_parameter_study.py
+- scripts/run_simulation.py
+- scripts/run_verification.py
+- scripts/runtime_common.py
+- scripts/simulation_route.py
+- scripts/simulation_state.py
+- scripts/validate_domain_mapping.py
+- scripts/validate_environment.py
+- scripts/validate_experiment_design.py
+- scripts/validate_experiment_profile.py
+- scripts/validate_experiment_receipt.py
+- scripts/validate_implementation_profile.py
+- scripts/validate_implementation_receipt.py
+- scripts/validate_model_contract.py
+- scripts/validate_model_verification.py
+- scripts/validate_numerical_verification.py
+- scripts/validate_parameter_provenance.py
+- scripts/validate_parameter_study_profile.py
+- scripts/validate_parameter_study_receipt.py
+- scripts/validate_parameter_study.py
+- scripts/validate_problem_contract.py
+- scripts/validate_project_state.py
+- scripts/validate_simulation_profile.py
+- scripts/validate_simulation_protocol.py
+- scripts/validate_simulation_receipt.py
+- scripts/validate_verification_receipt.py
+- scripts/validate_verification.py
+- scripts/verification_analysis.py
+- scripts/verification_common.py
+- templates/contracts/model_verification.yaml
+- templates/contracts/numerical_verification.yaml
+- templates/experiment/experiment_design.yaml
+- tests/test_experiment_design.py
+- tests/test_experiment_failures.py
+- tests/test_experiment_routing.py
+- tests/test_experiment_runtime.py
+- tests/test_experiment_sampling.py
+- tests/test_verification.py
+claim_limit: finite recorded samples and declared terminal differences only; no physical validation

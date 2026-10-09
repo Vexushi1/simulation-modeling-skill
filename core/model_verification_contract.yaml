@@ -1,0 +1,13 @@
+schema_version: 1
+phase: H
+kind: H2
+plan_schema: core/verification.schema.yaml
+methods: [scenario_response, finite_domain_robustness, solver_final_comparison, structural_final_comparison]
+limits:
+  runs: 32
+  models: 2
+  scenarios: 16
+native_execution: false
+primary_h1_required: true
+every_actual_run_h1_required: true
+claim_limit: source-reviewed finite domain and terminal criteria; no model adoption or real-system validation

@@ -144,6 +144,21 @@ source_files:
 - tests/test_experiment_design.py
 - tests/test_experiment_routing.py
 - templates/experiment/experiment_design.yaml
+- core/model_verification_contract.yaml
+- core/numerical_verification_contract.yaml
+- core/verification.schema.yaml
+- scripts/run_model_verification.py
+- scripts/run_numerical_verification.py
+- scripts/run_verification.py
+- scripts/validate_model_verification.py
+- scripts/validate_numerical_verification.py
+- scripts/validate_verification_receipt.py
+- scripts/validate_verification.py
+- scripts/verification_analysis.py
+- scripts/verification_common.py
+- templates/contracts/model_verification.yaml
+- templates/contracts/numerical_verification.yaml
+- tests/test_verification.py
 evidence:
   input: parameter-study-inputs.json
   raw: raw-parameter-study.json

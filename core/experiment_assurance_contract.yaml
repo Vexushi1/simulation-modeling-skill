@@ -136,6 +136,21 @@ source_files:
 - adapters/mathworks/parameter_study_methods.md
 - scripts/parameter_study_route.py
 - scripts/parameter_study_state.py
+- core/model_verification_contract.yaml
+- core/numerical_verification_contract.yaml
+- core/verification.schema.yaml
+- scripts/run_model_verification.py
+- scripts/run_numerical_verification.py
+- scripts/run_verification.py
+- scripts/validate_model_verification.py
+- scripts/validate_numerical_verification.py
+- scripts/validate_verification_receipt.py
+- scripts/validate_verification.py
+- scripts/verification_analysis.py
+- scripts/verification_common.py
+- templates/contracts/model_verification.yaml
+- templates/contracts/numerical_verification.yaml
+- tests/test_verification.py
 evidence:
   input: sample-inputs.json
   raw: raw-sample.json

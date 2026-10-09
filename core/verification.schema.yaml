@@ -1,0 +1,156 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Source-reviewed bounded H historical analysis plan
+type: object
+additionalProperties: false
+required: [schema_version, kind, project_id, status, primary, runs, requirements, sources, review_record, analyses, material_results]
+properties:
+  schema_version: {const: 1}
+  kind: {enum: [H1, H2]}
+  project_id: {$ref: '#/$defs/id'}
+  status: {enum: [draft, reviewed]}
+  primary: {$ref: '#/$defs/nullable_file'}
+  runs:
+    type: array
+    maxItems: 32
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, receipt, references, h1_receipt]
+      properties:
+        id: {$ref: '#/$defs/id'}
+        receipt: {$ref: '#/$defs/nullable_file'}
+        references: {type: array, maxItems: 2, items: {$ref: '#/$defs/reference'}}
+        h1_receipt: {$ref: '#/$defs/nullable_file'}
+  requirements:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, method, required, reason, source_ids]
+      properties:
+        id: {$ref: '#/$defs/id'}
+        method: {$ref: '#/$defs/id'}
+        required: {type: boolean}
+        reason: {$ref: '#/$defs/text'}
+        source_ids: {$ref: '#/$defs/ids'}
+  sources:
+    type: array
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, path, sha256]
+      properties:
+        id: {$ref: '#/$defs/id'}
+        path: {$ref: '#/$defs/text'}
+        sha256: {$ref: '#/$defs/sha'}
+  review_record: {$ref: '#/$defs/nullable_file'}
+  analyses:
+    type: array
+    maxItems: 16
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, method, run_ids, claim_id, campaign, output_ports, unit, direction, threshold, failure_disposition, impact_scope, required_action, return_stage, structural_review, solver_changes]
+      properties:
+        id: {$ref: '#/$defs/id'}
+        method: {$ref: '#/$defs/id'}
+        run_ids: {$ref: '#/$defs/ids'}
+        claim_id: {type: [string, 'null']}
+        campaign: {$ref: '#/$defs/nullable_file'}
+        output_ports: {type: array, maxItems: 2, items: {type: integer, minimum: 1}}
+        unit: {type: [string, 'null'], minLength: 1}
+        direction: {enum: [null, le, ge]}
+        threshold: {type: [number, 'null']}
+        failure_disposition: {enum: [null, modify, reject]}
+        impact_scope: {type: [string, 'null'], minLength: 1}
+        required_action: {type: [string, 'null'], minLength: 1}
+        return_stage: {type: [string, 'null'], minLength: 1}
+        structural_review:
+          oneOf:
+          - {type: 'null'}
+          - type: object
+            additionalProperties: false
+            required: [source_ids, left_relation_ids, right_relation_ids, material_difference, physical_conditions_mapping, reason]
+            properties:
+              source_ids: {$ref: '#/$defs/ids'}
+              left_relation_ids: {$ref: '#/$defs/ids'}
+              right_relation_ids: {$ref: '#/$defs/ids'}
+              material_difference: {enum: [governing_equation, mechanism, physical_abstraction, constitutive_relation, coupling]}
+              physical_conditions_mapping: {$ref: '#/$defs/text'}
+              reason: {$ref: '#/$defs/text'}
+        solver_changes: {type: array, uniqueItems: true, items: {type: string}}
+  material_results:
+    type: array
+    maxItems: 16
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, target_claim, domain, model_comparison_requirement, triggers, reason, source_ids, analysis_ids]
+      properties:
+        id: {$ref: '#/$defs/id'}
+        target_claim: {$ref: '#/$defs/text'}
+        domain:
+          type: object
+          additionalProperties: false
+          required: [kind, description]
+          properties:
+            kind: {enum: [actual_draws, complete_catalog, terminal_pair]}
+            description: {$ref: '#/$defs/text'}
+        model_comparison_requirement: {enum: [required, not_applicable]}
+        triggers:
+          type: object
+          additionalProperties: false
+          required: [structural_uncertainty, multiple_fidelities, data_and_mechanistic, simplification_changes_claim, user_required, structural_stability_claim]
+          properties:
+            structural_uncertainty: {type: boolean}
+            multiple_fidelities: {type: boolean}
+            data_and_mechanistic: {type: boolean}
+            simplification_changes_claim: {type: boolean}
+            user_required: {type: boolean}
+            structural_stability_claim: {type: boolean}
+        reason: {$ref: '#/$defs/text'}
+        source_ids: {$ref: '#/$defs/ids'}
+        analysis_ids: {$ref: '#/$defs/ids'}
+$defs:
+  id: {type: string, pattern: '^[A-Za-z][A-Za-z0-9_.-]*$'}
+  text: {type: string, pattern: '\S'}
+  ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+  sha: {type: string, pattern: '^[a-f0-9]{64}$'}
+  file:
+    type: object
+    additionalProperties: false
+    required: [path, sha256]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+  nullable_file: {oneOf: [{type: 'null'}, {$ref: '#/$defs/file'}]}
+  reference:
+    type: object
+    additionalProperties: false
+    required: [family, output_port, unit, source_ids, relation_ids, constant_parameter, terms, a_parameter, b_parameter, input_id, state_id, initial_selector, atol, rtol]
+    properties:
+      family: {enum: [static_affine, first_order_constant]}
+      output_port: {type: integer, minimum: 1}
+      unit: {$ref: '#/$defs/text'}
+      source_ids: {$ref: '#/$defs/ids'}
+      relation_ids: {$ref: '#/$defs/ids'}
+      constant_parameter: {type: [string, 'null']}
+      terms:
+        type: array
+        maxItems: 2
+        items:
+          type: object
+          additionalProperties: false
+          required: [parameter_id, input_id]
+          properties:
+            parameter_id: {type: [string, 'null']}
+            input_id: {$ref: '#/$defs/id'}
+      a_parameter: {type: [string, 'null']}
+      b_parameter: {type: [string, 'null']}
+      input_id: {type: [string, 'null']}
+      state_id: {type: [string, 'null']}
+      initial_selector:
+        type: array
+        items: {oneOf: [{type: string}, {type: integer, minimum: 0}]}
+      atol: {type: number, minimum: 0}
+      rtol: {type: number, minimum: 0}
