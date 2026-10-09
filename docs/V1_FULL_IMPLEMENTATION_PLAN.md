@@ -2099,6 +2099,18 @@ verification_common 属于 E/F/G/H 共享 critical source；修复后记录新�
 
 ---
 
+## 12.18 H 历史来源角色修订：D 原始 mapping capture
+
+§12.17 修复后的独立复核确认：选定 E 输出与大资格资料已正确区分，但完整来源 preflight 把 D inputs.json 的 bindings.mapping_input 原始 SHA 重绑定到调用者已附加 D receipt 的当前 mapping 路径，因而错误拒绝真实 v2 历史链。既有 D Authority 将该 SHA 绑定到 owned mapping-original.yaml 的完整原始文本与字节，并核 mapping-snapshot.json 的语义；当前 mapping 数学语义仅排除 status/implementation。此处先澄清角色，再改消费者，不修改受保护 D/E Authority、原材料或旧成功/失败记录。
+
+仅对由选定实际 E input 的 implementation_receipt exact binding 找到的 D 记录建立历史角色。preflight 必须核 D receipt、owned input、run/project/source/input identity 与完整 artifact manifest；核原始 mapping capture 的 SHA/完整文本、snapshot 内容及语义与当前 mapping 的语义一致后，才把该已绑定 D input 内精确 bindings.mapping_input 位置解析到 owned mapping-original.yaml。不能按文件名、任意同名键或全局 path/SHA 替换推断历史角色。仅核 capture 完整性不供应 native 成功、当前项目 readiness 或人类批准；现有 E 历史消费者仍必须完整消费 D 的资格、结构、当前 source/bound_files 与冻结 E。
+
+archive 与当前 mapping 均计入相同 H 文件/读取字节、变更及协作式时间预算并继续遍历其真实依赖。当前 D bound_files、E bound_files、完整冻结 E protocol 与其它 current-role SHA 保持严格；同一真实角色的每项 SHA 声明均须匹配，先后发现的冲突不能被此 origin 角色覆盖。D input 的完整 manifest、capture 文本/SHA、snapshot/current 语义、origin 路径或 owned artifact 路径被改动、逃逸或伪造时阻断。E/F/G/H 的其它 snapshot 仍由其既有 current 完整身份 Authority 约束；未证明存在另一合法变字节 origin，不添加其它豁免。
+
+回归覆盖正常 D receipt attachment 与 archive/current/text/role/manifest/语义篡改、path escape、同角色重复 SHA 冲突；只读真实 v2 完整 preflight，区分通过 metadata closure 与旧 E/F/G/H 仍 stale，不声称旧 receipt 已 fully current 或新增 native 成功。保持 A7/B2/D19（23 unique）字节及 E/F/G/H 同一 103 文件 source closure。先完成修复、focused/相关 route-state/static、clean commit 与来源/原材料 preservation proof，交独立复核；通过后才执行全新 root-all-v3 完整回归，随后 fresh E/F/G qualification 与新 native v3。保留 root-all-v1/v2 与全部已有 evidence；I–K、release/install 与原资源保证边界不变。
+
+---
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
