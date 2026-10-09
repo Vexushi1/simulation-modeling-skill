@@ -1808,6 +1808,12 @@ E metrics.lower/upper 是执行准入界，必须覆盖各实际合法实验结�
 
 ---
 
+## 11.13 独立回执的成员预算核验
+
+独立 G 回执消费者除核对 campaign 总耗时及串行顺序外，还必须从每个实际 E 输入读取单个 primary case 的 simulation_timeout，精确绑定已审定 member_simulation_timeout；从实际 E process 起止记录核对耗时不超过 member_process_timeout。生成器正确传参不能代替消费者核验。剩余 campaign 时间可以收紧实际进程超时，不能放宽成员上限；消费者不添加未声明的耗时容差。失败成员保留同样的预算证据，不能以失败状态跳过读取。增加真实输入配置/进程耗时被重新组合或篡改的负例；任何预算不符都不能形成 complete campaign。
+
+---
+
 # 12. Phase H — 数值有效性、敏感性、鲁棒性与多模型检验
 
 这是 v1.0.0 的核心竞争力阶段。
