@@ -2075,6 +2075,18 @@ H 只读 routing 支持无 state 的项目上下文：receipt consumer 在全部
 
 ---
 
+## 12.16 原始任务前置检查修订：输入目录与具体波形
+
+独立原始任务 v1 的两份真实 D 构建通过，但 E 冻结前检查返回 known_input_representation_unsupported，尚未运行任何 E/G/H。作者将 allowed_values 输入目录放进 B commanded_inputs.value.u；B 的泛型 fact.value 可以登记该对象，但 E 只支持已知 scalar 或含 kind 的具体输入波形，不支持把目录当成一次运行的波形。该缺项已经存在于初始 draft 报告；schema_valid/valid 不等于 protocol_complete/execution_ready。本次是任务表示法及前置检查的修订，不扩展 E 的 allowed_values 语义，不把未准备好的草稿升级为可执行。
+
+保留完整 v1、两份 D、冻结失败、诊断及其既有基线，不修改其 B/C、决策或数学材料，也不将 v1 的 D 记录换标签复用。建立全新 v2 原始任务项目：B 用准确的事实描述保留常值外部 u、nominal 1.7 V 及完整有限目录 {-0.4,1.7,3.2} V；E 每次输入仍逐字绑定来源文件中含 kind 的具体 structured waveform；G 完整因子目录及成员仍绑定原 structured levels/catalog 数据。u 保持外部输入角色，不登记一个强迫全部情景相同的固定模型参数。解析推导、参数、初值、时间、输入域、单位、全部数值阈值及拒绝处置保持原封存字节；新 B/C 合成审查、locked、D/E 冻结及实际运行重新形成各自链，不能冒充真实人的批准。
+
+v2 首先报告 schema、语义有效性、具体 missing_gates 和阶段 readiness。D 构建前的 E 草稿只允许明确列出的尚无实际 D/冻结证据所致的 pending；不支持的输入、未知数值/单位、源选择不匹配等缺项必须先停止。D 绑定后，逐个检查 protocol_complete，再独立审查并冻结，每个协议必须 execution_ready 才能执行；G/H 也逐个核其必需 gate，而不是仅检 valid。不得通过忽略 missing_gates、缩减域、放宽原阈值或改写解析依据处理失败。
+
+此修订仅改变开发计划和外部独立任务准备，不改变任何产品消费者、测试或 E/F/G/H 的 103 文件源码闭包。已通过的 1352 项本机回归及 A/D/E/F/G 真实资格保留其实际提交/源码身份；复用前逐字核相同闭包，最终新 head 再做独立审查和实际 CI。先提交本修订，随后实施新任务、实际原始数据核验及 §12.14 的其余出口；I–K 与 release/install 仍 deferred。
+
+---
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
