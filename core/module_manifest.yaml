@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.6.0
+version: 0.7.0
 modules:
   environment_assurance:
     phase: A
@@ -278,3 +278,73 @@ modules:
     status: implemented
     resources: *id001
     required_operations: []
+  experiment_design:
+    phase: G
+    status: implemented
+    resources:
+    - modules/06_experiment_design.md
+    - core/experiment_design.schema.yaml
+    - core/experiment_assurance_contract.yaml
+    - templates/experiment/experiment_design.yaml
+    - scripts/validate_experiment_design.py
+    - scripts/experiment_common.py
+    - scripts/experiment_sampling.py
+    - scripts/probe_experiment.py
+    - scripts/validate_experiment_profile.py
+    - scripts/run_experiment.py
+    - scripts/validate_experiment_receipt.py
+    - scripts/experiment_route.py
+    - scripts/experiment_state.py
+    - scripts/matlab/sample_experiment.m
+    - packs/design_of_experiments.md
+    - packs/monte_carlo.md
+    - adapters/mathworks/experiment_methods.md
+  experiment_campaign:
+    phase: G
+    status: implemented
+    resources:
+    - modules/06_experiment_design.md
+    - core/experiment_design.schema.yaml
+    - core/experiment_assurance_contract.yaml
+    - templates/experiment/experiment_design.yaml
+    - scripts/validate_experiment_design.py
+    - scripts/experiment_common.py
+    - scripts/experiment_sampling.py
+    - scripts/probe_experiment.py
+    - scripts/validate_experiment_profile.py
+    - scripts/run_experiment.py
+    - scripts/validate_experiment_receipt.py
+    - scripts/experiment_route.py
+    - scripts/experiment_state.py
+    - scripts/matlab/sample_experiment.m
+    - packs/design_of_experiments.md
+    - packs/monte_carlo.md
+    - adapters/mathworks/experiment_methods.md
+    required_operations:
+    - matlab.basic_execution
+    - simulink.library_load
+    - simulink.core_simulation
+    execution_scope: experiment_campaign
+    qualification_scope: sample_plan operation plus current E solver and each complete frozen member;
+      serial only
+  campaign_review:
+    phase: G
+    status: implemented
+    resources:
+    - modules/06_experiment_design.md
+    - core/experiment_design.schema.yaml
+    - core/experiment_assurance_contract.yaml
+    - templates/experiment/experiment_design.yaml
+    - scripts/validate_experiment_design.py
+    - scripts/experiment_common.py
+    - scripts/experiment_sampling.py
+    - scripts/probe_experiment.py
+    - scripts/validate_experiment_profile.py
+    - scripts/run_experiment.py
+    - scripts/validate_experiment_receipt.py
+    - scripts/experiment_route.py
+    - scripts/experiment_state.py
+    - scripts/matlab/sample_experiment.m
+    - packs/design_of_experiments.md
+    - packs/monte_carlo.md
+    - adapters/mathworks/experiment_methods.md

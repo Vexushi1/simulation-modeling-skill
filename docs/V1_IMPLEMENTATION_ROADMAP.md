@@ -1,6 +1,6 @@
 # v1.0.0 Implementation Roadmap
 
-> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. Version 0.6.0 implements the optional bounded Phase F parameter-study branch on A–E. Other D domains and Phases G–K remain deferred; qualification and merge evidence are recorded separately in the development PR.
+> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. Version 0.7.0 adds the optional finite serial Phase G catalog experiment branch to A–F. Other D domains, general parameter sweeps, continuous Monte Carlo, LHS, parallelism and Phases H–K remain deferred; qualification and merge evidence are recorded separately in the development PR.
 
 ## Phase A — Runtime, governance, and trusted root
 
@@ -100,3 +100,9 @@ The detailed Authority is the full plan §10.8–10.13. Read [the F module](../m
 Three operations are conditional: dense uniformly sampled SISO ARX [1 1 1] with one-step holdout prediction; bounded single-gain Simulink least squares with an actual owned model per objective evaluation; and bounded one/two-variable positive quadratic SQP with explicit linear inequalities. New execution requires current same-runtime A/F operation evidence and the union of actual required A operations. Gain trials also require current E ode4 evidence. Neither toolbox installation nor core environment success qualifies a method. Pure design optimization invents no observations or holdout data.
 
 The separate trial ledger, raw/process evidence and cross-checked MAT/JSON candidate outputs establish a candidate within the reviewed criteria. They never overwrite C/D/E evidence, advance state, adopt parameters or prove physical validity or a general global optimum. Adoption returns to new actual C human approval, then new D/E evidence and later H verification. PARAMETER_STUDY_REVIEWED and PARAMETER_CANDIDATE_COMPLETE form an optional branch; the `parameter_study` scope assesses B/C/F history without current runtime or D/E readiness. Earlier partial scopes leave F unassessed. Repository qualification, independent review, CI and merge remain separate development evidence.
+
+## Phase G — Optional finite serial catalog experiments
+
+The detailed Authority is the full plan §11.7–11.12. Read [the G module](../modules/06_experiment_design.md). The implemented surface is scenario matrices, complete one/two-factor finite grids and fixed-size iid categorical Monte Carlo over independently frozen E protocols. Factors, ordered probability meanings, seed, event and budgets are source-bound and independently reviewed. Each draw executes through E in a fresh directory, serially. A/E/G qualifications remain independent and required operations propagate individually.
+
+Only complete fixed-size campaigns may summarize every actual admissible draw. Technical failure, source drift or budget exhaustion preserves a partial ledger with no complete summary. Event samples remain in the denominator; nominal Wilson intervals are conditional on the declared finite iid law. General parameter changes, continuous sampling, LHS, parallelism, numerical verification and physical validation remain separate or deferred gates. Exit requires real sample qualification and campaigns, independent original-input and final-head review, all prior regressions, Windows/Ubuntu CI, merge and readback. Current runtime expiry blocks new execution while immutable historical source/evidence identities remain required.

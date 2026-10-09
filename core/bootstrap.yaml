@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.6.0
+version: 0.7.0
 development_authority: docs/V1_FULL_IMPLEMENTATION_PLAN.md
 runtime_entry:
   router: core/workflow_router.yaml
@@ -17,6 +17,8 @@ runtime_entry:
   simulation_assurance: core/simulation_assurance_contract.yaml
   parameter_study: core/parameter_study.schema.yaml
   parameter_study_assurance: core/parameter_study_assurance_contract.yaml
+  experiment_design: core/experiment_design.schema.yaml
+  experiment_assurance: core/experiment_assurance_contract.yaml
 authority_graph:
   nodes:
     plan: docs/V1_FULL_IMPLEMENTATION_PLAN.md
@@ -47,6 +49,9 @@ authority_graph:
     parameter_study: core/parameter_study.schema.yaml
     parameter_study_assurance: core/parameter_study_assurance_contract.yaml
     parameter_studies: modules/05_identification_calibration_optimization.md
+    experiment_design: core/experiment_design.schema.yaml
+    experiment_assurance: core/experiment_assurance_contract.yaml
+    experiments: modules/06_experiment_design.md
   edges:
   - - plan
     - governance
@@ -124,5 +129,15 @@ authority_graph:
     - parameter_studies
   - - parameter_study_assurance
     - parameter_studies
-implemented_phase: F
+  - - bootstrap
+    - experiment_design
+  - - bootstrap
+    - experiment_assurance
+  - - simulation_protocol
+    - experiment_design
+  - - experiment_design
+    - experiments
+  - - experiment_assurance
+    - experiments
+implemented_phase: G
 business_execution_enabled: true

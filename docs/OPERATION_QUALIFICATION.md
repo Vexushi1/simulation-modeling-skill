@@ -76,3 +76,7 @@ The A probes test a scalar standard normal CDF, a small dense ordinary linear re
 A failed operation is a failed recorded check, not evidence that the entire Statistics and Machine Learning Toolbox is unavailable. A successful new probe can qualify the operation again; preserve the failed history and consume the new evidence with its own identities and validity period.
 
 The historical [PR #2 review](https://github.com/Vexushi1/simulation-modeling-skill/pull/2#discussion_r4207705109) identified the risk of treating the optional diagnostic command as a Statistics qualification gate. The compatibility decision documented here keeps that command optional and makes actual requirements explicit, as recorded in the implementation plan.
+
+## Finite G campaigns
+
+A reviewed G design carries the union of its own, every frozen E member's and the caller's actual A requirements. Require optional Statistics calls explicitly and inspect their individual results. G sample-plan qualification, E solver qualification and A operation qualification remain separate. Categorical sampling uses base MATLAB RandStream and does not itself require lhsdesign or normcdf. Neither a complete campaign nor a nominal Wilson interval qualifies those optional functions or physical claims.

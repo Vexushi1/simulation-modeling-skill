@@ -1,0 +1,19 @@
+schema_version: 1
+project_id: PROJECT_UNKNOWN
+status: draft
+mapping: null
+selection: null
+method: null
+catalog: []
+factors: []
+probabilities: null
+sample_count: null
+seed: null
+metric_id: null
+event: null
+budget: null
+sources: []
+settings_source_ref: null
+required_A_operations: [matlab.basic_execution, simulink.library_load]
+claim_limit: Incomplete catalog draft; no experiment permission or statistical claim.
+review_record: null

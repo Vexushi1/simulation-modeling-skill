@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-title: Phase A through F project state with optional parameter-study branch
+title: Phase A through G project state with optional parameter-study and finite experiment branches
 type: object
 additionalProperties: false
 required:
@@ -32,6 +32,8 @@ properties:
     - PRIMARY_RUN_COMPLETE
     - PARAMETER_STUDY_REVIEWED
     - PARAMETER_CANDIDATE_COMPLETE
+    - EXPERIMENT_DESIGN_REVIEWED
+    - CAMPAIGN_COMPLETE
   implementation_environment:
     $ref: '#/$defs/environment_binding'
   environment:
@@ -104,6 +106,9 @@ properties:
             - study
             - parameter_trial
             - parameter_environment
+            - experiment_design
+            - campaign
+            - experiment_environment
         role:
           enum:
           - environment_profile
@@ -127,6 +132,11 @@ properties:
           - parameter_candidate
           - parameter_study_profile
           - parameter_study_route_decision
+          - experiment_design
+          - experiment_campaign
+          - experiment_summary
+          - experiment_profile
+          - experiment_route_decision
         path:
           type: string
           minLength: 1
@@ -156,6 +166,12 @@ properties:
     $ref: '#/$defs/contract_binding'
   parameter_environment:
     $ref: '#/$defs/environment_binding'
+  experiment_design:
+    $ref: '#/$defs/contract_binding'
+  campaign:
+    $ref: '#/$defs/contract_binding'
+  experiment_environment:
+    $ref: '#/$defs/environment_binding'
 allOf:
 - if:
     properties:
@@ -179,6 +195,8 @@ allOf:
         - PRIMARY_RUN_COMPLETE
         - PARAMETER_STUDY_REVIEWED
         - PARAMETER_CANDIDATE_COMPLETE
+        - EXPERIMENT_DESIGN_REVIEWED
+        - CAMPAIGN_COMPLETE
   then:
     required:
     - problem
@@ -197,6 +215,8 @@ allOf:
         - PRIMARY_RUN_COMPLETE
         - PARAMETER_STUDY_REVIEWED
         - PARAMETER_CANDIDATE_COMPLETE
+        - EXPERIMENT_DESIGN_REVIEWED
+        - CAMPAIGN_COMPLETE
   then:
     required:
     - model
@@ -213,6 +233,8 @@ allOf:
         - PRIMARY_RUN_COMPLETE
         - PARAMETER_STUDY_REVIEWED
         - PARAMETER_CANDIDATE_COMPLETE
+        - EXPERIMENT_DESIGN_REVIEWED
+        - CAMPAIGN_COMPLETE
   then:
     required:
     - approval
@@ -226,6 +248,8 @@ allOf:
         - IMPLEMENTATION_READY
         - SIMULATION_PROTOCOL_FROZEN
         - PRIMARY_RUN_COMPLETE
+        - EXPERIMENT_DESIGN_REVIEWED
+        - CAMPAIGN_COMPLETE
   then:
     required:
     - mapping
@@ -277,6 +301,31 @@ allOf:
     - parameter_trial
     properties:
       parameter_trial:
+        type: object
+- if:
+    properties:
+      current_stage:
+        enum:
+        - EXPERIMENT_DESIGN_REVIEWED
+        - CAMPAIGN_COMPLETE
+  then:
+    required:
+    - experiment_design
+    - mapping
+    properties:
+      experiment_design:
+        type: object
+      mapping:
+        type: object
+- if:
+    properties:
+      current_stage:
+        const: CAMPAIGN_COMPLETE
+  then:
+    required:
+    - campaign
+    properties:
+      campaign:
         type: object
 $defs:
   environment_binding:

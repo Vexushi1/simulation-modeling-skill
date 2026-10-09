@@ -1,7 +1,7 @@
 schema_version: 1
 name: simulation-modeling-skill
-version: 0.6.0
-status: phase_f_implementation
+version: 0.7.0
+status: phase_g_implementation
 primary_runtime:
   product: MATLAB
   release: R2025b
@@ -53,3 +53,6 @@ active_authorities:
 - modules/05_identification_calibration_optimization.md
 - core/parameter_study.schema.yaml
 - core/parameter_study_assurance_contract.yaml
+- core/experiment_design.schema.yaml
+- core/experiment_assurance_contract.yaml
+- modules/06_experiment_design.md

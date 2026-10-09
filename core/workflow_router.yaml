@@ -1,5 +1,5 @@
 schema_version: 1
-phase: F
+phase: G
 module_manifest: core/module_manifest.yaml
 capability_taxonomy: core/capability_taxonomy.yaml
 runtime_contract: core/runtime_assurance_contract.yaml
@@ -245,6 +245,53 @@ intents:
     - process_log
     next_step: Run only the reviewed bounded study in a fresh directory; review the candidate and return
       to C for actual adoption.
+  experiment_design:
+    phase: G
+    mode: read_only
+    module: experiment_design
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: experiment
+    required_gates:
+    - experiment_design_valid
+    expected_artefacts:
+    - experiment_design_review
+    next_step: Review the finite source-bound design; incomplete drafts grant no execution.
+  experiment_campaign:
+    phase: G
+    mode: finite_serial_campaign
+    module: experiment_campaign
+    profile_required: true
+    execution_allowed: true
+    state_validation_scope: experiment
+    required_gates:
+    - experiment_design_reviewed
+    - current_frozen_E_catalog
+    - capability_profile_current
+    - simulation_profile_current
+    - experiment_profile_current
+    - required_operations_qualified
+    expected_artefacts:
+    - experiment_receipt
+    - sample_receipt
+    - campaign_ledger
+    - campaign_summary
+    next_step: Execute each selected complete E member serially in a fresh directory; inspect raw outputs
+      and stop on technical failure.
+  campaign_review:
+    phase: G
+    mode: read_only
+    module: campaign_review
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: experiment
+    required_gates:
+    - experiment_design_reviewed
+    - current_complete_campaign
+    expected_artefacts:
+    - campaign_review
+    next_step: Read the actual sample and each E receipt before discussing fixed-size statistics; H/I
+      claims remain gated.
 operation_selection:
   defaults_from: module_manifest.modules.environment_assurance.required_operations
   optional_policy: explicit_request_only
@@ -330,6 +377,13 @@ fallback:
     action: reprobe_parameter_study
     reason: Obtain current independent A/F qualification for every required operation on the same runtime;
       gain calibration also requires current E ode4 qualification.
+  experiment_design_invalid:
+    action: repair_or_review_experiment_design
+    reason: Require the current complete source-bound design and independently frozen catalog.
+  experiment_profile_invalid:
+    action: reprobe_required_a_e_g_operations
+    reason: A core success does not replace individual required operations; G sample qualification does
+      not replace E simulation.
 invariants:
 - inspect_never_grants_execution_or_advances_state
 - current_profile_and_requested_operations_required_for_environment_execution
@@ -359,7 +413,12 @@ invariants:
 - candidate_adoption_requires_new_human_c_approval_and_new_d_e_evidence
 - parameter_study_scope_leaves_current_runtime_and_d_e_unassessed
 - f_method_qualification_is_operation_specific_not_toolbox_inventory
+- finite_catalog_sampling_never_overrides_frozen_e_parameters
+- technical_failure_prevents_complete_statistics
+- experiment_scope_leaves_current_runtime_unassessed
 simulation_protocol_schema: core/simulation_protocol.schema.yaml
 simulation_assurance_contract: core/simulation_assurance_contract.yaml
 parameter_study_schema: core/parameter_study.schema.yaml
 parameter_study_assurance_contract: core/parameter_study_assurance_contract.yaml
+experiment_design_schema: core/experiment_design.schema.yaml
+experiment_assurance_contract: core/experiment_assurance_contract.yaml
