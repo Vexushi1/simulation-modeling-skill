@@ -1814,6 +1814,12 @@ E metrics.lower/upper 是执行准入界，必须覆盖各实际合法实验结�
 
 ---
 
+## 11.14 原生 MAT 类型与存储编码
+
+R2025b 真实 sample_plan 探测确认，MAT v7 中 MATLAB double 的整数值与空列可使用 miUINT8 存储编码。消费者先以 mat_dtype=False 检查原始复数标志，再以 mat_dtype=True 核验 MATLAB class 为 real double、精确列形状及有限数值，不能把存储编码当变量类型；不以强制 cast 放行真实 uint8/single/complex 变量。保留失败原始 MAT/JSON/profile，增加 double-class/整数存储独立构造回归，修复后重新取得 E/F/G 资格。
+
+---
+
 # 12. Phase H — 数值有效性、敏感性、鲁棒性与多模型检验
 
 这是 v1.0.0 的核心竞争力阶段。
