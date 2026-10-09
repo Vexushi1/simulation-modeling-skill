@@ -1826,6 +1826,16 @@ R2025b 真实 sample_plan 探测确认，MAT v7 中 MATLAB double 的整数值�
 
 ---
 
+## 11.16 逐成员历史资格必须重建
+
+独立 campaign 消费者在每个已尝试成员的 row_start，以历史时间重新核验 campaign 原绑定 A/E/G、其完整必需操作并集及源身份；不能仅在 campaign start 核验。每个真实 E 输入的 environment_profile、environment_receipt、simulation_profile、simulation_profile_receipt 必须精确等于 campaign 绑定。E required_A_operations 按公开 E producer 的稳定顺序去重规则重建：成员 E 协议要求在前，再并入 campaign 完整要求；既不能丢要求，也不能因不同合法顺序误拒。相同 runtime 的另一份资格不能替换绑定材料。补充成员间过期、替换资格、删减 caller 统计操作，以及合法不同成员操作顺序的回归。重新取得受影响资格和新 attempt 回执。
+
+## 11.17 预算边界与治理入口同步
+
+完整设计明确要求 member_simulation_timeout 严格小于 member_process_timeout，与运行器的可启动边界一致；相等预算在设计审查前拒绝，不产生 allowed 路由。同步 AGENTS 的版本为 0.7.0、已实现范围为有限串行 G、deferred 范围为 H–K，并写入 G source/资格/回执/统计/只读纪律。该同步不激活后续阶段。
+
+---
+
 # 12. Phase H — 数值有效性、敏感性、鲁棒性与多模型检验
 
 这是 v1.0.0 的核心竞争力阶段。
