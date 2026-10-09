@@ -2003,6 +2003,64 @@ reject
 
 ---
 
+## 12.9 H 首版实施裁决：有限历史证据消费
+
+实施前独立审查发现 §12.1–12.8 只列方法，尚无逐证据 gate、冻结协议差异、来源审查和出口规则。以下裁决先于 H 消费者实施；它限定首版，未激活的方法仍可作为任务的 required requirement 表达并阻断，而不能自动改为 not_applicable。仓库授权进入 H，不批准真实任务模型；I–K、release、安装和自动状态升级仍未授权。
+
+首版 H 是纯 Python 历史分析，产生新目录证据，不启动 MATLAB、不冻结/改写协议。新增仿真由调用者使用既有 E/G 入口，逐项实际审查并独立冻结、串行运行、保留所有失败和未尝试记录。H 不增加 native probe/profile，不把 Python 算术标记为 MATLAB operation qualification。
+
+H1 激活来源审查的 typed analytic reference：static affine/constant，以及单状态、常输入的一阶系统 x'=-a*x+b*u、y=x、a>=0，明确 a=0 线性极限，a>0 使用稳定 exp/expm1 公式。系数、输入、初值、输出和单位必须逐项绑定当前批准 C/D/E 的登记来源；不能 eval 任意方程、拟合运行输出或猜补参数。每项 material output 须覆盖，否则 required 检查阻断。解析检验覆盖实际记录的有限输出样本，报告冻结的绝对误差和 abs/relative scaled error，不宣称连续时间全域误差、未记录状态、物理正确性或残差/守恒验证。
+
+H1 条件性激活三层 ode4 step refinement：h、h/2、h/4 三份独立冻结 E 协议、三个独立实际 runID。首版比较共同真实末值和各层解析误差；无插值、外推或虚构采样点。各层 duration/step 必须整数对齐，末值时间一致。全零差值或舍入平台记录为阶数不具信息，不能推出收敛阶；差值减小本身不证明精度。任何 required 的残差、约束、守恒、事件定位、漂移、tolerance refinement 等未实现方法均明确 blocked。
+
+H2 激活四种有限方法：完整有限 G 的 scenario_response；明确完整有限离散目录的 finite_domain_robustness；连续模型的 solver_final_comparison；最多两个来源审查模型的 structural_final_comparison。scenario response 不是参数导数/全局 sensitivity；MC 抽样只描述实际 draws，不能证明完整目录稳健性，重复 draw 按独立 runID 逐份覆盖。Morris/Sobol/PRCC/OAT、参数/初值不确定性、连续域/failure boundary、peak/integral/event/全轨迹比较保留 candidate/deferred，required 时阻断。
+
+## 12.10 H1 准入、误差尺度和有限预算
+
+schema_valid、reviewed、evidence_complete、checks_passed、numerically_verified 必须分别报告。每个 H1 receipt 绑定同 project_root 的完整当前 frozen B、批准 C/locked/decision/Brief、D 参数/映射/SLX/结构、独立 frozen E 和真实 runID/receipt/raw outputs。先用现有 E 历史消费者核验 A/E 执行时资格、源码、实际运行和 MAT/JSON/CSV，再逐样本计算 reference；producer 报告不是 consumer 的可信通过标记，consumer 必须重算。
+
+reference family/来源推导、输出映射、单位、required/技术 NA、误差 norm、atol/rtol 和尺度在分析前作为完整语义被来源审查。semantic digest 不包含状态/review pointer，不能互嵌 hash 形成环。相对尺度为 atol+rtol*abs(reference)，需要非零有效分母；不得默加 epsilon、隐式改变 near-zero 判据。有限、实数 scalar double 原始数据与全部 E 原校验保留；complex/shape/class 不符不能悄然丢虚部或 squeeze 成合法数据。非有限参考/溢出/预算超限阻断，不吞掉样本。
+
+硬上限：H1 单分析最多 16 个实际 E receipts，refinement 恰好 3 层；H2 最多 2 个模型、16 个有限场景、总计 32 个实际 E receipts（重复 draws 入账）。每个 E 输出最多 2 个 scalar signals、每信号最多 301 样本；单证据输入文件 16 MiB、一次 H 分析读取绑定数据总预算 64 MiB，H 总 wall-time 最多 120 秒。必须在读取大型 MAT/JSON/CSV 前检查文件字节、在数值计算前检查样本/组合预算；nested H1 消费计入 H2 总量/时间/读取预算，不能靠重复嵌套扩大。更大的任务先另行审查预算并修订契约，不自动提高上限。新 E/G 执行继续使用其已冻结的严格 simulation_timeout<process_timeout、总 attempt/time/output 预算。
+
+## 12.11 冻结协议的数值差异和结构差异
+
+refinement 和 solver 比较均不允许 frozen E override。去除 status/freeze 决策身份及逐方法明确的受控 solver 字段后，两份协议的全部语义保持一致：C/D/参数/条件、输入数据/来源、时间、输出/单位、logging、seed、metrics/admissibility、warning policy、required operations 等。禁止删除整个 solver 对象后比较。允许差异逐项登记完整适用字段、理由/分类；zero_crossing 等未指定字段仍一致。参数/初值/边值变更必须走新 C 批准、D/E 链；G 外部输入仅消费既有审查证据。
+
+solver_final_comparison 限同 current C/D 的连续模型，两个真实不同的实际 observed solver、各自合格 E solver 和各自通过的 H1；核公开 actual metadata，不把 requested solver 名称或 configured tolerance 当作独立 effective 方法证明。无状态模型可能实际使用 FixedStepDiscrete/VariableStepDiscrete，不能仅换 ode 配置名制造 solver 比较。首版只证明指定共同实际末值/末值指标的条件结论。
+
+structural_final_comparison 的双方独立 current C 批准、D/E/H1 均完整，首版限同 project_root、同 frozen B，共同物理输入/场景/时间、明确 observable mapping、单位、方向和预定 criterion。允许经批准且来源解释的状态/初值 representation 对应（例如静态模型无动态初值），不得偷偷对双方施加不同物理条件。不同 hash、Block 名、坐标变换、冗余状态、equivalent reformulation、参数/solver/seed/fidelity 标签变化都不是结构对照；必须来源审查并具体指向 material governing equation/mechanism/abstraction 等差异及其对 target claim 的影响。登记 representation 差异不自动证明数学不等价或现实有效。
+
+## 12.12 H2 覆盖、material claims 和处置 gate
+
+H2 先要求目标 primary 当前 H1 通过；它用到的每个实际 E receipt（候选 solver、结构模型、有限场景、MC 重复 draw）须有 exact runID/receipt SHA 匹配且重新消费通过的 H1。单一 primary 的 H1 不能覆盖不同成员。H2 不依赖当前 environment readiness，只验证历史执行时资格与当前源码/文件身份。
+
+每个 material result 明确 model_comparison_requirement required|not_applicable，并逐项审查 §12.5 的六个触发条件；任何触发为 true 则 required。not_applicable 必须有具体来源、技术理由和绑定审查，不因首版无实现/无 comparator 而默认 NA。required 缺比较或不支持的要求阻断。
+
+每项 H2 claim 冻结 target_claim、domain、observable/metric/unit/direction、threshold、failure condition、impact_scope、required_action、return_stage，以及违反 criterion 时 modify 或 reject 的处置。完整有限域全部通过只支持列举域。真实 E 技术失败/E admissibility 失败/H1 失败保留原记录，H2 blocked，不删除样本、不以罚分替换、不输出完整支持总结；已经通过 H1 的业务 threshold 违反可产生完成的 modify/reject 证据，但不得修改主张/缩域/自动采纳模型来伪造 support。
+
+NUMERICALLY_VERIFIED 只授予当前 primary 的限定 H1。MODEL_VERIFICATION_DECIDED 记录全部 material comparison decisions/outcomes，允许完成的 reject/modify；MODEL_VERIFIED 仅当全部 required H1/H2 完整、结构 required/NA 合法且开放 required actions 已闭合、主张受支持时成立。拒绝证据的 complete 不等于被拒绝 claim 被验证。修改主张/模型/阈值必须另行来源审查；自动 validators/router 不记录批准或状态。
+
+## 12.13 文件、routing、state 与历史失效
+
+产物为 §12.8 的模块/机器契约/packs，合法 unknown draft templates，有限 source/reference/delta/raw-reader helper，H1/H2 plan validators、纯 Python 新目录 analysis producers、重新计算的历史 receipt consumers、read-only route/state integration 与测试。机器 schema 只维护一个权威字段定义，避免 contract/schema 重复。inspect draft、require-reviewed、require-complete 与 gate 检查分开，JSON blocked 不返回通过。
+
+numerical_verification、solver_comparison、model_comparison、有限 sensitivity/robustness 仅为明确方法的只读/本地 Python analysis 路由；native/business execution permission=false，selected native operations 为空。新增 E/G 仿真仍走 E/G 入口。state 增加 current primary H1 与 H2 bundle 的显式 caller anchors/roles，bundle 完整枚举多协议/多模型/逐 draw 依赖，不用单一 primary anchor 伪装全部成员身份。H scopes 核所需 B/C/D/E/G/H 历史且 current runtime unassessed；早期 scopes 留 H unassessed。accepted artifacts 核 exact byte SHA 与 consumer gates，只有显式调用者更新。
+
+source/reference/criteria/上游/输出变更传递 stale，采用现行 whole-Problem 保守绑定，不能承诺未实现的细粒度失效。共享 router/state/helpers 是 safety-critical，E/F/G 的 source_files 闭包保持一致并包含实际直接/间接 H 消费依赖；H 自身绑定完整消费者源码。源码变更须最终重新资格和新实际 E/F/G attempts，不能给旧绿证据改标签。A 七份、B 两份、D 十九份受保护源码保持字节不变，capability_taxonomy 已有 H 类别，不为新 intent 改写其受保护文件。
+
+## 12.14 H 开发出口与独立复核
+
+先提交本修订，再实施；同步 AGENTS/bootstrap/roadmap/SKILL/manifest 和实际 scope，清理仍把已实施 G 列为 deferred 的当前摘要，保留明确历史阶段说明。版本元数据进入 0.8.0 不等于 release/tag/install。入口保持短，I–K deferred。
+
+出口必须包含合法未知 draft、来源审查、required 未实现阻断、NA 触发检查、冻结差异、每receipt H1覆盖、有限域、失败/disposition/state/source/stale/预算和历史TTL负例；任意 eval、零尺度、a=0/near-zero/负start/非有限、篡改原始数据、改阈值重用 review、等价模型假结构比较、只换 requested solver 名、缺候选 H1 必须实际拒绝。全量 A–G 回归及 H 关键正负行为、lint/index/Skill validation 均有完整真实退出结果。
+
+最终 candidate 全部 tracked bytes=git blobs 后取得受影响 A/E/F/G 当前实际 R2025b 资格。独立作者从原始任务材料构造新参数/输入/reference/criteria（合成批准明确只测 infrastructure）：静态 affine/constant、非平衡初值一阶系统、三层非零误差 ode4、实际 ode4+ode45 solver pair、来源明确的两种 material mechanisms 各自批准/D/E/H1、真实完整有限 G 的逐 E H1 覆盖及业务 threshold reject。独立从 MAT/JSON/CSV 核闭式值/末值差异/处置并核原文件保留；不能把 implementation fixtures 或 owner summary 当 oracle。所有本机计算严格串行、限制 affinity/数值线程，保持旧证据不覆盖。
+
+最终 exact-head 独立审查、Windows/Ubuntu 实际 CI 完整日志、PR merge、main exact source/历史证据回读和 main CI 分别记录。新共享 critical source 要重新 E/F/G 资格和实际任务回归，不能拿历史 green 代替本次。修改后只重新验证受影响项，不反复无因全量运行。H 完成不宣称 I validation、J 图表/handoff、K release audit 或真实模型普遍正确。
+
+---
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
