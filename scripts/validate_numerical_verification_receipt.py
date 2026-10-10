@@ -60,7 +60,7 @@ def validate_numerical_verification_receipt(path, *, project_root=None, contract
             if filename == RESULT_NAME and file.stat().st_size > budget['max_result_bytes']:
                 raise ValueError('persisted numerical result exceeds declared result byte budget')
             artifacts.append(file)
-        paths = evidence_paths([path], root, budget)
+        paths = evidence_paths([path], root, budget, root_contexts={path: 'h1_receipt'})
         paths.update([contract_path, *artifacts])
         complete_manifest = input_manifest(paths, root, budget)
         verified = {item['path']: item for item in complete_manifest}

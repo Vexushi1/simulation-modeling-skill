@@ -5,7 +5,7 @@ import argparse
 from copy import deepcopy
 from pathlib import Path
 
-from runtime_common import contained_path, emit, load_contract, load_document, schema_errors, sha256_file
+from runtime_common import contained_path, emit, load_contract, load_document, schema_errors
 from validate_parameter_provenance import bind_file
 from validate_simulation_protocol import validate_simulation_protocol
 from model_verification_common import (KINDS, METHODS, constant_level, execution_configuration,
@@ -213,8 +213,10 @@ def validate_model_verification(path, *, project_root=None, require_reviewed=Fal
         path = Path(path).resolve()
         root = Path(project_root).resolve() if project_root is not None else path.parent
         path = contained_path(root, str(path))
+        contract_bootstrap = input_manifest([path], root, HARD_BUDGET)
         value = limited_document(path)
-        result.update(contract_path=str(path), contract_sha256=sha256_file(path), project_root=str(root))
+        assert_unchanged(contract_bootstrap)
+        result.update(contract_path=str(path), contract_sha256=contract_bootstrap[0]['sha256'], project_root=str(root))
         schema = load_contract('core/model_verification_contract.yaml')
         result['errors'].extend(schema_errors(value, schema))
         if type(value.get('schema_version')) is not int:
@@ -226,13 +228,10 @@ def validate_model_verification(path, *, project_root=None, require_reviewed=Fal
         if any(type(count) is not int for count in budget.values()):
             result['errors'].append('read budgets require exact integer counts')
             return result
-        initial = [path] + [contained_path(root, entry['path']) for entry in value['sources']]
-        initial += [contained_path(root, item['numerical_receipt']['path']) for item in value['members'] if item['numerical_receipt']]
-        if value['primary_numerical_receipt']:
-            initial.append(contained_path(root, value['primary_numerical_receipt']['path']))
-        if value['review_record']:
-            initial.append(contained_path(root, value['review_record']['path']))
-        paths = evidence_paths(initial, root, budget)
+        # The typed graph expands every selected member/source/review. Seeding
+        # members again as task roots would also follow their E qualifications
+        # without the authoritative selected-chain context.
+        paths = evidence_paths([path], root, budget, root_contexts={path: 'h2_contract'})
         manifest = input_manifest(paths, root, budget)
         result['allowed_external'] = sorted(str(item) for item in paths.allowed_external)
         result['bound_files'].append({'label': 'model_verification', 'path': str(path), 'sha256': result['contract_sha256']})
@@ -301,6 +300,7 @@ def validate_model_verification(path, *, project_root=None, require_reviewed=Fal
         result['_members'] = members
         result['input_manifest'] = manifest
         assert_unchanged(manifest)
+        assert_unchanged(contract_bootstrap)
         result['assessment_ready'] = result['reviewed'] and not result['errors'] and not result['missing_gates']
         result['valid'] = not result['errors'] and (not require_reviewed or result['assessment_ready'])
     except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError, OverflowError) as error:

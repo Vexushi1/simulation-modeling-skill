@@ -73,7 +73,7 @@ def assess_numerical(report, receipt_paths, *, project_root):
     if len(set(receipts)) != 3:
         raise ValueError('each refinement level requires its own independent E receipt')
     budget = report['budget']
-    paths = evidence_paths(receipts, root, budget)
+    paths = evidence_paths(receipts, root, budget, root_contexts={path: 'simulation_receipt' for path in receipts})
     paths.update(b['path'] for b in report['bound_files'])
     manifest = input_manifest(paths, root, budget)
     runs, data = [], []
@@ -142,7 +142,8 @@ def run_numerical_verification(contract_path, receipts, output_dir, *, project_r
         if not isinstance(receipts, (list, tuple)) or len(receipts) != 3:
             raise ValueError('three ordered independent E receipt paths required')
         # Preflight all E inputs before the request's explicit receipt hashes.
-        preflight = evidence_paths(receipts, root, report['budget'])
+        preflight = evidence_paths(receipts, root, report['budget'],
+                                   root_contexts={Path(path).resolve(): 'simulation_receipt' for path in receipts})
         preflight.update(b['path'] for b in report['bound_files'])
         initial = input_manifest(preflight, root, report['budget'])
         request = {'schema_version': 1, 'run_id': receipt['run_id'], 'project_root': str(root),

@@ -32,4 +32,6 @@ The producer owns a new output directory. Criterion failure retains complete tec
 
 Task sources, protocols, models, reviews, numeric outputs and H artifacts stay inside the project root. Only the original D/E request's explicitly bound execution-time A/D/E qualification profiles and receipts may keep their original external paths; their native artifacts must remain inside their qualification directories. These exact files count toward the same read budget and before/after hashes, and existing D/E consumers independently verify them. Do not copy or substitute qualification history. The final manifest includes H's own receipt, captured input, original contract and result; both file identities and safety sources are rechecked before acceptance. Source snapshots and computed results preserve exact JSON types, including integer versus float.
 
+Evidence traversal derives qualification roles only from the selected H/E/D contract and receipt chain. A task source or review stays a task source even if its name resembles a receipt or it contains artifact and qualification assertions; those claims never authorize external paths.
+
 Only an explicit authorized caller may record `NUMERICALLY_VERIFIED`, bound to the current H1 receipt and its finite claim scope. H1 grants no H2, reality validation, evidence publication or paper acceptance.

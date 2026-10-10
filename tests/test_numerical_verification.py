@@ -14,7 +14,7 @@ from run_numerical_verification import (INPUT_NAME, RECEIPT_NAME, RESULT_NAME, a
 from runtime_common import ROOT, load_document, sha256_file
 from validate_numerical_verification import time_tolerance, uniform_grid, validate_numerical_verification
 from validate_numerical_verification_receipt import validate_numerical_verification_receipt
-from verification_common import HARD_BUDGET, input_manifest, serialized_json, typed_equal
+from verification_common import HARD_BUDGET, evidence_paths, input_manifest, serialized_json, typed_equal
 
 
 @pytest.fixture(scope='module')
@@ -561,3 +561,49 @@ def test_original_external_qualifications_are_readonly_budgeted_and_task_paths_s
     review_numerical(path, refresh_source=False)
     changed = validate_numerical_verification(path, project_root=project, require_reviewed=True)
     assert not changed['valid'] and not changed['assessment_ready']
+
+
+@pytest.mark.parametrize('filename', ['simulation-receipt.json', 'implementation-receipt.json'])
+def test_reviewed_task_source_cannot_gain_qualification_privileges_from_its_filename(history, tmp_path, monkeypatch, filename):
+    import verification_common as common
+    root, path = history['root'], history['contract']
+    external = tmp_path / 'arbitrary.json'
+    write_json(external, {'unrelated_external_task_file': True})
+    contract = load_document(path)
+    source = load_document(root / contract['sources'][0]['path'])
+    directory = root / ('masquerading-' + filename.removesuffix('.json'))
+    directory.mkdir()
+    fake_input = directory / 'fake-input.json'
+    write_json(fake_input, {'bindings': {'environment_profile': {
+        'path': str(external), 'sha256': sha256_file(external)}}})
+    source['artifacts'] = {'input': {'file': fake_input.name, 'sha256': sha256_file(fake_input)}}
+    source_path = directory / filename
+    write_json(source_path, source)
+    contract['sources'][0].update(path=str(source_path.relative_to(root)), sha256=sha256_file(source_path))
+    write_contract(path, contract)
+    review_numerical(path, refresh_source=False)
+    observed = []
+    original_hash, original_load = common.sha256_file, common.load_document
+
+    def hash_file(file):
+        if Path(file).resolve() == external:
+            observed.append('hash')
+        return original_hash(file)
+
+    def load_file(file):
+        if Path(file).resolve() == external:
+            observed.append('load')
+        return original_load(file)
+
+    monkeypatch.setattr(common, 'sha256_file', hash_file)
+    monkeypatch.setattr(common, 'load_document', load_file)
+    report = validate_numerical_verification(path, project_root=root, require_reviewed=True)
+    assert not report['valid'] and not report['assessment_ready']
+    assert any('leaves project root' in error for error in report['errors'])
+    assert observed == []
+
+
+def test_unknown_evidence_root_context_cannot_authorize_qualification(tmp_path):
+    with pytest.raises(ValueError, match='unknown verification evidence root context'):
+        evidence_paths([tmp_path / 'unread.json'], tmp_path, HARD_BUDGET,
+                       root_contexts={tmp_path / 'unread.json': 'qualification_e_receipt'})

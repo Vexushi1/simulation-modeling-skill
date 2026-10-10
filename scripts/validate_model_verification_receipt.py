@@ -64,13 +64,14 @@ def validate_model_verification_receipt(path, *, project_root=None, contract_rep
             raise ValueError('H2 captured contract binding schema differs')
         contract = contained_path(root, request['contract']['path'])
         # Inspect only a hard-bounded schema-valid contract before heavy H1/E readers.
-        input_manifest([contract], root, HARD_BUDGET)
+        contract_bootstrap = input_manifest([contract], root, HARD_BUDGET)
         value = limited_document(contract)
+        assert_unchanged(contract_bootstrap)
         issues = schema_errors(value, load_contract('core/model_verification_contract.yaml'))
-        if issues or value['budget'] is None:
+        if issues or value['budget'] is None or any(type(count) is not int for count in value['budget'].values()):
             raise ValueError('complete schema-valid H2 contract budget required')
         budget = value['budget']
-        paths = evidence_paths([contract], root, budget)
+        paths = evidence_paths([contract], root, budget, root_contexts={contract: 'h2_contract'})
         paths.update([path, *files.values()])
         complete_manifest = input_manifest(paths, root, budget)
         if files['result'].stat().st_size > budget['max_result_bytes']:
@@ -86,9 +87,17 @@ def validate_model_verification_receipt(path, *, project_root=None, contract_rep
         report = validate_model_verification(contract, project_root=root, require_reviewed=True)
         if not report['valid'] or not report['assessment_ready']:
             raise ValueError('current H2 contract not assessment ready: ' + '; '.join(report['errors'] + report['missing_gates']))
-        if (sha256_file(contract) != request['contract']['sha256'] or report['semantic_sha256'] != request['contract_semantic_sha256'] or
+        if not typed_equal(budget, report['budget']):
+            raise ValueError('H2 bootstrap and independently verified reviewed budgets differ')
+        # Reapply the verified current budget to every own/upstream artifact. Keep
+        # both manifests: this later pass must not replace an earlier identity.
+        verified_budget_manifest = input_manifest(paths, root, report['budget'])
+        if files['result'].stat().st_size > report['budget']['max_result_bytes']:
+            raise ValueError('H2 result exceeds independently verified reviewed result byte budget')
+        if (report['contract_sha256'] != contract_bootstrap[0]['sha256'] or
+                report['contract_sha256'] != request['contract']['sha256'] or report['semantic_sha256'] != request['contract_semantic_sha256'] or
                 contract.read_bytes().decode('utf-8') != request['contract_original_text'] or
-                not typed_equal(limited_document(contract, budget), request['contract_snapshot'])):
+                not typed_equal(limited_document(contract, report['budget']), request['contract_snapshot'])):
             raise ValueError('H2 original contract bytes/full snapshot differs')
         if contract_report is not None and any(not typed_equal(contract_report.get(key), report.get(key)) for key in
                                               ('contract_path', 'contract_sha256', 'project_id', 'semantic_sha256', 'input_manifest')):
@@ -103,7 +112,9 @@ def validate_model_verification_receipt(path, *, project_root=None, contract_rep
             raise ValueError('H2 exact independently recomputed metrics/dispositions differ')
         assert_unchanged(report['input_manifest'])
         assert_unchanged(complete_manifest)
+        assert_unchanged(verified_budget_manifest)
         assert_unchanged(bootstrap)
+        assert_unchanged(contract_bootstrap)
         if not typed_equal(receipt['sources'], source_identities()):
             raise ValueError('H2 source changed during historical assessment')
         original_bindings = {item['path']: item for item in complete_manifest}

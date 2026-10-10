@@ -7,13 +7,14 @@ from pathlib import Path
 import pytest
 
 from model_verification_factory import make_model_verification_contract, omitted, review_model_verification
-from model_verification_common import KINDS, compute_assessment, structural_snapshot
+from model_verification_common import KINDS, _mathematical_anchor, compute_assessment, structural_snapshot
 from probe_environment import write_json
 from problem_factory import write_contract
 from run_model_verification import run_model_verification, RESULT_NAME, INPUT_NAME
 import validate_model_verification_receipt as receipt_consumer
+import validate_model_verification as contract_consumer
 import verification_common as shared_readers
-from runtime_common import ROOT, load_document, sha256_file
+from runtime_common import ROOT, canonical_digest, load_document, sha256_file
 from validate_model_verification import _analysis, validate_model_verification
 from validate_model_verification_receipt import validate_model_verification_receipt
 from verification_common import typed_equal
@@ -447,3 +448,181 @@ def test_same_model_analyses_reject_upstream_identity_change_with_equal_run_spec
             result = {'errors': [], 'missing_gates': [], 'required_analysis_kinds': []}
             _analysis(analysis, claim, {'primary': primary, 'other': changed}, {}, root, result)
             assert any(expected_error in error for error in result['errors']), (kind, key, result)
+
+
+def test_first_contract_decode_reviewed_to_draft_mutation_blocks_before_H1(current_history, monkeypatch):
+    original = contract_consumer.limited_document
+    changed = False
+    def change_after_first_decode(path, *args, **kwargs):
+        nonlocal changed
+        value = original(path, *args, **kwargs)
+        if Path(path).resolve() == current_history and not changed:
+            assert value['status'] == 'reviewed'
+            persisted = copy.deepcopy(value)
+            persisted['status'] = 'draft'
+            write_contract(current_history, persisted)
+            changed = True
+        return value
+    def no_heavy_member(*args, **kwargs):
+        raise AssertionError('initial contract mutation reached heavy H1 consumption')
+    monkeypatch.setattr(contract_consumer, 'limited_document', change_after_first_decode)
+    monkeypatch.setattr(contract_consumer, '_member', no_heavy_member)
+
+    report = validate_model_verification(current_history, project_root=current_history.parent, require_reviewed=True)
+
+    assert changed and load_document(current_history)['status'] == 'draft'
+    assert not report['valid'] and not report['assessment_ready']
+    assert any('changed during assessment' in error for error in report['errors'])
+
+
+def test_first_receipt_contract_decode_large_to_reviewed_small_budget_cannot_accept(current_history, monkeypatch):
+    root = current_history.parent
+    receipt_path = baseline_receipt(current_history)
+    input_path = receipt_path.parent / INPUT_NAME
+    result_path = receipt_path.parent / RESULT_NAME
+    value = load_document(current_history)
+    value['budget']['max_result_bytes'] = result_path.stat().st_size - 1
+    write_contract(current_history, value)
+    review_model_verification(current_history)
+    narrow = load_document(current_history)
+    narrow_bytes = current_history.read_bytes()
+    digest = shared_readers.semantic_digest(narrow)
+    # Rebind the existing complete evidence to the new reviewed narrow contract;
+    # no claim or numeric result changed, and no producer history is rebuilt.
+    request = load_document(input_path)
+    request.update(contract={'path': str(current_history), 'sha256': sha256_file(current_history)},
+                   contract_semantic_sha256=digest, contract_snapshot=narrow,
+                   contract_original_text=narrow_bytes.decode('utf-8'))
+    request['input_manifest'] = [dict(item, sha256=sha256_file(item['path']),
+                                    bytes=Path(item['path']).stat().st_size)
+                                 for item in request['input_manifest']]
+    write_json(input_path, request)
+    receipt = load_document(receipt_path)
+    receipt.update(contract_semantic_sha256=digest, input_identity=canonical_digest(request))
+    receipt['artifacts']['input']['sha256'] = sha256_file(input_path)
+    write_json(receipt_path, receipt)
+    narrow_report = validate_model_verification_receipt(receipt_path, project_root=root)
+    assert not narrow_report['valid'] and any('result byte budget' in error for error in narrow_report['errors'])
+
+    large = copy.deepcopy(narrow)
+    large['budget']['max_result_bytes'] = shared_readers.HARD_BUDGET['max_result_bytes']
+    write_contract(current_history, large)
+    original = receipt_consumer.limited_document
+    changed = False
+    def change_after_first_decode(path, *args, **kwargs):
+        nonlocal changed
+        answer = original(path, *args, **kwargs)
+        if Path(path).resolve() == current_history and not changed:
+            assert answer['budget']['max_result_bytes'] > result_path.stat().st_size
+            current_history.write_bytes(narrow_bytes)
+            changed = True
+        return answer
+    def no_heavy_review(*args, **kwargs):
+        raise AssertionError('obsolete bootstrap budget reached heavy H1 consumption')
+    monkeypatch.setattr(receipt_consumer, 'limited_document', change_after_first_decode)
+    monkeypatch.setattr(receipt_consumer, 'validate_model_verification', no_heavy_review)
+
+    report = validate_model_verification_receipt(receipt_path, project_root=root)
+
+    assert changed and current_history.read_bytes() == narrow_bytes
+    assert not report['valid'] and not report['model_verification_decided']
+    assert any('changed during assessment' in error for error in report['errors'])
+
+
+def equal_descriptor_two_state_member(root, name, *, cross_coupled=False, renamed=False, cross_alias=False, symbols=None):
+    x, z = ('first', 'second') if renamed else ('x', 'z')
+    if symbols is not None:
+        x, z = symbols
+    ids = (x, z)
+    if cross_alias:
+        x, z = z, x
+    body = {'variables': [{'id': identity, 'symbol': symbol, 'quantity': 'same response', 'roles': ['state'], 'unit': '1'}
+                          for identity, symbol in zip(ids, (x, z))],
+            'relations': [{'id': 'r1', 'role': 'governing', 'expression': f'd{x}/dt = -{z if cross_coupled else x}'},
+                          {'id': 'r2', 'role': 'governing', 'expression': f'd{z}/dt = -{x if cross_coupled else z}'}]}
+    path = write_contract(root / (name + '.json'), {'designs': [{'id': 'd', 'models': [{'id': 'm', 'body': body}]}]})
+    return {'protocol_report': {'model_path': str(path), 'design_id': 'd', 'model_id': 'm'},
+            'protocol': {'conditions': {}}}
+
+
+@pytest.mark.parametrize('kind', ['governing_equations', 'coupling_structure'])
+def test_equal_descriptor_distinct_states_preserve_real_coupling_difference(tmp_path, kind):
+    review = structure_review(kind, ['body', 'relations'])
+    first = equal_descriptor_two_state_member(tmp_path, 'decoupled')
+    second = equal_descriptor_two_state_member(tmp_path, 'cross-coupled', cross_coupled=True)
+    snapshot = structural_snapshot(review, first, second)
+    assert snapshot['primary_value'][0]['expression'] == 'dx/dt = -x'
+    assert snapshot['member_value'][0]['expression'] == 'dx/dt = -z'
+
+
+def test_equal_descriptor_distinct_states_still_reject_obvious_bijective_rename(tmp_path):
+    with pytest.raises(ValueError, match='no substantive mathematical difference'):
+        structural_snapshot(structure_review('governing_equations', ['body', 'relations']),
+            equal_descriptor_two_state_member(tmp_path, 'original'),
+            equal_descriptor_two_state_member(tmp_path, 'renamed', renamed=True))
+
+
+@pytest.mark.parametrize('symbols', [('x', 'z'), ('V0_0', 'long_state')])
+def test_cross_ID_symbol_aliases_do_not_merge_distinct_registered_states(tmp_path, symbols):
+    first = equal_descriptor_two_state_member(tmp_path, 'alias-decoupled', cross_alias=True, symbols=symbols)
+    second = equal_descriptor_two_state_member(tmp_path, 'alias-cross-coupled', cross_alias=True, cross_coupled=True, symbols=symbols)
+    model = load_document(first['protocol_report']['model_path'])['designs'][0]['models'][0]
+    variables = model['body']['variables']
+    assert variables[0]['id'] == variables[1]['symbol'] and variables[1]['id'] == variables[0]['symbol']
+    snapshot = structural_snapshot(structure_review('governing_equations', ['body', 'relations']), first, second)
+    assert snapshot['primary_value'][0]['expression'] == f'd{symbols[1]}/dt = -{symbols[1]}'
+    assert snapshot['member_value'][0]['expression'] == f'd{symbols[1]}/dt = -{symbols[0]}'
+    assert _mathematical_anchor(model, ['body', 'relations'], 'governing_equations') == [
+        {'role': 'governing', 'expression': 'dV0_0/dt=-V0_0'},
+        {'role': 'governing', 'expression': 'dV0_1/dt=-V0_1'}]
+
+
+@pytest.mark.parametrize('filename', ['simulation-receipt.json', 'implementation-receipt.json'])
+def test_H2_source_receipt_filename_cannot_authorize_external_task_input(current_history, tmp_path, monkeypatch, filename):
+    root = current_history.parent
+    external = tmp_path / 'arbitrary-task-data.json'
+    write_json(external, {'task_data': 'SYNTHETIC arbitrary nonqualification input'})
+    value = load_document(current_history)
+    original_source = load_document(root / value['sources'][0]['path'])
+    fake_root = root / 'source-pretending-to-be-receipt'
+    fake_root.mkdir()
+    source_path = fake_root / filename
+    original_source['artifacts'] = {'input': {'file': 'fake-input.json'}}
+    write_json(source_path, original_source)
+    write_json(fake_root / 'fake-input.json', {'bindings': {'environment_profile': {
+        'path': str(external), 'sha256': sha256_file(external)}}})
+    value['sources'][0].update(path=str(source_path.relative_to(root)), sha256=sha256_file(source_path))
+
+    # Keep the complete settings/obligation subtrees and rebind the independent
+    # review. Rejection must follow traversal context, not a stale source hash.
+    digest = shared_readers.semantic_digest(value)
+    review_path = root / value['review_record']['path']
+    review = load_document(review_path)
+    old_digest = review['verification_semantic_sha256']
+    quote = review['decision']['quote'].replace(old_digest, digest)
+    decision_path = root / review['decision']['path']
+    decision_path.write_text(quote + '\n', encoding='utf-8')
+    review.update(verification_semantic_sha256=digest)
+    review['decision'].update(sha256=sha256_file(decision_path), end=len(quote), quote=quote)
+    write_contract(review_path, review)
+    value['review_record']['sha256'] = sha256_file(review_path)
+    write_contract(current_history, value)
+
+    original_hash, original_load = shared_readers.sha256_file, shared_readers.limited_document
+    def safe_hash(path):
+        assert Path(path).resolve() != external, 'arbitrary external source was hashed'
+        return original_hash(path)
+    def safe_load(path, *args, **kwargs):
+        assert Path(path).resolve() != external, 'arbitrary external source was decoded'
+        return original_load(path, *args, **kwargs)
+    def no_heavy_member(*args, **kwargs):
+        raise AssertionError('ordinary source traversal reached heavy H1 consumption')
+    monkeypatch.setattr(shared_readers, 'sha256_file', safe_hash)
+    monkeypatch.setattr(shared_readers, 'limited_document', safe_load)
+    monkeypatch.setattr(contract_consumer, 'limited_document', safe_load)
+    monkeypatch.setattr(contract_consumer, '_member', no_heavy_member)
+
+    report = validate_model_verification(current_history, project_root=root, require_reviewed=True)
+
+    assert not report['valid'] and not report['assessment_ready']
+    assert any('leaves project root' in error for error in report['errors'])

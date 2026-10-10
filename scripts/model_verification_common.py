@@ -136,20 +136,31 @@ def _mathematical_anchor(model, selector, kind):
     descriptor = lambda item: {'quantity': item['quantity'], 'roles': sorted(item['roles']), 'unit': item['unit']}
     descriptors = sorted({json.dumps(descriptor(item), sort_keys=True) for item in variables})
     replacements = {}
+    descriptor_counts = {}
     for variable in variables:
-        tag = 'V' + str(descriptors.index(json.dumps(descriptor(variable), sort_keys=True)))
-        replacements[variable['id']] = tag
+        identity = json.dumps(descriptor(variable), sort_keys=True)
+        occurrence = descriptor_counts.get(identity, 0)
+        descriptor_counts[identity] = occurrence + 1
+        # Matching descriptor groups and declaration order give only a narrow
+        # bijective rename correspondence. Repeated quantities are distinct
+        # variables: merging them would erase dependency/coupling information.
+        tag = 'V' + str(descriptors.index(identity)) + '_' + str(occurrence)
+        # Registered expression symbols are unique. IDs are reference metadata
+        # and may legally equal another variable's symbol; treating both as
+        # aliases can overwrite a distinct state even with unique tokens.
         replacements[variable['symbol']] = tag
     def expression(text):
-        # One substitution avoids replacing a newly inserted token a second time.
+        # Normalize ordinary and compact derivative symbols in one pass. A
+        # legal original symbol can equal a canonical token; emitted tokens
+        # must never be processed as new input by a second substitution.
         tokens = sorted(replacements, key=len, reverse=True)
-        pattern = r'(?<![A-Za-z0-9_])(' + '|'.join(re.escape(token) for token in tokens) + r')(?![A-Za-z0-9_])'
-        # Recognize the registered compact derivative spelling dx/dt as well.
-        derivatives = sorted((item['symbol'] for item in variables), key=len, reverse=True)
-        for symbol in derivatives:
-            text = re.sub(r'(?<![A-Za-z0-9_])d' + re.escape(symbol) + r'(?=/d)',
-                          lambda match, tag=replacements[symbol]: 'd' + tag, text)
-        normalized = re.sub(pattern, lambda match: replacements[match.group(0)], text) if tokens else text
+        alternatives = '|'.join(re.escape(token) for token in tokens)
+        pattern = (r'(?<![A-Za-z0-9_])(?:d(?P<derivative>' + alternatives + r')(?=/d)|'
+                   r'(?P<ordinary>' + alternatives + r')(?![A-Za-z0-9_]))')
+        def replace(match):
+            derivative = match.group('derivative')
+            return 'd' + replacements[derivative] if derivative is not None else replacements[match.group('ordinary')]
+        normalized = re.sub(pattern, replace, text) if tokens else text
         return re.sub(r'\s+', '', normalized)
     records = model['body'][field]
     if len(selector) == 2:

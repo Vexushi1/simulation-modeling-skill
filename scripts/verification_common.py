@@ -175,81 +175,143 @@ def assert_unchanged(manifest):
             raise ValueError('verification input changed during assessment: ' + str(path))
 
 
-def evidence_paths(receipt_paths, root, budget):
-    """Preflight E receipt directories and their explicit external evidence bindings.
+def evidence_paths(receipt_paths, root, budget, *, root_contexts=None):
+    """Discover bounded evidence using caller-selected roles, never filenames.
 
-    Repository source/function identities are validated by E and are not project
-    data. Only execution-time A/D/E qualification bindings in actual D/E input
-    artifacts introduce an external exception; their own receipt artifacts stay
-    contained in the original qualification directory. E/D independently verify
-    those exact histories before any acceptance.
+    Only the selected H/E/D chain can introduce original A/D/E qualification
+    paths. Ordinary sources/reviews and snapshots stay task-only. Real E/D
+    consumers subsequently verify every selected historical identity.
     """
     root = Path(root).resolve()
-    queued = [(Path(p).resolve(), None, None, True) for p in receipt_paths]
-    paths, visited = EvidencePaths(), set()
-    total = 0
+    allowed_roots = {'task', 'h1_contract', 'h1_receipt', 'h2_contract', 'h2_receipt',
+                     'simulation_protocol', 'simulation_receipt', 'implementation_receipt'}
+    contexts = {Path(p).resolve(): kind for p, kind in (root_contexts or {}).items()}
+    if any(kind not in allowed_roots for kind in contexts.values()):
+        raise ValueError('unknown verification evidence root context')
+    queued = [(Path(p).resolve(), contexts.get(Path(p).resolve(), 'task'), None) for p in receipt_paths]
+    paths, visited, total = EvidencePaths(), set(), 0
+
+    def enqueue(binding, kind='task', qualification_root=None):
+        if binding is None:
+            return
+        if not isinstance(binding, dict) or not isinstance(binding.get('path'), str):
+            raise ValueError('malformed verification evidence path binding')
+        base = qualification_root or root
+        queued.append((contained_path(base, binding['path']), kind, qualification_root))
+
+    def qualification(binding, kind):
+        if not isinstance(binding, dict) or not isinstance(binding.get('path'), str):
+            raise ValueError('malformed original qualification binding')
+        candidate = Path(binding['path']).resolve()
+        queued.append((candidate, kind, candidate.parent))
+
+    def task_bindings(node, *, skip=()):
+        if isinstance(node, dict):
+            if isinstance(node.get('path'), str) and isinstance(node.get('sha256'), str):
+                enqueue(node)
+            for key, child in node.items():
+                if key not in set(skip) | {'sources', 'runtime', 'functions', 'bindings', 'artifacts',
+                                           'input_manifest', 'contract_snapshot', 'protocol_snapshot', 'mapping_snapshot'}:
+                    task_bindings(child)
+            if isinstance(node.get('sources'), list):
+                task_bindings(node['sources'])
+        elif isinstance(node, list):
+            for child in node:
+                task_bindings(child)
+
+    receipt_inputs = {'h1_receipt': 'h1_request', 'h2_receipt': 'h2_request',
+                      'simulation_receipt': 'simulation_request',
+                      'implementation_receipt': 'implementation_request',
+                      'qualification_a_receipt': 'qualification_a_request',
+                      'qualification_d_receipt': 'qualification_d_request',
+                      'qualification_e_receipt': 'qualification_e_request'}
+    qualification_roles = {
+        'simulation_request': {'environment_profile': 'qualification_a_profile',
+                               'environment_receipt': 'qualification_a_receipt',
+                               'simulation_profile': 'qualification_e_profile',
+                               'simulation_profile_receipt': 'qualification_e_receipt'},
+        'implementation_request': {'environment_profile': 'qualification_a_profile',
+                                   'environment_receipt': 'qualification_a_receipt',
+                                   'implementation_profile': 'qualification_d_profile',
+                                   'implementation_profile_receipt': 'qualification_d_receipt'},
+        'qualification_e_request': {'environment_profile': 'qualification_a_profile',
+                                    'environment_receipt': 'qualification_a_receipt'},
+    }
     while queued:
-        path, qualification_root, input_kind, scan = queued.pop()
-        path = Path(path).resolve()
-        if qualification_root is None:
-            path = contained_path(root, str(path))
-        else:
-            path = contained_path(qualification_root, str(path))
-            if not path.is_relative_to(root):
-                paths.allowed_external.add(path)
-        if path in visited:
+        path, context, qualification_root = queued.pop()
+        path = contained_path(qualification_root or root, str(Path(path).resolve()))
+        if qualification_root is not None and not path.is_relative_to(root):
+            paths.allowed_external.add(path)
+        key = (path, context, qualification_root)
+        if key in visited:
             continue
-        visited.add(path)
-        if not path.is_file() or path.stat().st_size > budget['max_file_bytes']:
-            raise ValueError('verification evidence missing or exceeds file byte budget')
-        total += path.stat().st_size
-        if total > budget['max_total_bytes']:
-            raise ValueError('verification total evidence byte budget exceeded')
-        paths.add(path)
-        if not scan or path.suffix.lower() not in {'.json', '.yaml', '.yml'}:
+        visited.add(key)
+        if path not in paths:
+            if not path.is_file() or path.stat().st_size > budget['max_file_bytes']:
+                raise ValueError('verification evidence missing or exceeds file byte budget')
+            total += path.stat().st_size
+            if total > budget['max_total_bytes']:
+                raise ValueError('verification total evidence byte budget exceeded')
+            paths.add(path)
+        if context == 'opaque' or path.suffix.lower() not in {'.json', '.yaml', '.yml'}:
             continue
         value = limited_document(path, budget)
-        # Every explicitly saved receipt artifact is relative to that receipt.
-        receipt_kinds = {'simulation-receipt.json': 'simulation',
-                         'simulation-profile-receipt.json': 'simulation',
-                         'implementation-receipt.json': 'implementation',
-                         'implementation-profile-receipt.json': 'implementation'}
-        for key, binding in value.get('artifacts', {}).items():
+        # A receipt's role comes from an actual selected binding, not basename.
+        for artifact_key, binding in value.get('artifacts', {}).items():
             if isinstance(binding, dict) and isinstance(binding.get('file'), str):
                 child = contained_path(path.parent, binding['file'])
-                kind = receipt_kinds.get(path.name) if key == 'input' else None
-                # Only input artifacts introduce bindings. Numeric/raw/result
-                # artifacts are budgeted here, decoded by their real consumer.
-                scan_child = key == 'input' or child.name in {
-                    'numerical-verification-input.json', 'model-verification-input.json'}
-                queued.append((child, qualification_root, kind, scan_child))
+                is_input = artifact_key == 'input' or context == 'h1_receipt' and artifact_key == 'numerical-verification-input.json'
+                child_context = receipt_inputs.get(context, 'task') if is_input else 'opaque'
+                queued.append((child, child_context, qualification_root))
+
+        skip = set()
+        if context == 'h1_contract':
+            enqueue(value.get('primary_protocol'), 'simulation_protocol')
+            for binding in value.get('refinement_protocols', []):
+                enqueue(binding, 'simulation_protocol')
+            skip.update({'primary_protocol', 'refinement_protocols'})
+        elif context == 'h2_contract':
+            enqueue(value.get('primary_numerical_receipt'), 'h1_receipt')
+            for member in value.get('members', []):
+                enqueue(member.get('numerical_receipt'), 'h1_receipt')
+            skip.update({'primary_numerical_receipt', 'members'})
+        elif context in {'h1_receipt', 'h1_request'}:
+            enqueue(value.get('numerical_verification'), 'h1_contract')
+            skip.add('numerical_verification')
+            if context == 'h1_request':
+                for binding in value.get('receipts', []):
+                    enqueue(binding, 'simulation_receipt')
+                skip.add('receipts')
+        elif context == 'h2_request':
+            enqueue(value.get('contract'), 'h2_contract')
+            skip.add('contract')
+        elif context == 'simulation_protocol':
+            enqueue(value.get('mapping'), 'mapping_contract')
+            skip.add('mapping')
+        elif context == 'mapping_contract':
+            enqueue(value.get('implementation'), 'implementation_receipt')
+            skip.add('implementation')
+
         bindings = value.get('bindings', {})
         if isinstance(bindings, dict):
-            qualification_roles = {'environment_profile', 'environment_receipt'}
-            qualification_roles.update({'simulation_profile', 'simulation_profile_receipt'} if input_kind == 'simulation'
-                                       else {'implementation_profile', 'implementation_profile_receipt'})
-            for key, binding in bindings.items():
+            roles = qualification_roles.get(context, {})
+            for binding_key, binding in bindings.items():
                 if isinstance(binding, dict) and isinstance(binding.get('path'), str):
-                    candidate = Path(binding['path']).resolve()
-                    if input_kind in {'simulation', 'implementation'} and key in qualification_roles:
-                        queued.append((candidate, candidate.parent, None, True))
+                    if binding_key in roles:
+                        qualification(binding, roles[binding_key])
                     else:
-                        queued.append((contained_path(root, binding['path']), None, None, True))
-                elif key == 'bound_files' and isinstance(binding, list):
-                    queued.extend((contained_path(root, item['path']), None, None, True) for item in binding)
-        # Source-bound task contracts and review text are transitive inputs.
-        def task_bindings(node):
-            if isinstance(node, dict):
-                if isinstance(node.get('path'), str) and isinstance(node.get('sha256'), str):
-                    queued.append((contained_path(root, node['path']), None, None, True))
-                for key, child in node.items():
-                    if key not in {'sources', 'runtime', 'functions', 'bindings', 'artifacts', 'input_manifest'}:
-                        task_bindings(child)
-                if 'sources' in node and isinstance(node['sources'], list):
-                    task_bindings(node['sources'])
-            elif isinstance(node, list):
-                for child in node:
-                    task_bindings(child)
-        if qualification_root is None:
-            task_bindings(value)
+                        kind = 'task'
+                        if context == 'simulation_request':
+                            kind = {'implementation_receipt': 'implementation_receipt',
+                                    'protocol_input': 'simulation_protocol'}.get(binding_key, kind)
+                        elif context == 'implementation_request' and binding_key == 'mapping_input':
+                            kind = 'mapping_contract'
+                        enqueue(binding, kind)
+                elif binding_key == 'bound_files' and isinstance(binding, list):
+                    # Bind each byte identity; scan the authoritative originals
+                    # through protocol/mapping roles rather than this claimed list.
+                    for item in binding:
+                        enqueue(item, 'opaque')
+        if not context.startswith('qualification_'):
+            task_bindings(value, skip=skip)
     return paths

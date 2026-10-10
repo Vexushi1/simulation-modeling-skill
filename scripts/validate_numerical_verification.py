@@ -69,7 +69,7 @@ def validate_numerical_verification(path, *, project_root=None, require_reviewed
         budget = value['budget'] or HARD_BUDGET
         if any(type(v) is not int for v in budget.values()):
             raise ValueError('read budgets require integer counts, not bool or float')
-        initial_paths = evidence_paths([path], root, budget)
+        initial_paths = evidence_paths([path], root, budget, root_contexts={path: 'h1_contract'})
         initial_manifest = input_manifest(initial_paths, root, budget)
         result.update(schema_valid=True, contract_sha256=sha256_file(path), project_id=value['project_id'],
                       semantic_sha256=semantic_digest(value), method=value['method'], budget=value['budget'],
@@ -100,7 +100,7 @@ def validate_numerical_verification(path, *, project_root=None, require_reviewed
                 missing.append('current_frozen_protocol:' + str(index))
                 continue
             # Budget preflight precedes the transitive E consumer.
-            input_manifest(evidence_paths([protocol], root, budget), root, budget)
+            input_manifest(evidence_paths([protocol], root, budget, root_contexts={protocol: 'simulation_protocol'}), root, budget)
             report = validate_simulation_protocol(protocol, project_root=root, require_frozen=True)
             result['protocol_reports'].append(report)
             paths.append(protocol)
