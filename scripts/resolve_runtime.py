@@ -1,4 +1,4 @@
-"""Resolve A through G gates without writing project state."""
+"""Resolve A through H gates without writing project state."""
 from __future__ import annotations
 
 import argparse
@@ -153,12 +153,14 @@ def _implementation_route(result, *, router, module_id, resources, state_result,
 
 
 def resolve_runtime(intent, *, profile_path=None, state_path=None,
-                    required_operations=None, expected_root=None, problem_path=None,
+                    required_operations=None, expected_root=None, project_root=None, problem_path=None,
                     model_path=None, approval_path=None, mapping_path=None,
                     implementation_profile_path=None, protocol_path=None,
                     simulation_profile_path=None, run_receipt_path=None, study_path=None,
                     parameter_study_profile_path=None, parameter_trial_receipt_path=None,
-                    design_path=None, experiment_profile_path=None, campaign_receipt_path=None) -> dict:
+                    design_path=None, experiment_profile_path=None, campaign_receipt_path=None,
+                    numerical_verification_path=None, numerical_verification_receipt_path=None,
+                    model_verification_path=None, model_verification_receipt_path=None) -> dict:
     router = load_contract("core/workflow_router.yaml")
     taxonomy = load_contract(router["capability_taxonomy"])["capabilities"]
     manifest = load_contract(router["module_manifest"])["modules"]
@@ -252,6 +254,25 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         if current_stage is None:
             current_stage = load_document(Path(state_path))["current_stage"]
 
+    # Project-root context is independent of real project-state evidence. It
+    # supplies path resolution only, never a stage, anchor or satisfied gate.
+    routing_context = dict(state_result or {})
+    if project_root is not None:
+        explicit_root = Path(project_root).resolve()
+        if not explicit_root.is_dir():
+            result.update(status="blocked", missing_gates=["project_root_valid"],
+                          errors=["explicit project_root is not an existing directory"],
+                          next_step="Supply the existing root containing the project evidence.")
+            return result
+        bound_root = state_result.get("project_root") if state_result else None
+        if bound_root and explicit_root != Path(bound_root).resolve():
+            result.update(status="blocked", missing_gates=["project_root_state_binding_matches"],
+                          errors=["explicit project_root differs from project-state binding"],
+                          fallback=router["fallback"]["invalid_project_state"],
+                          next_step="Use the project root bound by the supplied real state.")
+            return result
+        routing_context["project_root"] = str(explicit_root)
+
     if intent in taxonomy and intent not in router["intents"]:
         phase = taxonomy[intent]["phase"]
         policy = router["future_capabilities"]
@@ -296,10 +317,32 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
                       activated_resources=list(resources))
         return result
 
+    if intent in {"numerical_verification", "numerical_verification_review"}:
+        from numerical_verification_route import numerical_verification_route
+        return numerical_verification_route(result, router=router, resources=resources,
+            state_result=routing_context, state_path=state_path,
+            numerical_verification_path=numerical_verification_path,
+            numerical_verification_receipt_path=numerical_verification_receipt_path,
+            problem_path=problem_path, model_path=model_path, approval_path=approval_path,
+            mapping_path=mapping_path, protocol_path=protocol_path,
+            run_receipt_path=run_receipt_path, requested=requested)
+
+    if intent in {"model_verification", "model_verification_review", "sensitivity_analysis",
+                  "robustness_analysis", "model_comparison", "solver_comparison"}:
+        from model_verification_route import model_verification_route
+        return model_verification_route(result, router=router, resources=resources,
+            state_result=routing_context, state_path=state_path,
+            model_verification_path=model_verification_path,
+            model_verification_receipt_path=model_verification_receipt_path,
+            numerical_verification_receipt_path=numerical_verification_receipt_path,
+            problem_path=problem_path, model_path=model_path, approval_path=approval_path,
+            mapping_path=mapping_path, protocol_path=protocol_path,
+            run_receipt_path=run_receipt_path, requested=requested)
+
     if intent in {"experiment_design", "experiment_campaign", "campaign_review"}:
         from experiment_route import experiment_route
         return experiment_route(result, router=router, resources=resources,
-            state_result=state_result, state_path=state_path, design_path=design_path,
+            state_result=routing_context, state_path=state_path, design_path=design_path,
             mapping_path=mapping_path,
             problem_path=problem_path, model_path=model_path, approval_path=approval_path,
             profile_path=profile_path, simulation_profile_path=simulation_profile_path,
@@ -309,7 +352,7 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
     if intent in {"parameter_study", "parameter_candidate_review", "parameter_identification", "calibration", "optimization"}:
         from parameter_study_route import parameter_study_route
         return parameter_study_route(result, router=router, resources=resources,
-            state_result=state_result, state_path=state_path, study_path=study_path,
+            state_result=routing_context, state_path=state_path, study_path=study_path,
             problem_path=problem_path, model_path=model_path, approval_path=approval_path,
             profile_path=profile_path, parameter_study_profile_path=parameter_study_profile_path,
             simulation_profile_path=simulation_profile_path, parameter_trial_receipt_path=parameter_trial_receipt_path,
@@ -318,7 +361,7 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
     if intent in {"simulation_protocol", "simulation_execution", "solver_diagnostics"}:
         from simulation_route import simulation_route
         return simulation_route(result, router=router, resources=resources,
-            state_result=state_result, state_path=state_path, protocol_path=protocol_path,
+            state_result=routing_context, state_path=state_path, protocol_path=protocol_path,
             mapping_path=mapping_path, problem_path=problem_path, model_path=model_path,
             approval_path=approval_path, profile_path=profile_path,
             simulation_profile_path=simulation_profile_path, run_receipt_path=run_receipt_path,
@@ -327,7 +370,7 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
     if intent in {"domain_mapping", "simulink_build"}:
         return _implementation_route(
             result, router=router, module_id=module_id, resources=resources,
-            state_result=state_result, state_path=state_path, profile_path=profile_path,
+            state_result=routing_context, state_path=state_path, profile_path=profile_path,
             implementation_profile_path=implementation_profile_path, problem_path=problem_path,
             model_path=model_path, approval_path=approval_path, mapping_path=mapping_path,
             requested=requested, expected_root=expected_root)
@@ -348,7 +391,7 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
             return result
         from validate_problem_contract import validate_problem_contract
 
-        project_root = state_result.get("project_root") if state_result else None
+        project_root = routing_context.get("project_root")
         validation = validate_problem_contract(selected_problem, project_root=project_root)
         result["problem_validation"] = validation
         result["problem_contract_sha256"] = validation["contract_sha256"]
@@ -384,7 +427,7 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         selected_problem = problem_path if problem_path is not None else bound_problem
         selected_model = model_path if model_path is not None else bound_model
         selected_approval = approval_path if approval_path is not None else bound_approval
-        project_root = state_result.get("project_root") if state_result else None
+        project_root = routing_context.get("project_root")
         model_validation = None
         if selected_model is not None:
             from validate_model_contract import validate_model_contract
@@ -485,6 +528,7 @@ def main() -> int:
     parser.add_argument("--intent", required=True)
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--state", type=Path)
+    parser.add_argument("--project-root", type=Path)
     parser.add_argument("--problem", type=Path)
     parser.add_argument("--model", type=Path)
     parser.add_argument("--approval", type=Path)
@@ -499,13 +543,17 @@ def main() -> int:
     parser.add_argument("--experiment-design", type=Path)
     parser.add_argument("--experiment-profile", type=Path)
     parser.add_argument("--campaign-receipt", type=Path)
+    parser.add_argument("--numerical-verification", type=Path)
+    parser.add_argument("--numerical-verification-receipt", type=Path)
+    parser.add_argument("--model-verification", type=Path)
+    parser.add_argument("--model-verification-receipt", type=Path)
     parser.add_argument("--require-operation", action="append", default=[])
     parser.add_argument("--matlab-root", type=Path)
     args = parser.parse_args()
     try:
         result = resolve_runtime(args.intent, profile_path=args.profile, state_path=args.state,
                                  required_operations=args.require_operation,
-                                 expected_root=args.matlab_root, problem_path=args.problem,
+                                 expected_root=args.matlab_root, project_root=args.project_root, problem_path=args.problem,
                                  model_path=args.model, approval_path=args.approval, mapping_path=args.mapping,
                                  implementation_profile_path=args.implementation_profile,
                                  protocol_path=args.protocol, simulation_profile_path=args.simulation_profile,
@@ -513,7 +561,11 @@ def main() -> int:
                                  parameter_study_profile_path=args.parameter_study_profile,
                                  parameter_trial_receipt_path=args.parameter_trial_receipt,
                                  design_path=args.experiment_design, experiment_profile_path=args.experiment_profile,
-                                 campaign_receipt_path=args.campaign_receipt)
+                                 campaign_receipt_path=args.campaign_receipt,
+                                 numerical_verification_path=args.numerical_verification,
+                                 numerical_verification_receipt_path=args.numerical_verification_receipt,
+                                 model_verification_path=args.model_verification,
+                                 model_verification_receipt_path=args.model_verification_receipt)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         result = {"status": "blocked", "execution_allowed": False,
                   "business_execution_allowed": False, "simulation_execution_allowed": False,

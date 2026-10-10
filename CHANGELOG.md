@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — Phase H bounded evidence assessments
+
+- Amend the plan for executable three-level numerical criteria, complete historical identity checks and explicit finite claim scope before implementing consumers.
+- Add reviewed ode4 coarse-grid and ode45 endpoint-refinement assessments, finite external-input response/robustness, sampled solver comparison and substantive structural-comparison review.
+- Independently reconstruct E numeric evidence and assessment receipts; required unsupported checks block acceptance and valid claim failures retain modify/reject dispositions.
+- Add read-only H routes/scopes and explicit caller-controlled numerical/model-verification states. Preserve A/B/D protected bytes and close H safety dependencies with E/F/G.
+- Final-source regression, real R2025b combination qualification, independent review, CI, merge and readback are separately recorded in the development PR. General analyses and I–K remain deferred; this entry does not declare a release or completed development exit.
+
 ## 0.7.0 — Phase G finite serial experiments
 
 - Add reviewed source-bound scenario matrices, complete finite factorial catalogs and fixed-size categorical Monte Carlo with independently frozen E members.

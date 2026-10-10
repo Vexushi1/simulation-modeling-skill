@@ -1,5 +1,5 @@
 schema_version: 1
-phase: G
+phase: H
 module_manifest: core/module_manifest.yaml
 capability_taxonomy: core/capability_taxonomy.yaml
 runtime_contract: core/runtime_assurance_contract.yaml
@@ -292,6 +292,116 @@ intents:
     - campaign_review
     next_step: Read the actual sample and each E receipt before discussing fixed-size statistics; H/I
       claims remain gated.
+  numerical_verification:
+    phase: H
+    mode: read_only
+    module: numerical_verification
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: numerical_verification
+    required_gates:
+    - numerical_verification_contract_valid
+    expected_artefacts:
+    - numerical_verification_review
+    next_step: Review current source-bound H1 criteria and independently recomputed historical E evidence;
+      an explicit caller alone records acceptance or state.
+  numerical_verification_review:
+    phase: H
+    mode: read_only
+    module: numerical_verification_review
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: numerical_verification
+    required_gates:
+    - numerical_verification_contract_valid
+    - current_numerical_verification_receipt
+    expected_artefacts:
+    - numerical_verification_review
+    next_step: Review current source-bound H1 criteria and independently recomputed historical E evidence;
+      an explicit caller alone records acceptance or state.
+  model_verification:
+    phase: H
+    mode: read_only
+    module: model_verification
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates:
+    - model_verification_contract_valid
+    expected_artefacts:
+    - model_verification_review
+    next_step: Review the declared finite analysis, current H1 and each approved E history; preserve modify/reject
+      decisions and leave project state unchanged.
+  model_verification_review:
+    phase: H
+    mode: read_only
+    module: model_verification_review
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates:
+    - model_verification_contract_valid
+    - current_model_verification_receipt
+    expected_artefacts:
+    - model_verification_review
+    next_step: Review the declared finite analysis, current H1 and each approved E history; preserve modify/reject
+      decisions and leave project state unchanged.
+  sensitivity_analysis:
+    phase: H
+    mode: read_only
+    module: sensitivity_analysis
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates:
+    - model_verification_contract_valid
+    - requested_analysis_required
+    expected_artefacts:
+    - model_verification_review
+    next_step: Review the declared finite analysis, current H1 and each approved E history; preserve modify/reject
+      decisions and leave project state unchanged.
+  robustness_analysis:
+    phase: H
+    mode: read_only
+    module: robustness_analysis
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates:
+    - model_verification_contract_valid
+    - requested_analysis_required
+    expected_artefacts:
+    - model_verification_review
+    next_step: Review the declared finite analysis, current H1 and each approved E history; preserve modify/reject
+      decisions and leave project state unchanged.
+  model_comparison:
+    phase: H
+    mode: read_only
+    module: model_comparison
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates:
+    - model_verification_contract_valid
+    - requested_analysis_required
+    expected_artefacts:
+    - model_verification_review
+    next_step: Review the declared finite analysis, current H1 and each approved E history; preserve modify/reject
+      decisions and leave project state unchanged.
+  solver_comparison:
+    phase: H
+    mode: read_only
+    module: solver_comparison
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: model_verification
+    required_gates:
+    - model_verification_contract_valid
+    - requested_analysis_required
+    expected_artefacts:
+    - model_verification_review
+    next_step: Review the declared finite analysis, current H1 and each approved E history; preserve modify/reject
+      decisions and leave project state unchanged.
 operation_selection:
   defaults_from: module_manifest.modules.environment_assurance.required_operations
   optional_policy: explicit_request_only
@@ -384,6 +494,14 @@ fallback:
     action: reprobe_required_a_e_g_operations
     reason: A core success does not replace individual required operations; G sample qualification does
       not replace E simulation.
+  numerical_verification_invalid:
+    action: review_numerical_verification
+    reason: Review current H1 sources, independently frozen comparable E protocols, actual receipts and
+      complete declared checks; preserve failed criteria and do not grant new execution.
+  model_verification_invalid:
+    action: review_model_verification
+    reason: Review current H1, source-bound required analyses, finite domains and actual approved comparator
+      evidence; missing evidence grants no support or new execution.
 invariants:
 - inspect_never_grants_execution_or_advances_state
 - current_profile_and_requested_operations_required_for_environment_execution
@@ -416,9 +534,15 @@ invariants:
 - finite_catalog_sampling_never_overrides_frozen_e_parameters
 - technical_failure_prevents_complete_statistics
 - experiment_scope_leaves_current_runtime_unassessed
+- h_read_only_review_never_grants_matlab_execution_or_changes_primary_state
+- h_historical_evidence_requires_current_sources_and_execution_time_qualification
+- h1_acceptance_is_limited_to_declared_grid_outputs_and_checks
+- h2_complete_decision_is_distinct_from_claim_support_and_physical_validation
 simulation_protocol_schema: core/simulation_protocol.schema.yaml
 simulation_assurance_contract: core/simulation_assurance_contract.yaml
 parameter_study_schema: core/parameter_study.schema.yaml
 parameter_study_assurance_contract: core/parameter_study_assurance_contract.yaml
 experiment_design_schema: core/experiment_design.schema.yaml
 experiment_assurance_contract: core/experiment_assurance_contract.yaml
+numerical_verification_contract: core/numerical_verification_contract.yaml
+model_verification_contract: core/model_verification_contract.yaml

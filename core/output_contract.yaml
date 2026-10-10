@@ -1,6 +1,6 @@
 schema_version: 1
-version: 0.7.0
-phase: G
+version: 0.8.0
+phase: H
 runtime_evidence:
   producer: scripts/probe_environment.py
   consumer: scripts/validate_environment.py
@@ -12,7 +12,7 @@ route_decision:
   output: json_stdout
   mutates_project_state: false
   business_execution_allowed: simulation_execution, parameter_trial or experiment_campaign only after
-    their distinct required gates
+    their distinct required gates; H routes are read-only
 project_state:
   schema: core/project_state.schema.yaml
   validator: scripts/validate_project_state.py
@@ -53,21 +53,33 @@ project_state:
     experiment_environment:
     - profile_sha256
     - receipt_sha256
+    numerical_verification:
+    - sha256
+    numerical_verification_receipt:
+    - sha256
+    model_verification:
+    - sha256
+    model_verification_receipt:
+    - sha256
   artefact_paths: inside_declared_project_root
   stale_propagation: transitive_dependents_of_changed_ids
   preserve_history: true
   validation_scopes:
     all: validate every implemented evidence role and current runtime requirements
     problem: validate problem identity and dependencies; environment, model and implementation readiness
-      are unassessed; E readiness unassessed
+      are unassessed; E readiness unassessed; H readiness unassessed
     model: validate problem/model identity and dependencies; environment and implementation readiness
-      are unassessed; E readiness unassessed
+      are unassessed; E readiness unassessed; H readiness unassessed
     implementation: validate B/C/D including historical model structure; current environment readiness
-      is unassessed; E readiness unassessed
-    simulation: validate B/C/D/E and historical run evidence; current environment readiness unassessed
-    parameter_study: validate B/C/F and historical trial; current runtime and D/E unassessed
+      is unassessed; E readiness unassessed; H readiness unassessed
+    simulation: validate B/C/D/E and historical run evidence; current environment readiness unassessed;
+      H readiness unassessed
+    parameter_study: validate B/C/F and historical trial; current runtime and D/E unassessed; H readiness
+      unassessed
     experiment: validate B/C/D and finite design/campaign historical evidence; current runtime unassessed;
-      primary E run and F unassessed
+      primary E run and F unassessed; H readiness unassessed
+    numerical_verification: validate B/C/D/E and H1 historical evidence; current runtime, F/G and H2 unassessed
+    model_verification: validate B/C/D/E/H1/H2 historical evidence; current runtime and F/G unassessed
 problem_contract:
   schema: core/problem_contract.schema.yaml
   consumer: scripts/validate_problem_contract.py
@@ -236,3 +248,26 @@ experiment_evidence:
   complete_summary: only all fixed-n actual E draws admissible; technical failure preserves partial ledger
     and null summary
   claim_limit: synthetic/infrastructure and declared finite law; H/I remain gated
+numerical_verification:
+  contract: core/numerical_verification_contract.yaml
+  consumer: scripts/validate_numerical_verification.py
+  producer: scripts/run_numerical_verification.py
+  receipt_consumer: scripts/validate_numerical_verification_receipt.py
+  directory_policy: new owned directory per invocation
+  state_writes: explicit caller only
+  execution_allowed: false
+  freshness: current sources and artifacts, each E historical execution-time qualification; no current
+    runtime TTL gate
+  claim_limit: declared three-level grid or endpoint consistency only; no true error bound or physical
+    validation
+model_verification:
+  contract: core/model_verification_contract.yaml
+  consumer: scripts/validate_model_verification.py
+  producer: scripts/run_model_verification.py
+  receipt_consumer: scripts/validate_model_verification_receipt.py
+  directory_policy: new owned directory per invocation
+  state_writes: explicit caller only
+  execution_allowed: false
+  decision_complete: all required finite analyses decided with current H1 and actual approved E histories
+  verified: all required analyses support; explicit caller state only
+  claim_limit: finite declared conditions and sampled metrics; no I validation or J evidence acceptance

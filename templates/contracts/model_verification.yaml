@@ -1,0 +1,11 @@
+schema_version: 1
+project_id: replace_project
+status: draft
+primary_numerical_receipt: null
+members: []
+claims: []
+sources: []
+settings_source_ref: null
+budget: null
+claim_limit: Draft only; no model claim assessment or real-system validation is established.
+review_record: null

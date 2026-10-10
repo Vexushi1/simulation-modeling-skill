@@ -1,0 +1,178 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Phase H2 finite source-bound model claim assessment
+type: object
+additionalProperties: false
+required: [schema_version, project_id, status, primary_numerical_receipt, members, claims, sources, settings_source_ref, budget, claim_limit, review_record]
+properties:
+  schema_version: {const: 1}
+  project_id: {$ref: '#/$defs/id'}
+  status: {enum: [draft, reviewed]}
+  primary_numerical_receipt: {$ref: '#/$defs/nullable_file'}
+  members: {type: array, maxItems: 15, items: {$ref: '#/$defs/member'}}
+  claims: {type: array, maxItems: 16, items: {$ref: '#/$defs/claim'}}
+  sources: {type: array, items: {$ref: '#/$defs/source'}}
+  settings_source_ref: {$ref: '#/$defs/nullable_source_ref'}
+  budget: {$ref: '#/$defs/nullable_budget'}
+  claim_limit: {$ref: '#/$defs/text'}
+  review_record: {$ref: '#/$defs/nullable_file'}
+$defs:
+  id: {type: string, pattern: '^[A-Za-z][A-Za-z0-9_.-]*$'}
+  text: {type: string, pattern: '\S'}
+  sha: {type: string, pattern: '^[a-f0-9]{64}$'}
+  file:
+    type: object
+    additionalProperties: false
+    required: [path, sha256]
+    properties:
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+  nullable_file:
+    oneOf: [{type: 'null'}, {$ref: '#/$defs/file'}]
+  source:
+    type: object
+    additionalProperties: false
+    required: [id, path, sha256, purpose]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      path: {$ref: '#/$defs/text'}
+      sha256: {$ref: '#/$defs/sha'}
+      purpose: {$ref: '#/$defs/text'}
+  source_ref:
+    type: object
+    additionalProperties: false
+    required: [source_id, selector]
+    properties:
+      source_id: {$ref: '#/$defs/id'}
+      selector:
+        type: array
+        items:
+          oneOf: [{type: string, pattern: '\S'}, {type: integer, minimum: 0}]
+  nullable_source_ref:
+    oneOf: [{type: 'null'}, {$ref: '#/$defs/source_ref'}]
+  member:
+    type: object
+    additionalProperties: false
+    required: [id, numerical_receipt]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      numerical_receipt: {$ref: '#/$defs/nullable_file'}
+  nullable_number: {type: [number, 'null']}
+  metric:
+    type: object
+    additionalProperties: false
+    required: [statistic, unit, primary_output_port, member_output_ports]
+    properties:
+      statistic: {enum: [final, minimum, maximum]}
+      unit: {$ref: '#/$defs/text'}
+      primary_output_port: {type: integer, minimum: 1}
+      member_output_ports:
+        type: array
+        maxItems: 15
+        items:
+          type: object
+          additionalProperties: false
+          required: [member_id, output_port]
+          properties:
+            member_id: {$ref: '#/$defs/id'}
+            output_port: {type: integer, minimum: 1}
+  factor:
+    type: object
+    additionalProperties: false
+    required: [input_port, variable_id, unit, levels]
+    properties:
+      input_port: {type: integer, minimum: 1}
+      variable_id: {$ref: '#/$defs/id'}
+      unit: {$ref: '#/$defs/text'}
+      levels: {type: array, minItems: 2, maxItems: 16, items: {type: number}}
+  bounds:
+    type: object
+    additionalProperties: false
+    required: [lower, upper, unit]
+    properties:
+      lower: {$ref: '#/$defs/nullable_number'}
+      upper: {$ref: '#/$defs/nullable_number'}
+      unit: {$ref: '#/$defs/text'}
+  comparison:
+    type: object
+    additionalProperties: false
+    required: [absolute_tolerance, relative_tolerance]
+    properties:
+      absolute_tolerance: {type: number, exclusiveMinimum: 0}
+      relative_tolerance: {type: number, minimum: 0}
+  structural_review:
+    type: array
+    maxItems: 15
+    items:
+      type: object
+      additionalProperties: false
+      required: [member_id, difference_kind, primary_selector, member_selector, source_ref, rationale, equivalence_review, physical_target]
+      properties:
+        member_id: {$ref: '#/$defs/id'}
+        difference_kind: {enum: [governing_equations, mechanism, model_order, physical_abstraction, constitutive_relation, coupling_structure, state_representation, fidelity]}
+        primary_selector: {type: array, minItems: 1, items: {oneOf: [{type: string}, {type: integer, minimum: 0}]}}
+        member_selector: {type: array, minItems: 1, items: {oneOf: [{type: string}, {type: integer, minimum: 0}]}}
+        source_ref: {$ref: '#/$defs/nullable_source_ref'}
+        rationale: {$ref: '#/$defs/text'}
+        equivalence_review: {const: material_change_not_rename_or_equivalent_reformulation}
+        physical_target: {$ref: '#/$defs/text'}
+  analysis:
+    type: object
+    additionalProperties: false
+    required: [kind, requirement, reason, method, member_ids, metric, factor, bounds, comparison, structural_review]
+    properties:
+      kind: {enum: [sensitivity, robustness, solver_comparison, model_comparison]}
+      requirement: {enum: [required, not_required, not_applicable]}
+      reason: {$ref: '#/$defs/text'}
+      method: {enum: [null, external_input_oat, finite_scenarios, solver_metrics, structural_metrics]}
+      member_ids: {type: array, uniqueItems: true, maxItems: 16, items: {$ref: '#/$defs/id'}}
+      metric: {oneOf: [{type: 'null'}, {$ref: '#/$defs/metric'}]}
+      factor: {oneOf: [{type: 'null'}, {$ref: '#/$defs/factor'}]}
+      bounds: {oneOf: [{type: 'null'}, {$ref: '#/$defs/bounds'}]}
+      comparison: {oneOf: [{type: 'null'}, {$ref: '#/$defs/comparison'}]}
+      structural_review: {oneOf: [{type: 'null'}, {$ref: '#/$defs/structural_review'}]}
+  claim:
+    type: object
+    additionalProperties: false
+    required: [id, target_claim, requirement_ids, obligation_source_ref, analyses, failure_disposition, impact_scope, required_action, return_stage, claim_limit]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      target_claim: {$ref: '#/$defs/text'}
+      requirement_ids: {type: array, uniqueItems: true, minItems: 1, items: {$ref: '#/$defs/id'}}
+      obligation_source_ref: {$ref: '#/$defs/nullable_source_ref'}
+      analyses: {type: array, minItems: 4, maxItems: 4, items: {$ref: '#/$defs/analysis'}}
+      failure_disposition: {enum: [modify, reject]}
+      impact_scope: {$ref: '#/$defs/text'}
+      required_action: {$ref: '#/$defs/text'}
+      return_stage: {enum: [B, C, D, E, F, G, H]}
+      claim_limit: {$ref: '#/$defs/text'}
+  budget:
+    type: object
+    additionalProperties: false
+    required: [max_file_bytes, max_total_bytes, max_samples_per_output, max_result_bytes]
+    properties:
+      max_file_bytes: {type: integer, minimum: 1, maximum: 67108864}
+      max_total_bytes: {type: integer, minimum: 1, maximum: 268435456}
+      max_samples_per_output: {type: integer, minimum: 2, maximum: 12001}
+      max_result_bytes: {type: integer, minimum: 1, maximum: 4194304}
+  nullable_budget:
+    oneOf: [{type: 'null'}, {$ref: '#/$defs/budget'}]
+  review_record:
+    type: object
+    additionalProperties: false
+    required: [schema_version, project_id, verification_semantic_sha256, decision]
+    properties:
+      schema_version: {const: 1}
+      project_id: {$ref: '#/$defs/id'}
+      verification_semantic_sha256: {$ref: '#/$defs/sha'}
+      decision:
+        type: object
+        additionalProperties: false
+        required: [path, sha256, start, end, quote, reviewed_by, action]
+        properties:
+          path: {$ref: '#/$defs/text'}
+          sha256: {$ref: '#/$defs/sha'}
+          start: {type: integer, minimum: 0}
+          end: {type: integer, minimum: 1}
+          quote: {$ref: '#/$defs/text'}
+          reviewed_by: {$ref: '#/$defs/text'}
+          action: {const: review}

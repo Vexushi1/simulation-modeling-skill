@@ -1,6 +1,6 @@
 # Simulation protocol and primary execution
 
-Read [the protocol schema](../core/simulation_protocol.schema.yaml) and [simulation assurance contract](../core/simulation_assurance_contract.yaml) after the current approved C design and D mapping/structure have been validated. This module runs one reviewed scalar core Simulink target in normal serial mode. It does not implement calibration, campaigns, solver comparison or numerical V&V.
+Read [the protocol schema](../core/simulation_protocol.schema.yaml) and [simulation assurance contract](../core/simulation_assurance_contract.yaml) after the current approved C design and D mapping/structure have been validated. This module runs one reviewed scalar core Simulink target in normal serial mode. Separate F/G/H modules govern parameter trials, campaigns and bounded numerical/model assessment; a successful E run alone establishes none of their acceptance gates.
 
 ## Review before freezing
 

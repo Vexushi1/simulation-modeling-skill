@@ -1,0 +1,14 @@
+schema_version: 1
+project_id: PROJECT_UNKNOWN
+status: draft
+primary_protocol: null
+refinement_protocols: []
+method: null
+comparison_times: null
+outputs: []
+obligations: null
+budget: null
+claim_limit: Incomplete refinement draft; no numerical acceptance or real-system validity claim.
+sources: []
+settings_source_ref: null
+review_record: null
