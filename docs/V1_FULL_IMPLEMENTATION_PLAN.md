@@ -2133,6 +2133,20 @@ H2只有所有source-required advanced study完整且接受、原primary和所�
 
 精确最终源码独立审查、最少原材料独立行为测试、source-protected字节、lint/index、真实最终资格和回执、本地全量、PR Windows/Ubuntu CI、单主题PR合并、main字节/历史回读及main双平台CI是分别记录的必要出口。PR CI可与本机串行native队列并行，topic push不触发额外重复矩阵。全部完成才登记H原目标范围完成；开发数据和审查均标注SYNTHETIC INFRASTRUCTURE TEST，不提供真实用户模型批准、现实有效性或发布许可。
 
+## 12.22 最终源审查中的数值和证据精度细化
+
+候选 `e3b3677` 的完整定向检测与精确源审查在原生运行前发现实现缺口：共同大偏移下重新减去舍入后的原始均值会改变 Sobol 与 UQ 方差；单位换算中间值下溢可能把非零残差变成零；真实 TimingInfo 尚缺独立可读 MAT 原始量和物理一致性核对；study 写入及 native 原始报告预估未完全执行已有序列化/全读集预算。完整发现及影响集中保存在本轮问题记录，先细化以下口径再统一修正消费者。
+
+统计中心量在偏移坐标中计算；显示均值可舍入，但不能用于回减、方差或协方差。有限估计不裁剪或为了通过先验而改变阈值。非零量的单位换算必须保持已解析的严格正有限尺度；本实现不能解析的下溢/溢出受控拒绝，不把它当成零或放宽标准。
+
+性能证据保留真实 SimulationMetadata.TimingInfo：四项实际 double 标量组成固定列向量，原始 start/stop 字符串在返回 MAT 中与 run/case 身份一起保存，与 JSON 独立核对。[R2025b 官方文档](https://www.mathworks.com/help/releases/R2025b/simulink/slref/simulink.simulationmetadata.html)声明原生 wall-clock 字符串为无时区的秒级本地时间，四项 duration 为微秒级 double，total 为 initialization/execution/termination 之和。实际 `sim(in)` 前后分别捕获明确 UTC 调用时刻和本地 UTC offset；原生字符串依其真实量化区间核对该调用区间，不能当成具有微秒精度的 UTC 时刻。原生组件时间、总时间、native start/stop、实际 sim 区间及 case/raw/process 包围区间须满足文档分辨率支持的物理关系；精确 MAT/JSON 原始量对照不引入近似。进程时间继续单列，不能替代 TimingInfo。任何无法解析、形状/类型/身份/格式错配或不可能时间都阻断性能证据。
+
+study 输入写入前使用与实际输出完全相同的 UTF-8 LF serializer 作精确 forecast，并将虚拟新输入与完整独立授权读集纳入逐文件及累计预算。native 原始报告预估包含每个 case 的全部输入 time/value knots、保存时间、output/state 数列与固定 metadata，完整维度/节点界在调用 MATLAB 前检查。不能先运行再靠 decoder 拒绝可预知的过量报告。
+
+上述细化不改变 H 全范围目标、已冻结标准、现有批准/primary/state 权限或开发出口；失败证据及旧版本保持原样。修复所有已收集问题后只复检受影响节点，最终安全源码冻结并完成实际资格与原始项目行为之后才执行一次本地全量回归。
+
+共享 typed evidence graph 的字节声明 helper 与 H2 claim 循环须保持不同局部绑定；修复不得跳过角色、membership、SHA 或累计预算。原敏感性清单中的 `scenario_response` 同时属于 named sensitivity 与 robustness 路由，其已实现算法和 source-required 接受链保持不变。
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
