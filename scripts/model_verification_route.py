@@ -5,6 +5,15 @@ from numerical_verification_route import match_bindings, select_bindings
 
 ANALYSIS_KINDS = {'sensitivity_analysis': 'sensitivity', 'robustness_analysis': 'robustness',
                   'solver_comparison': 'solver_comparison', 'model_comparison': 'model_comparison'}
+STUDY_METHODS = {
+    'sensitivity_analysis': {'local_derivative', 'normalized_sensitivity', 'parameter_oat',
+                             'variance_based', 'morris', 'sobol', 'prcc'},
+    'robustness_analysis': {'scenario_response', 'independent_mc', 'gaussian_joint_mc',
+                            'gaussian_copula_mc', 'initial_condition_catalog', 'initial_condition_grid',
+                            'joint_stress_catalog', 'stress_grid', 'failure_boundary'},
+    'solver_comparison': {'runtime_comparison'},
+    'model_comparison': set(),
+}
 
 
 def model_verification_route(result, *, router, resources, state_result=None, state_path=None,
@@ -35,7 +44,7 @@ def model_verification_route(result, *, router, resources, state_result=None, st
     from validate_model_verification import validate_model_verification
     report = validate_model_verification(selected['model_verification'],
         project_root=state_result.get('project_root'), require_reviewed=result['intent'].endswith('_review'))
-    result.update(model_verification_validation={key: value for key, value in report.items() if key != '_members'},
+    result.update(model_verification_validation={key: value for key, value in report.items() if not key.startswith('_')},
                   model_verification_path=str(Path(selected['model_verification']).resolve()),
                   model_verification_sha256=report.get('contract_sha256'),
                   model_verification_semantic_sha256=report.get('semantic_sha256'))
@@ -46,8 +55,11 @@ def model_verification_route(result, *, router, resources, state_result=None, st
     if not report['valid'] or errors:
         return block('model_verification_contract_valid', report['errors'] + errors)
     kind = ANALYSIS_KINDS.get(result['intent'])
-    if kind and kind not in report.get('required_analysis_kinds', []):
+    studies = set(report.get('required_study_methods', [])) & STUDY_METHODS.get(result['intent'], set())
+    if kind and kind not in report.get('required_analysis_kinds', []) and not studies:
         return block('requested_analysis_required', ['the current H2 contract does not require ' + kind])
+    if studies:
+        result['required_study_methods'] = sorted(studies)
     if result['intent'] == 'model_verification_review':
         if selected['model_verification_receipt'] is None:
             return block('current_model_verification_receipt', ['supply the actual H2 assessment receipt'])

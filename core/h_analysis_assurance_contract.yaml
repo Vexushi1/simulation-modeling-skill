@@ -1,0 +1,73 @@
+schema_version: 1
+phase: H
+operation_id: h.analysis_trials
+target:
+  matlab_release: R2025b
+  simulink_version: '25.2'
+execution_channel: matlab_batch
+validity_seconds: 86400
+installation_identity_budget:
+  max_file_bytes: 67108864
+  max_total_bytes: 268435456
+installation_identity_scope: separately bounded official MATLAB executable VersionInfo and resolved function files; no task or review external-path authority
+scope: reviewed hypothetical scalar six-block owned-copy trials; no adoption or primary approval
+solvers: [ode4, ode45, ode15s]
+required_A_operations: [matlab.basic_execution, simulink.library_load]
+required_functions:
+  - Simulink.SimulationInput
+  - Simulink.SimulationData.Dataset
+  - Simulink.SimulationData.State
+  - Simulink.SimulationData.BlockPath
+  - Simulink.SimulationOutput
+  - Simulink.Parameter
+  - Simulink.fileGenControl
+  - timeseries
+  - sim
+  - rng
+  - new_system
+  - add_block
+  - add_line
+  - load_system
+  - close_system
+  - bdIsLoaded
+  - set_param
+  - get_param
+  - find_system
+  - save_system
+  - save
+  - load
+  - fopen
+  - fprintf
+  - fclose
+source_files:
+  - core/h_analysis_assurance_contract.yaml
+  - scripts/h_analysis_trial.py
+  - scripts/matlab/run_h_analysis_trials.m
+  - scripts/probe_h_analysis.py
+  - scripts/validate_h_analysis_profile.py
+  - scripts/validate_h_analysis_trial_receipt.py
+hard_budget:
+  max_file_bytes: 67108864
+  max_total_bytes: 1073741824
+  max_samples_per_output: 12001
+  max_groups: 2048
+  max_cases: 8192
+  process_timeout: 3600
+  simulation_timeout: 120
+features: [parameter_override, initial_condition_override, continuous_input, state_dataset, timing_info, three_format_readback, restoration]
+qualification_groups: [first_ode4, cascade_ode45, first_ode15s, first_pwl, zero_response]
+qualification_controls: [controlled_error, controlled_timeout, controlled_no_output, timing_repeat_1, timing_repeat_2]
+evidence:
+  input: h-analysis-input.json
+  raw: raw-h-analysis.json
+  process: h-analysis-process.json
+  log: h-analysis-matlab.log
+  profile: h-analysis-profile.json
+  profile_receipt: h-analysis-profile-receipt.json
+  run_receipt: h-analysis-trial-receipt.json
+invariants:
+  - all numerical outputs are independently recomputed from actual MAT JSON and CSV
+  - every case consumes execution-time same-host A E and H qualification
+  - qualification profiles are derived only from the exact independent native probe matrix
+  - no parameter model protocol primary-run approval freeze or project-state writeback
+  - preserve failures and unattempted rows; budgets reject without truncation

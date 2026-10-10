@@ -1,4 +1,4 @@
-"""Deterministic H2 finite metrics; never execute or alter a model."""
+"""Deterministic H2 metrics and source-required study decisions."""
 from __future__ import annotations
 
 import math
@@ -21,6 +21,7 @@ H2_FILES = (
     'scripts/validate_model_verification.py', 'scripts/run_model_verification.py',
     'scripts/validate_model_verification_receipt.py', 'packs/evidence/sensitivity.md',
     'packs/evidence/model_comparison.md', 'packs/evidence/solver_comparison.md',
+    'scripts/sensitivity_design.py', 'scripts/sensitivity_metrics.py',
 )
 
 
@@ -29,8 +30,12 @@ def settings_snapshot(value):
 
 
 def obligation_snapshot(claim):
-    return {'target_claim': claim['target_claim'], 'requirement_ids': claim['requirement_ids'],
-            'requirements': {item['kind']: item['requirement'] for item in claim['analyses']}}
+    result = {'target_claim': claim['target_claim'], 'requirement_ids': claim['requirement_ids'],
+              'requirements': {item['kind']: item['requirement'] for item in claim['analyses']}}
+    if 'study_requirements' in claim:
+        result['study_requirements'] = [{key: item[key] for key in ('id', 'method', 'requirement', 'reason')}
+                                        for item in claim['study_requirements']]
+    return result
 
 
 def selected_model(member):
@@ -92,6 +97,19 @@ def output_port(analysis, member_id):
 
 def metric_value(member, analysis, member_id):
     metric, port = analysis['metric'], output_port(analysis, member_id)
+    if metric['statistic'] not in {'final', 'minimum', 'maximum'} or any(key in metric for key in ('window', 'event', 'check', 'event_index')):
+        from numerical_math_common import evaluate_metric
+        request = {key: deepcopy(metric[key]) for key in ('statistic', 'unit', 'window', 'event', 'check', 'event_index') if key in metric}
+        request['output_port'] = port
+        level = dict(member['data'], run_spec=member['protocol_report']['run_spec'])
+        numerical = member['numerical_report']
+        report = evaluate_metric(request, level, context=numerical.get('numeric_context'),
+                                 numeric_policy=numerical.get('numeric_policy'))
+        if not report['defined'] or report.get('errors'):
+            raise ValueError('H2 required metric undefined: ' + '; '.join(report.get('errors', [])))
+        if not finite(report['value']) or report['unit'] != metric['unit']:
+            raise ValueError('H2 extracted metric value/unit differs')
+        return report['value']
     declarations = member['protocol_report']['run_spec']['metrics']
     if not any(item['output_port'] == port and item['statistic'] == metric['statistic'] and
                item['unit'] == metric['unit'] for item in declarations):
@@ -233,7 +251,7 @@ def structural_snapshot(review, primary, member):
             'physical_target': review['physical_target']}
 
 
-def compute_assessment(value, members):
+def compute_assessment(value, members, studies=None):
     """Recompute every registered finite claim, keeping threshold failures as evidence."""
     claims = []
     for claim in value['claims']:
@@ -281,11 +299,31 @@ def compute_assessment(value, members):
             results.append({'kind': kind, 'requirement': 'required', 'method': analysis['method'],
                             'disposition': 'support' if analysis_supported else claim['failure_disposition'],
                             'rows': rows})
-        claims.append({'id': claim['id'], 'target_claim': claim['target_claim'], 'analyses': results,
+        study_decisions = []
+        for obligation in claim.get('study_requirements', []):
+            if obligation['requirement'] != 'required':
+                study_decisions.append({'id': obligation['id'], 'method': obligation['method'],
+                    'requirement': obligation['requirement'], 'reason': obligation['reason'], 'disposition': 'not_required'})
+                continue
+            study = (studies or {}).get((claim['id'], obligation['id']))
+            if study is None or not study['study_complete'] or not study['defined']:
+                raise ValueError('complete defined required study missing: ' + claim['id'] + ':' + obligation['id'])
+            accepted = study['study_accepted']
+            supported &= accepted
+            study_decisions.append({'id': obligation['id'], 'method': obligation['method'], 'requirement': 'required',
+                'disposition': 'support' if accepted else claim['failure_disposition'],
+                'study_contract_path': study['study_contract_path'], 'study_contract_sha256': study['study_contract_sha256'],
+                'study_semantic_sha256': study['study_semantic_sha256'], 'study_receipt_path': study['study_receipt_path'],
+                'study_receipt_sha256': study['study_receipt_sha256'], 'study_complete': True, 'defined': True,
+                'study_accepted': accepted})
+        claim_result = {'id': claim['id'], 'target_claim': claim['target_claim'], 'analyses': results,
                        'disposition': 'support' if supported else claim['failure_disposition'],
                        'impact_scope': claim['impact_scope'],
                        'required_action': None if supported else claim['required_action'],
-                       'return_stage': None if supported else claim['return_stage'], 'claim_limit': claim['claim_limit']})
+                       'return_stage': None if supported else claim['return_stage'], 'claim_limit': claim['claim_limit']}
+        if 'study_requirements' in claim:
+            claim_result['study_decisions'] = study_decisions
+        claims.append(claim_result)
     supported = bool(claims) and all(claim['disposition'] == 'support' for claim in claims)
     return {'model_verification_decided': bool(claims), 'claim_supported': supported,
             'model_verified': supported, 'claims': claims, 'claim_limit': value['claim_limit'],

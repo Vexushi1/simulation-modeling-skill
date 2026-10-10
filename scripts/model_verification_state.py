@@ -9,6 +9,19 @@ SCOPES = {'all', 'model_verification'}
 HISTORICAL_ROLES = {'model_verification_contract', 'model_verification_evidence'}
 
 
+def required_study_errors(report, result):
+    errors = []
+    for required in report.get('study_reports', []):
+        if required.get('requirement') != 'required':
+            continue
+        matching = [entry for entry in result.get('h_analysis_studies', []) if
+            entry['study_path'] == required.get('study_contract_path') and entry['study_sha256'] == required.get('study_contract_sha256') and
+            entry['receipt_path'] == required.get('study_receipt_path') and entry['receipt_sha256'] == required.get('study_receipt_sha256')]
+        if len(matching) != 1 or not matching[0]['reviewed'] or not matching[0]['study_complete'] or not matching[0]['defined']:
+            errors.append('H2 required study lacks its exact current complete defined state binding: ' + required.get('id', 'unknown'))
+    return errors
+
+
 def validate_bindings(state, root, result, errors, stale, scope):
     result.update(model_verification_checked=False, model_verification_reviewed=False,
                   model_verification_decided=False, model_verified=False, claim_supported=False,
@@ -25,12 +38,13 @@ def validate_bindings(state, root, result, errors, stale, scope):
         from validate_model_verification import validate_model_verification
         report = validate_model_verification(result['model_verification_path'], project_root=root,
             require_reviewed=state['current_stage'] in STAGES or bool(state.get('model_verification_receipt')))
-        result['model_verification_validation'] = {key: value for key, value in report.items() if key != '_members'}
+        result['model_verification_validation'] = {key: value for key, value in report.items() if not key.startswith('_')}
         invalid = list(report['errors']) if not report['valid'] else []
         if report.get('contract_sha256') != binding['sha256'] or report.get('project_id') != state['project_id']:
             invalid.append('H2 contract differs from state project/SHA binding')
         if report.get('reviewed'):
             invalid.extend(upstream_errors(report, state, result))
+            invalid.extend(required_study_errors(report, result))
             if report.get('primary_numerical_receipt_path') != result['numerical_verification_receipt_path']:
                 invalid.append('H2 contract differs from state primary H1 receipt')
             if not result['numerically_verified']:
@@ -57,6 +71,7 @@ def validate_bindings(state, root, result, errors, stale, scope):
         if report.get('contract_path') != result['model_verification_path'] or report.get('contract_sha256') != (state.get('model_verification') or {}).get('sha256'):
             invalid.append('H2 assessment differs from state H2 contract binding')
         invalid.extend(upstream_errors(report, state, result))
+        invalid.extend(required_study_errors(report, result))
         if report.get('primary_numerical_receipt_path') != result['numerical_verification_receipt_path']:
             invalid.append('H2 assessment differs from state primary H1 receipt')
         if not result['numerically_verified']:
@@ -93,6 +108,20 @@ def validate_artifact(item, *, state, result, root, environment_dependents, ance
         needed_roles.add('model_verification_contract')
     if not needed_roles <= ancestor_roles(item):
         invalid.append('accepted H2 evidence lacks its approved E/H1 dependency chain')
+    from h_analysis_state import ancestor_items
+    ancestors = ancestor_items(item, state)
+    report = result.get('model_verification_validation') or {}
+    for required_study in report.get('study_reports', []):
+        if required_study.get('requirement') != 'required':
+            continue
+        for required_role, path_key, sha_key in (
+            ('h_analysis_study', 'study_contract_path', 'study_contract_sha256'),
+            ('h_analysis_study_evidence', 'study_receipt_path', 'study_receipt_sha256'),
+        ):
+            if not any(parent['role'] == required_role and parent['status'] == 'accepted' and
+                       str(contained_path(root, parent['path'])) == required_study.get(path_key) and parent['sha256'] == required_study.get(sha_key)
+                       for parent in ancestors):
+                invalid.append('accepted H2 evidence lacks exact source-required ' + required_role + ' ancestor: ' + required_study.get('id', 'unknown'))
     if not result['model_verification_reviewed'] or not result['numerically_verified']:
         invalid.append('accepted H2 evidence requires current reviewed contract and primary H1')
     if role == 'model_verification_evidence' and not result['model_verification_decided']:

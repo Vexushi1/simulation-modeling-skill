@@ -4,6 +4,10 @@ status: draft
 primary_numerical_receipt: null
 members: []
 claims: []
+# Each claim may add study_requirements: [{id, method, requirement, reason,
+# study_contract: {path, sha256}, study_receipt: {path, sha256}}].
+# Both bindings are null for source-justified not_required decisions.
+# obligation_source_ref must bind the complete per-method decisions as well.
 sources: []
 settings_source_ref: null
 budget: null

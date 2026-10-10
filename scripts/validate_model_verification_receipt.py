@@ -107,7 +107,7 @@ def validate_model_verification_receipt(path, *, project_root=None, contract_rep
         assert_unchanged(report['input_manifest'])
         if receipt['assessment_complete'] is not True or actual['assessment'] is None or actual['errors'] != []:
             raise ValueError('H2 technical failure or incomplete evidence has no claim decision')
-        expected = compute_assessment(request['contract_snapshot'], report['_members'])
+        expected = compute_assessment(request['contract_snapshot'], report['_members'], report.get('_studies'))
         if not typed_equal(expected, actual['assessment']):
             raise ValueError('H2 exact independently recomputed metrics/dispositions differ')
         assert_unchanged(report['input_manifest'])
@@ -125,6 +125,7 @@ def validate_model_verification_receipt(path, *, project_root=None, contract_rep
                       contract_path=report['contract_path'], contract_sha256=report['contract_sha256'], semantic_sha256=report['semantic_sha256'],
                       project_id=report['project_id'], model_identity=report['model_identity'],
                       allowed_external=report.get('allowed_external', []), numerical_scopes=report['numerical_scopes'],
+                      study_reports=report.get('study_reports', []), required_study_methods=report.get('required_study_methods', []),
                       primary_numerical_receipt_path=report['primary_numerical_receipt_path'],
                       primary_protocol_path=report['primary_protocol_path'], primary_receipt_path=report['primary_receipt_path'])
         for key in ('model_path', 'model_sha256', 'mapping_path', 'mapping_sha256', 'problem_path', 'problem_sha256', 'approval_path', 'approval_sha256'):

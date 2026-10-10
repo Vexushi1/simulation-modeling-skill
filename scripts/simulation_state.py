@@ -5,7 +5,7 @@ from runtime_common import contained_path, load_document, sha256_file
 
 STAGES = {'SIMULATION_PROTOCOL_FROZEN', 'PRIMARY_RUN_COMPLETE'}
 H_STAGES = {'NUMERICALLY_VERIFIED', 'MODEL_VERIFICATION_DECIDED', 'MODEL_VERIFIED'}
-H_SCOPES = {'numerical_verification', 'model_verification'}
+H_SCOPES = {'numerical_verification', 'model_verification', 'h_analysis_study'}
 HISTORICAL_ROLES = {'simulation_protocol', 'simulation_run', 'simulation_output'}
 CURRENT_ROLES = {'simulation_profile', 'simulation_route_decision'}
 

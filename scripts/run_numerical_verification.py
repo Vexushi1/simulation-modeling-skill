@@ -39,27 +39,8 @@ def actual_samples(output, times, *, native_grid=None):
 
 
 def refinement_result(output, samples):
-    scale = max(abs(v) for values in samples for v in values)
-    tolerance = output['absolute_tolerance'] + output['relative_tolerance'] * scale
-    d01 = max(abs(a-b) for a, b in zip(samples[0], samples[1]))
-    d12 = max(abs(a-b) for a, b in zip(samples[1], samples[2]))
-    if any(not finite(v) for v in (scale, tolerance, d01, d12)):
-        raise ValueError('non-finite refinement difference, scale or tolerance')
-    floor = output['roundoff_floor']
-    at_floor = d01 <= floor
-    contraction = d12 <= floor if at_floor else d12 <= output['contraction_limit'] * d01
-    order = None
-    if d01 > floor and d12 > floor and d01 > 0 and d12 > 0:
-        # Difference of logs avoids overflow/underflow in d01/d12.
-        order = (math.log(d01) - math.log(d12)) / math.log(2)
-        if not finite(order):
-            raise ValueError('non-finite empirical refinement order')
-    return {'port': output['port'], 'variable_id': output['variable_id'], 'unit': output['unit'],
-            'sample_count': len(samples[0]), 'scale': scale, 'D01': d01, 'D12': d12,
-            'tolerance': tolerance, 'primary_difference_satisfied': d01 <= tolerance,
-            'fine_difference_satisfied': d12 <= tolerance, 'contraction_satisfied': contraction,
-            'agreement_regime': 'roundoff_floor' if at_floor and d12 <= floor else 'resolved_difference',
-            'empirical_order': order, 'criteria_satisfied': d01 <= tolerance and d12 <= tolerance and contraction}
+    from numerical_obligations import refinement_summary
+    return refinement_summary(output, samples)
 
 
 def assess_numerical(report, receipt_paths, *, project_root):
@@ -76,7 +57,7 @@ def assess_numerical(report, receipt_paths, *, project_root):
     paths = evidence_paths(receipts, root, budget, root_contexts={path: 'simulation_receipt' for path in receipts})
     paths.update(b['path'] for b in report['bound_files'])
     manifest = input_manifest(paths, root, budget)
-    runs, data = [], []
+    runs, levels = [], []
     for path, protocol in zip(receipts, report['protocol_reports']):
         # Enforce declared native sample bounds before E opens the MAT/CSV.
         evidence = limited_document(path, budget)
@@ -95,27 +76,17 @@ def assess_numerical(report, receipt_paths, *, project_root):
         runs.append(run)
         if Path(run['data_path']).resolve() != data_path:
             raise ValueError('independently validated E data artifact differs')
-        data.append({item['port']: item for item in outputs})
-    results = []
-    for output in report['outputs']:
-        samples = []
-        for index, (level, protocol) in enumerate(zip(data, report['protocol_reports'])):
-            spec = protocol['run_spec']
-            grid = uniform_grid(spec['start_time'], spec['stop_time'], spec['solver']['fixed_step']) if report['method'] == 'ode4_step_refinement' else None
-            record = level[output['port']]
-            if any(not typed_equal(record[k], output[k]) for k in ('port', 'variable_id', 'unit')):
-                raise ValueError('refinement output identity differs')
-            samples.append(actual_samples(record, report['comparison_times'], native_grid=grid))
-        computed = refinement_result(output, samples)
-        if computed['empirical_order'] is not None and report['method'] == 'ode45_tolerance_refinement':
-            # This is a tolerance-ratio response, not a discretization order.
-            computed['empirical_order'] = None
-        results.append(computed)
-    passed = all(item['criteria_satisfied'] for item in results)
-    result = {'schema_version': 1, 'project_id': report['project_id'], 'method': report['method'],
-              'comparison_times': report['comparison_times'], 'outputs': results,
-              'criteria_satisfied': passed, 'numerically_verified': passed,
-              'disposition': 'support' if passed else 'reject', 'claim_limit': report['claim_limit']}
+        levels.append({'run_spec': protocol['run_spec'], 'outputs': outputs, 'states': []})
+    from numerical_obligations import evaluate_trial_numeric
+    from validate_numerical_verification import EXTENDED_SETTINGS_FIELDS
+    computed = evaluate_trial_numeric(levels, report['numeric_policy'], report.get('numeric_context'), project_id=report['project_id'])
+    if not computed['outputs']:
+        raise ValueError('complete numerical output refinement unavailable: '+ '; '.join(computed['errors']))
+    result = {**computed, 'comparison_times': report['comparison_times']}
+    if not any(k in report['numeric_policy'] for k in EXTENDED_SETTINGS_FIELDS):
+        # Preserve the original recorded-point result format for its consumers.
+        result = {k: result[k] for k in ('schema_version', 'project_id', 'method', 'comparison_times', 'outputs', 'criteria_satisfied', 'numerically_verified', 'disposition', 'claim_limit')}
+        result['outputs'] = [{k: v for k, v in o.items() if k not in ('scope', 'comparison_times')} for o in result['outputs']]
     if len(serialized_json(result)) > budget['max_result_bytes']:
         raise ValueError('numerical result exceeds declared byte budget')
     assert_unchanged(manifest)

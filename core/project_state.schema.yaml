@@ -116,6 +116,8 @@ properties:
             - numerical_verification_receipt
             - model_verification
             - model_verification_receipt
+            - h_analysis_studies
+            - h_analysis_environment
         role:
           enum:
           - environment_profile
@@ -148,6 +150,11 @@ properties:
           - numerical_verification_evidence
           - model_verification_contract
           - model_verification_evidence
+          - h_analysis_study
+          - h_analysis_study_evidence
+          - h_analysis_trial
+          - h_analysis_profile
+          - h_analysis_route_decision
         path:
           type: string
           minLength: 1
@@ -191,6 +198,23 @@ properties:
     $ref: '#/$defs/contract_binding'
   model_verification_receipt:
     $ref: '#/$defs/contract_binding'
+  h_analysis_environment:
+    $ref: '#/$defs/environment_binding'
+  h_analysis_studies:
+    type: array
+    maxItems: 128
+    items:
+      type: object
+      additionalProperties: false
+      required: [id, study, receipt]
+      properties:
+        id: {type: string, pattern: '^[A-Za-z][A-Za-z0-9_.-]*$'}
+        study:
+          allOf:
+          - $ref: '#/$defs/contract_binding'
+          - type: object
+        receipt:
+          $ref: '#/$defs/contract_binding'
 allOf:
 - if:
     properties:

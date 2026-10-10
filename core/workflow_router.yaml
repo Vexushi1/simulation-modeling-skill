@@ -11,6 +11,46 @@ domain_mapping_schema: core/domain_mapping.schema.yaml
 parameter_provenance_schema: core/parameter_provenance.schema.yaml
 implementation_assurance_contract: core/implementation_assurance_contract.yaml
 intents:
+  h_analysis_study:
+    phase: H
+    mode: read_only
+    module: h_analysis_study
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: h_analysis_study
+    required_gates: [h_analysis_study_valid]
+    expected_artefacts: [h_analysis_study_review]
+    next_step: Review source-approved hypothetical factors, complete design, numerical policy and budgets; only an explicit caller records state.
+  h_analysis_trials:
+    phase: H
+    mode: native_trials
+    module: h_analysis_trials
+    profile_required: true
+    execution_allowed: true
+    state_validation_scope: h_analysis_study
+    required_gates: [h_analysis_study_reviewed, current_a_e_h_profiles, h_analysis_runtime_matches, h_analysis_operation_union]
+    expected_artefacts: [h_analysis_trial_receipt]
+    next_step: Execute only reviewed hypothetical trial groups in new owned directories; recheck actual A/E/H qualification before every case.
+  h_analysis_trial_review:
+    phase: H
+    mode: read_only
+    module: h_analysis_trial_review
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: h_analysis_study
+    required_gates: [h_analysis_study_valid, current_h_analysis_receipt]
+    expected_artefacts: [h_analysis_trial_review]
+    next_step: Independently read actual trial outputs and three-level numerical evidence without granting current execution or changing primary state.
+  h_analysis_study_review:
+    phase: H
+    mode: read_only
+    module: h_analysis_study_review
+    profile_required: false
+    execution_allowed: false
+    state_validation_scope: h_analysis_study
+    required_gates: [h_analysis_study_valid, current_h_analysis_receipt]
+    expected_artefacts: [h_analysis_study_review]
+    next_step: Reconstruct the full frozen design, consume every occurrence and preserve undefined or modify/reject decisions; claim support remains separate.
   inspect:
     phase: A
     mode: read_only
@@ -502,6 +542,12 @@ fallback:
     action: review_model_verification
     reason: Review current H1, source-bound required analyses, finite domains and actual approved comparator
       evidence; missing evidence grants no support or new execution.
+  h_analysis_study_invalid:
+    action: review_source_bound_h_analysis_study
+    reason: Review the complete hypothetical factor domain, original primary H1, ordered design, actual three-level evidence and defined criteria; preserve all failed occurrences.
+  h_analysis_profile_invalid:
+    action: requalify_independent_a_e_h_operations
+    reason: Obtain current independent A/E/H qualification for the actual same host, runtime and chosen solver before new H trials.
 invariants:
 - inspect_never_grants_execution_or_advances_state
 - current_profile_and_requested_operations_required_for_environment_execution
@@ -538,6 +584,9 @@ invariants:
 - h_historical_evidence_requires_current_sources_and_execution_time_qualification
 - h1_acceptance_is_limited_to_declared_grid_outputs_and_checks
 - h2_complete_decision_is_distinct_from_claim_support_and_physical_validation
+- h_analysis_trials_preserve_original_approved_parameters_models_protocol_primary_and_state
+- h_analysis_current_gate_does_not_replace_historical_study_acceptance
+- h2_support_requires_every_source_required_study_and_original_primary_h1
 simulation_protocol_schema: core/simulation_protocol.schema.yaml
 simulation_assurance_contract: core/simulation_assurance_contract.yaml
 parameter_study_schema: core/parameter_study.schema.yaml
@@ -546,3 +595,5 @@ experiment_design_schema: core/experiment_design.schema.yaml
 experiment_assurance_contract: core/experiment_assurance_contract.yaml
 numerical_verification_contract: core/numerical_verification_contract.yaml
 model_verification_contract: core/model_verification_contract.yaml
+h_analysis_study_schema: core/h_analysis_study.schema.yaml
+h_analysis_assurance_contract: core/h_analysis_assurance_contract.yaml

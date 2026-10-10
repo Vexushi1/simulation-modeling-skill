@@ -51,7 +51,7 @@ def run_model_verification(contract_path, output_dir, *, project_root=None):
     result, errors = None, []
     try:
         assert_unchanged(report['input_manifest'])
-        result = compute_assessment(value, report['_members'])
+        result = compute_assessment(value, report['_members'], report.get('_studies'))
         assert_unchanged(report['input_manifest'])
         if source_identities() != sources:
             raise ValueError('H2 safety source changed during assessment')

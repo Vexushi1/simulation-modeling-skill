@@ -1,6 +1,53 @@
 schema_version: 1
-version: 0.8.0
+version: 0.9.0
 modules:
+  h_analysis_study:
+    phase: H
+    status: implemented
+    resources: &h_analysis_resources
+    - core/h_analysis_study.schema.yaml
+    - core/h_analysis_assurance_contract.yaml
+    - templates/contracts/h_analysis_study.yaml
+    - modules/07_numerical_verification.md
+    - modules/08_model_verification.md
+    - scripts/verification_common.py
+    - scripts/numerical_math_common.py
+    - scripts/numerical_obligations.py
+    - scripts/sensitivity_design.py
+    - scripts/sensitivity_metrics.py
+    - scripts/uncertainty_metrics.py
+    - scripts/h_analysis_study.py
+    - scripts/validate_h_analysis_study.py
+    - scripts/run_h_analysis_study.py
+    - scripts/validate_h_analysis_study_receipt.py
+    - scripts/h_analysis_trial.py
+    - scripts/probe_h_analysis.py
+    - scripts/validate_h_analysis_profile.py
+    - scripts/validate_h_analysis_trial_receipt.py
+    - scripts/matlab/run_h_analysis_trials.m
+    - scripts/h_analysis_route.py
+    - scripts/h_analysis_state.py
+    required_operations: []
+    execution_scope: h_analysis_study_review
+  h_analysis_trials:
+    phase: H
+    status: implemented
+    resources: *h_analysis_resources
+    required_operations: [matlab.basic_execution, simulink.library_load, simulink.core_simulation, h.analysis_trials]
+    execution_scope: h_analysis_trials
+    qualification_scope: independent native hypothetical trials; current same-host A/E/H and every actual configuration solver required before every case; no adoption or primary-run state
+  h_analysis_trial_review:
+    phase: H
+    status: implemented
+    resources: *h_analysis_resources
+    required_operations: []
+    execution_scope: h_analysis_trial_review
+  h_analysis_study_review:
+    phase: H
+    status: implemented
+    resources: *h_analysis_resources
+    required_operations: []
+    execution_scope: h_analysis_study_review
   environment_assurance:
     phase: A
     status: implemented
@@ -195,7 +242,7 @@ modules:
     - packs/evidence/convergence.md
     required_operations: []
     execution_scope: numerical_verification_review
-    qualification_scope: read-only three-level frozen-E historical numerical consistency; no MATLAB execution
+    qualification_scope: read-only historical three-level obligations, PWL trajectory and event/residual/constraint/conservation/drift checks; no MATLAB execution
   sensitivity_analysis:
     phase: H
     status: implemented
@@ -224,8 +271,7 @@ modules:
     - packs/evidence/solver_comparison.md
     required_operations: []
     execution_scope: model_verification_review
-    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
-      comparison; no MATLAB execution
+    qualification_scope: read-only source-required numerical and full study claims, estimator thresholds and reviewed structural comparison; no MATLAB execution
   robustness_analysis:
     phase: H
     status: implemented
@@ -254,8 +300,7 @@ modules:
     - packs/evidence/solver_comparison.md
     required_operations: []
     execution_scope: model_verification_review
-    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
-      comparison; no MATLAB execution
+    qualification_scope: read-only source-required numerical and full study claims, estimator thresholds and reviewed structural comparison; no MATLAB execution
   model_comparison:
     phase: H
     status: implemented
@@ -284,8 +329,7 @@ modules:
     - packs/evidence/solver_comparison.md
     required_operations: []
     execution_scope: model_verification_review
-    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
-      comparison; no MATLAB execution
+    qualification_scope: read-only source-required numerical and full study claims, estimator thresholds and reviewed structural comparison; no MATLAB execution
   solver_comparison:
     phase: H
     status: implemented
@@ -314,8 +358,7 @@ modules:
     - packs/evidence/solver_comparison.md
     required_operations: []
     execution_scope: model_verification_review
-    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
-      comparison; no MATLAB execution
+    qualification_scope: read-only source-required numerical and full study claims, estimator thresholds and reviewed structural comparison; no MATLAB execution
   validation:
     phase: I
     status: deferred
@@ -494,7 +537,7 @@ modules:
     - packs/evidence/convergence.md
     required_operations: []
     execution_scope: numerical_verification_review
-    qualification_scope: read-only three-level frozen-E historical numerical consistency; no MATLAB execution
+    qualification_scope: read-only historical three-level obligations, PWL trajectory and event/residual/constraint/conservation/drift checks; no MATLAB execution
   model_verification:
     phase: H
     status: implemented
@@ -523,8 +566,7 @@ modules:
     - packs/evidence/solver_comparison.md
     required_operations: []
     execution_scope: model_verification_review
-    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
-      comparison; no MATLAB execution
+    qualification_scope: read-only source-required numerical and full study claims, estimator thresholds and reviewed structural comparison; no MATLAB execution
   model_verification_review:
     phase: H
     status: implemented
@@ -553,5 +595,4 @@ modules:
     - packs/evidence/solver_comparison.md
     required_operations: []
     execution_scope: model_verification_review
-    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
-      comparison; no MATLAB execution
+    qualification_scope: read-only source-required numerical and full study claims, estimator thresholds and reviewed structural comparison; no MATLAB execution

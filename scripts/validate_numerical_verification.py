@@ -13,17 +13,22 @@ from verification_common import (HARD_BUDGET, assert_unchanged, bind_sources, ch
                                  limited_document, semantic_digest, source_snapshot, typed_equal, validate_review)
 
 SETTINGS_FIELDS = ('method', 'comparison_times', 'outputs', 'obligations', 'budget', 'claim_limit')
+EXTENDED_SETTINGS_FIELDS = ('scope', 'trajectory', 'observables', 'checks', 'math_budget', 'continuous_scope')
+
+
+def settings_snapshot(value):
+    return {k: value[k] for k in (*SETTINGS_FIELDS, *EXTENDED_SETTINGS_FIELDS) if k in value}
 
 
 def time_tolerance(time):
     return 64 * sys.float_info.epsilon * max(1, abs(time))
 
 
-def uniform_grid(start, stop, step):
+def uniform_grid(start, stop, step, *, max_steps=3000):
     span = stop - start
     ratio = span / step
-    if not finite(ratio) or ratio <= 0 or ratio > 3000:
-        raise ValueError('fixed refinement must have 1–3000 steps per level')
+    if type(max_steps) is not int or not 1 <= max_steps <= 12000 or not finite(ratio) or ratio <= 0 or ratio > max_steps:
+        raise ValueError(f'fixed refinement must fit 1–{max_steps} complete bounded native steps per level')
     count = round(ratio)
     if count < 1 or abs(ratio - count) > 64 * sys.float_info.epsilon * max(1, abs(ratio)):
         raise ValueError('fixed refinement span must contain an integer number of steps')
@@ -82,7 +87,8 @@ def validate_numerical_verification(path, *, project_root=None, require_reviewed
         bound.append({'label': 'numerical_verification', 'path': str(path), 'sha256': result['contract_sha256']})
         sources = bind_sources(value['sources'], root, result)
         source_snapshot(value['settings_source_ref'], sources, root, result,
-                        {k: value[k] for k in SETTINGS_FIELDS}, label='numerical_settings')
+                        settings_snapshot(value), label='numerical_settings')
+        result['numeric_policy'] = settings_snapshot(value)
         if value['method'] is None:
             missing.append('explicit_three_level_method')
         if value['obligations'] is None:
@@ -91,8 +97,16 @@ def validate_numerical_verification(path, *, project_root=None, require_reviewed
             for name, obligation in value['obligations'].items():
                 if not set(obligation['source_ids']) <= set(sources):
                     errors.append(name + ': unknown obligation source')
-                if obligation['status'] != 'not_applicable':
+                if obligation['status'] == 'deferred' or obligation['status'] == 'required' and not any(c['kind'] == name for c in value.get('checks', [])):
                     missing.append('unsupported_required_check:' + name)
+        for check in value.get('checks', []):
+            if not set(check['source_ids']) <= set(sources):
+                errors.append('numerical check references an unknown source')
+        continuous = value.get('continuous_scope')
+        if continuous and (not set(continuous['source_ids']) <= set(sources) or not set((continuous.get('envelope') or {}).get('proof_source_ids', [])) <= set(sources)):
+            errors.append('continuous envelope references an unknown proof/scope source')
+        if continuous and continuous['target'] == 'underlying_continuous' and continuous.get('envelope') is None:
+            missing.append('independently_reviewed_continuous_envelope')
         paths = []
         for index, binding in enumerate([value['primary_protocol'], *value['refinement_protocols']]):
             protocol = checked_binding(root, binding, result, 'refinement_protocol:' + str(index), budget)
@@ -128,50 +142,30 @@ def validate_numerical_verification(path, *, project_root=None, require_reviewed
                 errors.append('refinement changed approved model, physical conditions or non-refined execution settings')
             specs = [r['run_spec'] for r in reports]
             primary = specs[0]
-            span = primary['stop_time'] - primary['start_time']
-            if span > 30 or len(primary['outputs']) > 2:
-                errors.append('bounded H1 requires span <= 30 seconds and <= 2 outputs')
-            expected_outputs = [{k: o[k] for k in ('port', 'variable_id', 'unit')} for o in primary['outputs']]
-            declared = [{k: o[k] for k in ('port', 'variable_id', 'unit')} for o in value['outputs']]
-            if not typed_equal(declared, expected_outputs):
-                errors.append('H1 output identities/units/order differ from complete E outputs')
-            for output in value['outputs']:
-                if type(output['port']) is not int or any(not finite(output[k]) for k in ('absolute_tolerance', 'relative_tolerance', 'contraction_limit', 'roundoff_floor')):
-                    errors.append('typed finite port and refinement criteria required')
-                if output['roundoff_floor'] > output['absolute_tolerance']:
-                    errors.append('roundoff_floor exceeds absolute_tolerance')
-            if value['method'] == 'ode4_step_refinement':
-                if any(s['solver']['name'] != 'ode4' for s in specs):
-                    errors.append('step refinement requires three ode4 protocols')
-                else:
-                    h = primary['solver']['fixed_step']
-                    if any(s['solver']['fixed_step'] != h / (2 ** i) for i, s in enumerate(specs)):
-                        errors.append('fixed steps must be exactly h, h/2 and h/4')
-                    grids = [uniform_grid(s['start_time'], s['stop_time'], s['solver']['fixed_step']) for s in specs]
-                    if any(len(grid) > budget['max_samples_per_output'] for grid in grids):
+            if not any(k in value for k in EXTENDED_SETTINGS_FIELDS) and (primary['stop_time']-primary['start_time'] > 30 or len(primary['outputs']) > 2):
+                errors.append('legacy bounded H1 requires span <= 30 seconds and <= 2 outputs; review an extended policy for new analyses')
+            from numerical_obligations import numeric_context_from_documents, validate_numeric_policy
+            protocol_value = limited_document(paths[0], budget)
+            context = numeric_context_from_documents(limited_document(reports[0]['model_path'], budget),
+                protocol_value['selection'], limited_document(reports[0]['parameters_path'], budget))
+            result['numeric_context'] = context
+            try:
+                validated = validate_numeric_policy(result['numeric_policy'], specs, context)
+                result['scope'] = validated['scope']
+                if any(o.get('kind') == 'state' for o in value['outputs']):
+                    missing.append('native_state_capture_not_present_in_E_receipt; use the independently qualified H trial state interface')
+                if value['method'] == 'ode4_step_refinement':
+                    limit = budget['max_samples_per_output']-1 if any(k in value for k in EXTENDED_SETTINGS_FIELDS) else 3000
+                    grids = [uniform_grid(s['start_time'], s['stop_time'], s['solver']['fixed_step'], max_steps=limit) for s in specs]
+                    if any(len(g) > budget['max_samples_per_output'] for g in grids):
                         errors.append('declared native sample budget cannot cover all fixed refinement grids')
-                    if value['comparison_times'] is None:
-                        missing.append('source_declared_comparison_times')
-                    elif not typed_equal(value['comparison_times'], grids[0]):
-                        errors.append('fixed comparison_times must be the complete primary integer grid')
-                    finest = h / 4
-                    if any(time_tolerance(t) >= finest / 8 for grid in grids for t in grid):
-                        errors.append('time matching tolerance is too large for the finest step')
-                    for signal in primary['inputs']:
-                        constant = all(v == signal['values'][0] for v in signal['values'])
-                        if not constant and signal['interpolation'] != 'linear':
-                            errors.append('step refinement supports constant or continuous piecewise-linear inputs only')
-                        for t in [] if constant else signal['time']:
-                            if primary['start_time'] <= t <= primary['stop_time'] and not any(abs(t-g) <= time_tolerance(g) for g in grids[0]):
-                                errors.append('piecewise input breakpoint does not align with the primary grid')
-            else:
-                if any(s['solver']['name'] != 'ode45' for s in specs):
-                    errors.append('tolerance refinement supports ode45 only')
-                for i, spec in enumerate(specs):
-                    if any(spec['solver'][k] != primary['solver'][k] / (10 ** i) for k in ('rel_tol', 'abs_tol')):
-                        errors.append('ode45 tolerances must be exactly base, base/10 and base/100')
-                if not typed_equal(value['comparison_times'], [primary['start_time'], primary['stop_time']]):
-                    errors.append('ode45 comparison_times must be the two actual endpoints')
+            except (ValueError, KeyError, TypeError, AttributeError, OverflowError) as error:
+                message = str(error)
+                if message.startswith('unsupported_required_check:'):
+                    if message not in missing:
+                        missing.append(message)
+                else:
+                    errors.append(message)
         elif not value['outputs']:
             missing.append('declared_output_refinement_criteria')
         review_ok = validate_review(value, root, result, schema, label='numerical_verification')

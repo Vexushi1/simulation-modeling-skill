@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-title: Phase H2 finite source-bound model claim assessment
+title: Phase H2 source-bound model claims and complete analysis studies
 type: object
 additionalProperties: false
 required: [schema_version, project_id, status, primary_numerical_receipt, members, claims, sources, settings_source_ref, budget, claim_limit, review_record]
@@ -62,8 +62,12 @@ $defs:
     additionalProperties: false
     required: [statistic, unit, primary_output_port, member_output_ports]
     properties:
-      statistic: {enum: [final, minimum, maximum]}
+      statistic: {enum: [final, minimum, maximum, peak, peak_time, integral, absolute_integral, squared_integral, event_time, event_count, residual, constraint, conservation, drift]}
       unit: {$ref: '#/$defs/text'}
+      window: {type: array, minItems: 2, maxItems: 2, items: {type: number}}
+      event: {type: object}
+      check: {type: object}
+      event_index: {type: integer, minimum: 0, maximum: 1023}
       primary_output_port: {type: integer, minimum: 1}
       member_output_ports:
         type: array
@@ -140,6 +144,7 @@ $defs:
       requirement_ids: {type: array, uniqueItems: true, minItems: 1, items: {$ref: '#/$defs/id'}}
       obligation_source_ref: {$ref: '#/$defs/nullable_source_ref'}
       analyses: {type: array, minItems: 4, maxItems: 4, items: {$ref: '#/$defs/analysis'}}
+      study_requirements: {type: array, maxItems: 64, items: {$ref: '#/$defs/study_requirement'}}
       failure_disposition: {enum: [modify, reject]}
       impact_scope: {$ref: '#/$defs/text'}
       required_action: {$ref: '#/$defs/text'}
@@ -151,11 +156,26 @@ $defs:
     required: [max_file_bytes, max_total_bytes, max_samples_per_output, max_result_bytes]
     properties:
       max_file_bytes: {type: integer, minimum: 1, maximum: 67108864}
-      max_total_bytes: {type: integer, minimum: 1, maximum: 268435456}
+      max_total_bytes: {type: integer, minimum: 1, maximum: 1073741824}
       max_samples_per_output: {type: integer, minimum: 2, maximum: 12001}
-      max_result_bytes: {type: integer, minimum: 1, maximum: 4194304}
+      max_result_bytes: {type: integer, minimum: 1, maximum: 67108864}
+      max_files: {type: integer, minimum: 1, maximum: 16384}
+      max_edges: {type: integer, minimum: 1, maximum: 131072}
+      max_document_nodes: {type: integer, minimum: 1, maximum: 1000000}
+      max_document_depth: {type: integer, minimum: 1, maximum: 128}
   nullable_budget:
     oneOf: [{type: 'null'}, {$ref: '#/$defs/budget'}]
+  study_requirement:
+    type: object
+    additionalProperties: false
+    required: [id, method, requirement, reason, study_contract, study_receipt]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      method: {enum: [local_derivative, normalized_sensitivity, parameter_oat, morris, sobol, variance_based, prcc, independent_mc, gaussian_joint_mc, gaussian_copula_mc, initial_condition_catalog, initial_condition_grid, joint_stress_catalog, stress_grid, scenario_response, failure_boundary, runtime_comparison]}
+      requirement: {enum: [required, not_required]}
+      reason: {$ref: '#/$defs/text'}
+      study_contract: {$ref: '#/$defs/nullable_file'}
+      study_receipt: {$ref: '#/$defs/nullable_file'}
   review_record:
     type: object
     additionalProperties: false

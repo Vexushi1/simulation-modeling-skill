@@ -4,7 +4,7 @@ from pathlib import Path
 from runtime_common import contained_path, sha256_file
 
 STAGES = {'NUMERICALLY_VERIFIED', 'MODEL_VERIFICATION_DECIDED', 'MODEL_VERIFIED'}
-SCOPES = {'all', 'numerical_verification', 'model_verification'}
+SCOPES = {'all', 'numerical_verification', 'model_verification', 'h_analysis_study'}
 HISTORICAL_ROLES = {'numerical_verification_contract', 'numerical_verification_evidence'}
 
 
