@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
 from numerical_factory import freeze_level, make_numerical_contract, make_numerical_runs, review_numerical
 from probe_environment import write_json
@@ -14,7 +15,8 @@ from run_numerical_verification import (INPUT_NAME, RECEIPT_NAME, RESULT_NAME, a
 from runtime_common import ROOT, load_document, sha256_file
 from validate_numerical_verification import time_tolerance, uniform_grid, validate_numerical_verification
 from validate_numerical_verification_receipt import validate_numerical_verification_receipt
-from verification_common import HARD_BUDGET, evidence_paths, input_manifest, serialized_json, typed_equal
+from verification_common import (HARD_BUDGET, evidence_paths, input_manifest, limited_source_document,
+                                 serialized_json, typed_equal)
 
 
 @pytest.fixture(scope='module')
@@ -607,3 +609,138 @@ def test_unknown_evidence_root_context_cannot_authorize_qualification(tmp_path):
     with pytest.raises(ValueError, match='unknown verification evidence root context'):
         evidence_paths([tmp_path / 'unread.json'], tmp_path, HARD_BUDGET,
                        root_contexts={tmp_path / 'unread.json': 'qualification_e_receipt'})
+
+
+@pytest.mark.parametrize('suffix', ['.json', '.yaml'])
+def test_array_root_settings_source_has_complete_reviewed_h1_assessment(history, suffix):
+    root, path = history['root'], history['contract']
+    contract = load_document(path)
+    source = load_document(root / contract['sources'][0]['path'])
+    source_path = root / ('numerical-array-settings' + suffix)
+    payload = serialized_json([source]) if suffix == '.json' else yaml.safe_dump([source], sort_keys=False, allow_unicode=True).encode('utf-8')
+    source_path.write_bytes(payload)
+    contract['sources'][0].update(path=source_path.name, sha256=sha256_file(source_path))
+    contract['settings_source_ref']['selector'] = [0, 'settings']
+    write_contract(path, contract)
+    review_numerical(path, refresh_source=False)
+    reviewed = validate_numerical_verification(path, project_root=root, require_reviewed=True)
+    assert reviewed['valid'] and reviewed['assessment_ready'], reviewed['errors']
+    originals = {p: p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    # The producer returns its actual independent receipt consumer's report.
+    report = run_numerical_verification(path, history['receipts'], root / 'array-source-assessment', project_root=root)
+    assert report['valid'] and report['numerically_verified'], report['errors']
+    assert report['primary_receipt_path'] == str(history['receipts'][0])
+    assert any(item['path'] == str(source_path) and item['sha256'] == sha256_file(source_path)
+               for item in report['bound_files'])
+    assert all(p.read_bytes() == original for p, original in originals.items())
+
+
+def test_task_array_source_keeps_external_bindings_contained(tmp_path, monkeypatch):
+    import verification_common as common
+    project = tmp_path / 'project'
+    project.mkdir()
+    outside = tmp_path / 'outside.json'
+    write_json(outside, {'unrelated': True})
+    source = project / 'array-source.json'
+    source.write_bytes(serialized_json([{'path': str(outside), 'sha256': sha256_file(outside)}]))
+    observed = []
+    original_reader, original_hash = common.limited_source_document, common.sha256_file
+
+    def read_source(file, budget=None):
+        if Path(file).resolve() == outside:
+            observed.append('load')
+        return original_reader(file, budget)
+
+    def hash_file(file):
+        if Path(file).resolve() == outside:
+            observed.append('hash')
+        return original_hash(file)
+
+    monkeypatch.setattr(common, 'limited_source_document', read_source)
+    monkeypatch.setattr(common, 'sha256_file', hash_file)
+    with pytest.raises(ValueError, match='leaves project root'):
+        evidence_paths([source], project, HARD_BUDGET)
+    assert observed == []
+
+
+@pytest.mark.parametrize('payload', ['null', 'true', '1', '"scalar"'])
+def test_task_source_reader_rejects_scalar_roots(tmp_path, payload):
+    path = tmp_path / 'source.json'
+    path.write_text(payload, encoding='utf-8')
+    with pytest.raises(ValueError, match='source object or array'):
+        limited_source_document(path)
+
+
+@pytest.mark.parametrize('context', ['h1_contract', 'h1_receipt', 'h2_contract', 'h2_receipt',
+                                      'simulation_protocol', 'simulation_receipt', 'implementation_receipt'])
+def test_typed_evidence_chain_still_requires_object_roots(tmp_path, context):
+    path = tmp_path / 'array.json'
+    path.write_bytes(serialized_json([{'settings': {}}]))
+    with pytest.raises(ValueError, match='expected an object'):
+        evidence_paths([path], tmp_path, HARD_BUDGET, root_contexts={path: context})
+
+
+def test_selected_external_qualification_still_requires_object_profile(tmp_path):
+    project = tmp_path / 'project'
+    project.mkdir()
+    qualification = tmp_path / 'qualification'
+    qualification.mkdir()
+    profile = qualification / 'profile.json'
+    profile.write_bytes(serialized_json([{'pretend_profile': True}]))
+    request = project / 'inputs.json'
+    write_json(request, {'bindings': {'environment_profile': {'path': str(profile), 'sha256': sha256_file(profile)}}})
+    receipt = project / 'simulation-receipt.json'
+    write_json(receipt, {'artifacts': {'input': {'file': request.name, 'sha256': sha256_file(request)}}})
+    with pytest.raises(ValueError, match='expected an object'):
+        evidence_paths([receipt], project, HARD_BUDGET, root_contexts={receipt: 'simulation_receipt'})
+
+
+@pytest.mark.parametrize('suffix,payload', [('.json', '[{"a": 1, "a": 2}]'),
+                                           ('.yaml', '[{a: 1, a: 2}]\n')])
+def test_array_source_preserves_unique_key_parser_rules(tmp_path, suffix, payload):
+    path = tmp_path / ('source' + suffix)
+    path.write_text(payload, encoding='utf-8')
+    with pytest.raises(ValueError, match='duplicate key'):
+        limited_source_document(path)
+
+
+@pytest.mark.parametrize('suffix,payload', [('.json', '[{"a": NaN}]'), ('.json', '[{"a": 1e999}]'),
+                                           ('.yaml', '[{a: .inf}]\n'), ('.yaml', '[{a: .nan}]\n')])
+def test_array_source_rejects_nonfinite_values_without_expanding_aliases(tmp_path, suffix, payload):
+    path = tmp_path / ('source' + suffix)
+    path.write_text(payload, encoding='utf-8')
+    with pytest.raises(ValueError, match='non-finite'):
+        limited_source_document(path)
+
+
+def test_cyclic_yaml_task_source_is_a_controlled_failure(tmp_path):
+    path = tmp_path / 'cyclic.yaml'
+    path.write_text('&self [*self]\n', encoding='utf-8')
+    with pytest.raises(ValueError, match='cyclic structured source'):
+        limited_source_document(path)
+    with pytest.raises(ValueError, match='cyclic structured source'):
+        evidence_paths([path], tmp_path, HARD_BUDGET)
+
+
+def test_shared_yaml_task_nodes_are_scanned_once_without_alias_expansion(tmp_path, monkeypatch):
+    import verification_common as common
+    leaf = tmp_path / 'leaf.txt'
+    leaf.write_text('Original task source leaf.\n', encoding='utf-8')
+    lines = ['leaf: &a0 {path: leaf.txt, sha256: ' + sha256_file(leaf) + '}']
+    lines += [f'level{i}: &a{i} [*a{i-1}, *a{i-1}]' for i in range(1, 25)]
+    source = tmp_path / 'shared.yaml'
+    source.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    value = limited_source_document(source)
+    assert value['level24'][0] is value['level24'][1]
+    original = common.contained_path
+    bindings = []
+
+    def contained(base, relative):
+        if relative == leaf.name:
+            bindings.append(relative)
+        return original(base, relative)
+
+    monkeypatch.setattr(common, 'contained_path', contained)
+    paths = evidence_paths([source], tmp_path, HARD_BUDGET)
+    assert paths == {source, leaf} and paths.allowed_external == set()
+    assert bindings == [leaf.name]

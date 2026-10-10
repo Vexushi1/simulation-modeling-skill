@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from model_verification_factory import make_model_verification_contract, omitted, review_model_verification
-from model_verification_common import KINDS, _mathematical_anchor, compute_assessment, structural_snapshot
+from model_verification_common import (KINDS, _mathematical_anchor, compute_assessment,
+                                       obligation_snapshot, settings_snapshot, structural_snapshot)
 from probe_environment import write_json
 from problem_factory import write_contract
 from run_model_verification import run_model_verification, RESULT_NAME, INPUT_NAME
@@ -624,5 +627,96 @@ def test_H2_source_receipt_filename_cannot_authorize_external_task_input(current
 
     report = validate_model_verification(current_history, project_root=root, require_reviewed=True)
 
+    assert not report['valid'] and not report['assessment_ready']
+    assert any('leaves project root' in error for error in report['errors'])
+
+
+def bind_array_root_H2_source(path, suffix, *, extra_records=()):
+    root = path.parent
+    value = load_document(path)
+    value['settings_source_ref']['selector'] = [0, 'settings']
+    for claim in value['claims']:
+        claim['obligation_source_ref']['selector'] = [0, 'obligations', claim['id']]
+    source = [{'settings': settings_snapshot(value),
+               'obligations': {claim['id']: obligation_snapshot(claim) for claim in value['claims']}},
+              *extra_records]
+    source_path = root / ('model-verification-array-source' + suffix)
+    text = (json.dumps(source, indent=2, ensure_ascii=False, allow_nan=False) + '\n'
+            if suffix == '.json' else yaml.safe_dump(source, sort_keys=False, allow_unicode=True))
+    source_path.write_text(text, encoding='utf-8')
+    value['sources'][0].update(path=str(source_path.relative_to(root)), sha256=sha256_file(source_path))
+    digest = shared_readers.semantic_digest(value)
+    review_path = root / value['review_record']['path']
+    review = load_document(review_path)
+    quote = review['decision']['quote'].replace(review['verification_semantic_sha256'], digest)
+    decision_path = root / review['decision']['path']
+    decision_path.write_text(quote + '\n', encoding='utf-8')
+    review['verification_semantic_sha256'] = digest
+    review['decision'].update(sha256=sha256_file(decision_path), end=len(quote), quote=quote)
+    write_contract(review_path, review)
+    value['review_record']['sha256'] = sha256_file(review_path)
+    write_contract(path, value)
+    return source_path
+
+
+@pytest.mark.parametrize('suffix', ['.json', '.yaml'])
+def test_complete_H2_array_source_integer_selectors_preserve_reviewed_readiness(current_history, suffix):
+    root = current_history.parent
+    source_path = bind_array_root_H2_source(current_history, suffix)
+    before = {path: path.read_bytes() for path in root.rglob('*') if path.is_file()}
+    report = validate_model_verification(current_history, project_root=root, require_reviewed=True)
+    assert report['valid'] and report['reviewed'] and report['assessment_ready'], report['errors'] + report['missing_gates']
+    source_entries = [item for item in report['input_manifest'] if item['path'] == str(source_path)]
+    assert len(source_entries) == 1 and source_entries[0]['bytes'] == source_path.stat().st_size
+    assert source_entries[0]['sha256'] == sha256_file(source_path)
+    assert all(path.read_bytes() == content for path, content in before.items())
+
+    if suffix == '.json':
+        # Reuse the accepted numeric evidence. Only complete source/selector,
+        # review and request bindings change; no producer history is rebuilt.
+        receipt_path = baseline_receipt(current_history)
+        input_path = receipt_path.parent / INPUT_NAME
+        request = load_document(input_path)
+        request.update(contract={'path': str(current_history), 'sha256': report['contract_sha256']},
+                       contract_semantic_sha256=report['semantic_sha256'],
+                       contract_snapshot=load_document(current_history),
+                       contract_original_text=current_history.read_bytes().decode('utf-8'),
+                       input_manifest=report['input_manifest'])
+        write_json(input_path, request)
+        receipt = load_document(receipt_path)
+        receipt.update(contract_semantic_sha256=report['semantic_sha256'], input_identity=canonical_digest(request))
+        receipt['artifacts']['input']['sha256'] = sha256_file(input_path)
+        write_json(receipt_path, receipt)
+        rebound = {path: path.read_bytes() for path in root.rglob('*') if path.is_file()}
+        consumed = validate_model_verification_receipt(receipt_path, project_root=root)
+        assert consumed['valid'] and consumed['model_verification_decided'] and consumed['model_verified'], consumed['errors']
+        assert not consumed['environment_checked'] and not consumed['execution_allowed']
+        assert all(path.read_bytes() == content for path, content in rebound.items())
+
+
+def test_H2_array_source_nested_external_path_stays_task_and_unread(current_history, tmp_path, monkeypatch):
+    external = tmp_path / 'arbitrary-array-task.json'
+    write_json(external, {'task_data': 'SYNTHETIC nonqualification input'})
+    bind_array_root_H2_source(current_history, '.json', extra_records=[
+        {'path': str(external), 'sha256': sha256_file(external)}])
+    original_hash = shared_readers.sha256_file
+    original_load = shared_readers.limited_document
+    original_source_load = shared_readers.limited_source_document
+    def safe_hash(path):
+        assert Path(path).resolve() != external, 'array task binding caused external hash'
+        return original_hash(path)
+    def safe_load(path, *args, **kwargs):
+        assert Path(path).resolve() != external, 'array task binding caused external object decode'
+        return original_load(path, *args, **kwargs)
+    def safe_source_load(path, *args, **kwargs):
+        assert Path(path).resolve() != external, 'array task binding caused external source decode'
+        return original_source_load(path, *args, **kwargs)
+    def no_heavy_member(*args, **kwargs):
+        raise AssertionError('array source path violation reached heavy H1 consumption')
+    monkeypatch.setattr(shared_readers, 'sha256_file', safe_hash)
+    monkeypatch.setattr(shared_readers, 'limited_document', safe_load)
+    monkeypatch.setattr(shared_readers, 'limited_source_document', safe_source_load)
+    monkeypatch.setattr(contract_consumer, '_member', no_heavy_member)
+    report = validate_model_verification(current_history, project_root=current_history.parent, require_reviewed=True)
     assert not report['valid'] and not report['assessment_ready']
     assert any('leaves project root' in error for error in report['errors'])

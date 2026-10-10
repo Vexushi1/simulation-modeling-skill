@@ -5,7 +5,10 @@ import math
 import json
 from pathlib import Path
 
-from runtime_common import ROOT, canonical_digest, contained_path, load_contract, load_document, schema_errors, sha256_file
+import yaml
+
+from runtime_common import (ROOT, UniqueLoader, _invalid_constant, _unique_json, canonical_digest,
+                            contained_path, load_contract, load_document, schema_errors, sha256_file)
 from validate_parameter_provenance import bind_file
 from validate_simulation_protocol import selected_value
 
@@ -58,6 +61,54 @@ def limited_document(path, budget=None):
     if not path.is_file() or path.stat().st_size > limit:
         raise ValueError('verification file missing or exceeds byte budget: ' + str(path))
     return load_document(path)
+
+
+def limited_source_document(path, budget=None):
+    """Read an object/array task source with the existing unique parser rules.
+
+    This broader root shape never applies to business/qualification documents.
+    Array selectors are data selection, not evidence-role authorization.
+    """
+    path = Path(path)
+    if not path.is_file() or path.stat().st_size > (budget or HARD_BUDGET)['max_file_bytes']:
+        raise ValueError('verification source missing or exceeds byte budget: ' + str(path))
+    text = path.read_text(encoding='utf-8-sig')
+    try:
+        if path.suffix.lower() == '.json':
+            value = json.loads(text, object_pairs_hook=_unique_json, parse_constant=_invalid_constant)
+        else:
+            value = yaml.load(text, Loader=UniqueLoader)
+    except (yaml.YAMLError, RecursionError) as error:
+        raise ValueError(f'invalid or excessively nested structured source in {path}: {error}') from error
+    if not isinstance(value, (dict, list)):
+        raise ValueError('expected a structured source object or array in ' + str(path))
+    # Check the graph, not an expanded JSON serialization: bounded YAML aliases
+    # can share subtrees exponentially or form cycles. Visit every node once.
+    pending, active, complete = [(value, False)], set(), set()
+    while pending:
+        node, leaving = pending.pop()
+        if type(node) is float and not math.isfinite(node):
+            raise ValueError('non-finite structured source value in ' + str(path))
+        if not isinstance(node, (dict, list)):
+            continue
+        identity = id(node)
+        if leaving:
+            active.remove(identity)
+            complete.add(identity)
+            continue
+        if identity in active:
+            raise ValueError('cyclic structured source in ' + str(path))
+        if identity in complete:
+            continue
+        active.add(identity)
+        pending.append((node, True))
+        if isinstance(node, dict):
+            for key, child in node.items():
+                pending.append((key, False))
+                pending.append((child, False))
+        else:
+            pending.extend((child, False) for child in node)
+    return value
 
 
 def checked_binding(root, binding, result, label, budget=None):
@@ -131,7 +182,7 @@ def source_snapshot(reference, sources, root, result, expected, *, label):
     if path.suffix.lower() not in {'.json', '.yaml', '.yml'}:
         result['errors'].append(label + ': structured JSON/YAML source required')
         return False
-    actual = selected_value(limited_document(path, result.get('budget')), reference['selector'])
+    actual = selected_value(limited_source_document(path, result.get('budget')), reference['selector'])
     if not typed_equal(actual, expected):
         result['errors'].append(label + ': complete typed source snapshot differs')
         return False
@@ -206,18 +257,23 @@ def evidence_paths(receipt_paths, root, budget, *, root_contexts=None):
         queued.append((candidate, kind, candidate.parent))
 
     def task_bindings(node, *, skip=()):
-        if isinstance(node, dict):
-            if isinstance(node.get('path'), str) and isinstance(node.get('sha256'), str):
-                enqueue(node)
-            for key, child in node.items():
-                if key not in set(skip) | {'sources', 'runtime', 'functions', 'bindings', 'artifacts',
-                                           'input_manifest', 'contract_snapshot', 'protocol_snapshot', 'mapping_snapshot'}:
-                    task_bindings(child)
-            if isinstance(node.get('sources'), list):
-                task_bindings(node['sources'])
-        elif isinstance(node, list):
-            for child in node:
-                task_bindings(child)
+        pending, visited_nodes = [(node, set(skip))], set()
+        excluded = {'sources', 'runtime', 'functions', 'bindings', 'artifacts', 'input_manifest',
+                    'contract_snapshot', 'protocol_snapshot', 'mapping_snapshot'}
+        while pending:
+            current, current_skip = pending.pop()
+            if not isinstance(current, (dict, list)) or id(current) in visited_nodes:
+                continue
+            visited_nodes.add(id(current))
+            if isinstance(current, dict):
+                if isinstance(current.get('path'), str) and isinstance(current.get('sha256'), str):
+                    enqueue(current)
+                pending.extend((child, set()) for key, child in current.items()
+                               if key not in current_skip | excluded)
+                if isinstance(current.get('sources'), list):
+                    pending.append((current['sources'], set()))
+            else:
+                pending.extend((child, set()) for child in current)
 
     receipt_inputs = {'h1_receipt': 'h1_request', 'h2_receipt': 'h2_request',
                       'simulation_receipt': 'simulation_request',
@@ -255,7 +311,10 @@ def evidence_paths(receipt_paths, root, budget, *, root_contexts=None):
             paths.add(path)
         if context == 'opaque' or path.suffix.lower() not in {'.json', '.yaml', '.yml'}:
             continue
-        value = limited_document(path, budget)
+        value = limited_source_document(path, budget) if context == 'task' else limited_document(path, budget)
+        if context == 'task' and isinstance(value, list):
+            task_bindings(value)
+            continue
         # A receipt's role comes from an actual selected binding, not basename.
         for artifact_key, binding in value.get('artifacts', {}).items():
             if isinstance(binding, dict) and isinstance(binding.get('file'), str):

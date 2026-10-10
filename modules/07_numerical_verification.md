@@ -14,6 +14,8 @@ Time matching uses `64 * binary64 epsilon * max(1, abs(t))`. For fixed refinemen
 
 Bind the method, comparison times, output identities/units and complete criteria, all five check obligations, read budget and claim limit to a structured source snapshot. A reviewed contract requires an independent review record with the current semantic digest, project, reviewer and exact unique `action=review` context. This analysis review supplies no actual C Human Model Approval.
 
+Structured JSON/YAML task sources may have object or array roots; an integer selector can select an array element before its settings field. Source keys must be unique and numerical values finite. YAML sharing is scanned once per node, while cycles reject. Contracts, receipts and qualification profiles still require object roots; array source data supplies no qualification role.
+
 Residual, constraint, conservation, event localization and numerical drift require explicit source-based reasons. Their general evaluators are deferred. Any `required` or `deferred` obligation blocks numerical acceptance; lack of capability cannot justify `not_applicable`.
 
 ```text
