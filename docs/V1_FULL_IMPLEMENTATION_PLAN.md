@@ -1,11 +1,11 @@
 # Simulation Modeling Skill v1.0.0 全流程实施计划
 
-> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-10 Phase G出口回读及Phase H实施前审查）**
+> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-10 Phase H首版出口及剩余H全范围实施前审查）**
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
-> 已完成阶段：A–G（各阶段已审定的有限范围）；G PR #8 合并基线 `719495b745facce688810a62c2c1d3c7aea9116f`
-> 当前实施阶段：H；实施分支 `phase-h/numerical-verification`，未通过全部出口前不登记为阶段完成
+> 已完成阶段：A–G及H首版有限范围；H PR #9合并基线 `9a0cf191b451eb69153914a5562f91726d3091a3`
+> 当前实施阶段：剩余H全范围；实施分支 `phase-h/complete-analyses`，未通过全部出口前不登记为H全范围完成
 > 核心纪律：先冻结计划，再按阶段实施；任何阶段不得脱离本计划直接堆功能。
 
 ---
@@ -2076,6 +2076,62 @@ H计划/审查/准则/范围、任一E协议/运行/数字、C/D/参数/SLX/来�
 先完成计划、受影响契约和实现，再集中进行静态审查、针对性正反例与原始输入行为检查。问题清单逐项记录复现、影响范围、责任文件、修正及定向复核；不在发现第一个错误后立刻重跑全部测试。一次收集可并行审查全部已实现表面，统一修改，定向检查关闭后才执行全量A–G/H回归。仅当之后新的修改/失败/未解决风险影响最终版本时才有依据重跑相应回归；本地tests、MATLAB资格、CI与合并回读仍分别记录，不把跳过实测当成节约。
 
 双平台CI保留PR与main合并后两个独立出口，将push触发限定main，避免同一topic提交在branch push及PR打开时重复运行相同全量矩阵。源码冻结后的PR CI可与本机串行MATLAB资格队列并行；CI没有MATLAB，不能代替任何真实资格或项目运行。全部出口通过后才合并，不因节约额度省略必要Gate。
+
+## 12.16 2026-10-10 剩余H全范围可实施性复核与修订
+
+用户再次明确授权完成剩余H，继续要求先验证计划可实施性、必要时先改计划、集中收集问题后统一修复并最后全量回归。H首版PR [#9](https://github.com/Vexushi1/simulation-modeling-skill/pull/9)已合并为main `9a0cf191b451eb69153914a5562f91726d3091a3`，与资格化候选 `43abdd361eaf0a929fe40cdbc298b1a4572b5955` 同树；本地1498项全部通过，真实E/F/G及H组合、独立审查、PR和main双平台CI、main回读分别完成。这只代表§12.9–12.15的有限首版，不能将原§12.1–12.7全部登记为已实现。
+
+本轮只读审查确认原清单剩余各类方法均可实现。尚无实现不是方法延期的依据。本节及§12.17–12.21取代§12.9–12.15中剩余H整类deferred、无H执行operation、仅自适应端点、不允许明确重建及仅外部输入扰动的首版限制；其他批准、来源、预算、状态和开发出口纪律继续有效。实施目标版本0.9.0，I–K、release/tag/install仍不在本轮授权范围。D的已资格核心block边界不因H扩展；分析可消费其他真实已批准实现的完整合法历史，但不能声称新增Simscape/Stateflow/System Composer建设资格。
+
+可实施性差距集中登记：旧F只证明自建无状态Gain fixture；旧E primary不能覆盖批准参数或条件；现有E/F无状态和TimingInfo证据；Integrator初值和Inport插值缺专项恢复快照；参数dtype/shape/complexity需实际核对；状态必须按真实BlockPath及CSTATE绑定；运行StopEvent不是领域事件；长批次须逐case重建执行资格。另需完整统计设计、预算、数学退化和独立重算契约，以及H2所需新study的接受链。先保存本轮计划修订提交，再改行为文件。
+
+## 12.17 全H1数值检查与共同轨迹口径
+
+保留现有实际三层E证据入口，增加`ode15s_tolerance_refinement`，与ode45一样绑定RelTol/AbsTol三档及其他物理设置精确不变。旧端点模式兼容保留；新增源审定的完整记录轨迹PWL重建模式。重建不是伪造原生样本：保留每层实际时间和值、明确线性重建语义，在三网格union knots独立重算两层PWL之差的全重建区间sup；不直接配对非嵌套采样下标。固定网格模式继续拒绝缺失原生格点。每个声明scope分别核验细化、粗primary、容差、收缩和舍入底线。
+
+新增受限、无任意代码执行的typed数学表达式与源绑定检查定义，绑定已有实际观测、输入、时间、参数、单位及区间，禁止猜测隐藏状态或从字符串执行Python/MATLAB。实现残差、等式/不等式约束、守恒或平衡、数值漂移、事件穿越和收敛检查；导数/积分及误差判据必须预声明计算口径、必要采样和尺度。常数、变量、受控代数运算、有限差分/区间积分仅按实现的语法与观测关系使用，除零、非有限、缺变量/错单位/缺区间/数学未定义均明确阻断所需检查。
+
+事件按源审定阈值、方向、窗口、数量、容差和首次/逐次规则识别，保留实际sample bracket与PWL crossing。未辨识、重合平台、多重穿越或缺观测不能伪造唯一精确event；同时比较三层事件数量、匹配及时间差。峰值声明为记录/PWL极值；积分明确为记录PWL的精确分段梯形积分；漂移和守恒明确首末差、区间平衡或窗口统计。若要求底层连续解的真实误差、连续峰值、精确事件或全域保证，必须另有源绑定且已审阅的适用平滑/单调/插值包络或独立解析/证明证据；无法支持的项目主张为blocked/modify/reject，不能继续将整类方法标为未实现或将缺能力写作not_applicable。
+
+## 12.18 独立H试验执行、资格与不可变基线
+
+新增`h.analysis_trials`独立operation、assurance/profile、受审study/point manifest、MATLAB producer及只读receipt consumer。它绑定当前B/C批准、D模型/映射/参数/SLX、冻结E及真实base receipt和primary H1，审查明确允许源审定hypothetical试验域；这是alternative-world分析许可，不采纳新值、不替代实际C批准、不产生新primary E receipt。旧E primary精确条件、参数、协议及资格检查保持，受保护A7/B2/D19逐字节不改。
+
+因素支持已登记model-workspace标量参数、精确已有Integrator初值及已有root输入的常值或连续分段线性波形。每点完整绑定因素顺序、类型、ID、单位、域、基准、物理快照与设计角色；未知真实参数不得臆造，外界给定值改变仅能在来源明确允许反事实研究时执行。每group三个独立numeric levels仅数值设置不同，H2参与点都必须通过同口径H1纯数值和所需检查，仍保留原primary H1锚点。重复点的实际执行和occurrence不得静默去重。
+
+MATLAB只使用独立owned SLX副本和SimulationInput，参数以model Workspace的setVariable、初值以精确Integrator setBlockParameter、外输入以Dataset/timeseries临时设置。禁止base-workspace、全局路径、callbacks、新业务block或保存覆盖原SLX。逐case核对实际参数dtype/shape/complexity/单位、实际应用初值/输入、solver和termination；新增真实状态记录按BlockPath/CSTATE映射，并保留实际TimingInfo，进程时间单列。成功、受控失败及提前终止均保存参数/IC/Inport插值/solver/logging前后和重开恢复、原/owned SLX字节及批准/协议/primary/state前后SHA。
+
+新执行要求当前同host/runtime A/E/H独立资格及实际功能/solver覆盖，在每case真实started_at重建TTL和operation union，不能仅批次入口检查。为降低启动成本可一进程串行运行多点，但每点保留完整原始SimulationOutput、MAT v7、JSON、17位CSV、实际metadata、数字出口、独立consumer及失败/未尝试ledger。原有qualification外部路径例外只能按原绑定的角色延续；新增H资格也必须明确typed角色，不以文件名/目录名提升信任。历史消费免当前TTL但不免当前源码、产物和执行时资格核验。
+
+## 12.19 全H2设计、估计器及数学边界
+
+新增源绑定study契约，由H2每项claim显式声明所需study和判据。完整冻结ordered factors、baseline/domain/law/dependence、metric/unit、design算法/seed/全部row及role、数值scope、estimator/inference、claim limits、review与budgets。consumer独立重新生成设计、核对真实因素覆盖及其他物理配置、接受全部参与point数字证据并重算结果。原有限OAT/场景及结构对照兼容保留；required方法/成员缺失、技术失败或未定义关键指标不能支持claim，合法越H2阈值保存modify/reject，不能移除失败点。
+
+- local derivative与parameter OAT：源指定central h及h/2和两尺度一致性；边界one-sided必须预声明。报告有限差分近似及单位。normalized sensitivity明确relative elasticity或positive reference scales；零分母返回undefined及原因，不能填0。
+- Morris：源声明even grid、轨迹数、Delta及ordered trajectories，逐步只改一个因素，重算mu、mu-star和sample sigma，区分normalized/physical坐标与单位。
+- Sobol：独立product law下冻结A/B及AB_i，重算统一中心/方差下S_i与ST_i，可声明二阶所需额外BA blocks；负或大于1的有限估计不clip。独立性由审定law而非小样本相关性决定。constant output等数学退化完整记录undefined。
+- variance-based：独立带权完整factorial law的ANOVA，核对全部Cartesian rows及product weights，独立重算所有subset variance、主效应/总效应和总方差闭合；明确是该有限law下的分解，不能称连续域证明。Sobol另可报告V乘其index的估计贡献。
+- PRCC：完整rows的midranks、控制其他因素的intercept+OLS残差相关，检查rank和残差方差；ties、控制矩阵秩亏和零残差明确处理。控制矩阵秩亏时可用其span的唯一投影给出有诊断的rank-adjusted点关联，抑制未经支持的标准推断；被测因素或输出残差零则undefined。只称条件单调关联，不冒充因果或方差贡献。相关输入可用PRCC，但classic Sobol/product ANOVA不适用。
+- uncertainty：实现连续独立uniform/normal及明确joint correlation的Gaussian/Gaussian-copula mixed laws、fixed-N iid MC、经验CDF/quantiles、DKW经验quantile区间与事件比例区间；均绑定metric和law。normal的无界支持与安全试验域分开，越执行域阻断并保留，禁止静默clip或重抽后仍称原law。均值区间仅在明确output-normal或声明CLT近似时使用适合的公式，不由输入normal推断输出normal。所有置信结论限定抽样设计、有限N、事件/指标及假设。
+- stress/scenario response/initial-condition robustness：对完整源审定目录实际执行参数、输入和IC组合，给出perturbation domain、metric、threshold、failure和disposition；全通过只支持该完整目录。
+- automatic failure boundary：source声明已验证pass/fail bracket、方向、metric阈值、factor与其他物理设置、容差和max evaluations；确定性二分或声明搜索保留每次真实点及停止原因。只返回有限数值bracket；无已证明单调性不声称全域唯一边界，多穿越/同号/预算耗尽/技术失败保留incomplete或limited结果，不能伪造精确边界。
+- solver comparison扩展到当前已资格ode4/ode45/ode15s，共同输出、event bracket/time、记录/PWL峰值、积分及残差/误差scope。性能claim仅使用真实TimingInfo、预声明重复次数/顺序/summary和零分母策略；结构模型对照仍必须有真实批准实现和实质结构审查，参数/solver/重命名不得替代结构差异。
+
+高级统计预算预检设计公式与完整point计数，例如Morris r(d+1)、一阶/总效应Sobol N(d+2)、二阶N(2d+2)及完整ANOVA Cartesian size；原16成员限制不能通过删点绕过，study使用自己明确hard bounds。bootstrap只复算Python统计、不新增native调用；whole-row/trajectory/block重抽、全部退化replicate与scope须保存，不允许丢弃退化后冒称无条件区间。
+
+## 12.20 来源闭包、接受链与失效
+
+新的合同、runner、算法、独立消费者和资格依赖纳入同一E/F/G保守source闭包、bootstrap/module/resource/authority索引及H输入typed evidence graph。预算必须在native前完整计数、在任何hash/load前检查已存在的全transitive读集合；未产生artifact只可预声明hard cap，导出和消费时再实测拒绝，不截断。递归角色限定业务输入与资格外部路径，拒绝循环/路径逃逸/duplicate键/bool伪数值/非有限/typed snapshot漂移；所有读取集合前后SHA复核。
+
+H2只有所有source-required advanced study完整且接受、原primary和所有参与点当前数值接受、原有限分析及结构对照满足，才可决定或支持相应claim。单独算法返回值或native模拟成功不能升级MODEL_VERIFIED。只读review/receipt路由不要求当前runtime；新增trial执行路由明确要求当前A/E/H资格。NUMERICALLY_VERIFIED、MODEL_VERIFICATION_DECIDED、MODEL_VERIFIED继续由显式调用者记录，producer/validator/router不写state/批准/freeze/primary。新合同/方法/设计/数据/源/数字/资格依赖改变使相应H下游stale；历史首版证据及原失败保留。
+
+## 12.21 完整方法矩阵与集中开发出口
+
+实施及退出矩阵逐项覆盖原§12.1全部H1/H2类、§12.2全部敏感性方法和§12.4全部solver指标，每项有可执行正常及必要失败例、当前源绑定实际组合或独立分析oracle，不再将原清单未实现项计为阶段完成。真实native矩阵至少覆盖连续有状态一/二阶模型、参数/IC/常输入/PWL覆盖、实际ode4/ode45/ode15s三层、状态与数字出口/恢复、零响应、受控失败/提前停止/缺输出、TimingInfo重复运行。完整advanced design消费真实trial证据；统计纯数字解析oracle与实际模型analytic oracle分开报告，fixture不替代native。
+
+先完成实现，再集中静态、针对性正反例、原始输入行为和独立跨层审查，记录全部已发现问题、影响、责任文件及复核。统一修正并定向关闭后，冻结最后安全源码，实际重新取得受影响E九/F十一/G十八资格及新H operation资格、真实项目H和受影响既有F/G链证据，最后只运行一次本地全量A–G/H回归。若后续新修改或未关闭失败确需补验，说明范围和原因，仍不在发现第一项错误时重跑全量。根进程独占所有验证/pytest/MATLAB，CPU0,1且数值线程1串行，子审查与编辑不执行测试。
+
+精确最终源码独立审查、最少原材料独立行为测试、source-protected字节、lint/index、真实最终资格和回执、本地全量、PR Windows/Ubuntu CI、单主题PR合并、main字节/历史回读及main双平台CI是分别记录的必要出口。PR CI可与本机串行native队列并行，topic push不触发额外重复矩阵。全部完成才登记H原目标范围完成；开发数据和审查均标注SYNTHETIC INFRASTRUCTURE TEST，不提供真实用户模型批准、现实有效性或发布许可。
 
 # 13. Phase I — Verification & Validation、测试与安全分析
 
