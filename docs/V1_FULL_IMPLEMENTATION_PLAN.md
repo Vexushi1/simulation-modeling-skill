@@ -1,11 +1,11 @@
 # Simulation Modeling Skill v1.0.0 全流程实施计划
 
-> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-09 Phase G实施前审查修订）**
+> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-10 Phase G出口回读及Phase H实施前审查）**
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
-> 已完成阶段：A–F；F PR #7 合并基线 `b44259894db795b451d5f41ff2c709466cde26e0`
-> 当前实施阶段：G；实施分支 `phase-g/serial-experiments`，未通过全部出口前不登记为阶段完成
+> 已完成阶段：A–G（各阶段已审定的有限范围）；G PR #8 合并基线 `719495b745facce688810a62c2c1d3c7aea9116f`
+> 当前实施阶段：H；实施分支 `phase-h/numerical-verification`，未通过全部出口前不登记为阶段完成
 > 核心纪律：先冻结计划，再按阶段实施；任何阶段不得脱离本计划直接堆功能。
 
 ---
@@ -107,6 +107,12 @@ phase-k/release-qualification
 本次先补 §9.9：E 只开放当前 D 六类核心 block 的受控标量 Simulink 普通串行仿真，区分当前执行资格与历史 receipt，补齐协议/运行/状态消费者及真实正反例。仿真成功仍不代表 H 的数值验证、I 的现实有效性或 J 的成果验收。保留 A 七个 source-identity 文件、B schema/validator 与 D 十九个资格源码文件，避免为拓展 E 而使已验证的 D 身份失效。
 
 用户同时指出 `--include-statistics` 的整体核心通过容易被误读。本次不改变 A 的可选探测语义；只修正使用说明，并要求 E 将实际依赖的 `statistics.fitlm`、`statistics.lhsdesign` 或 `statistics.normcdf` 明确传播为 required operations。必须消费该项的实际资格，不能用整体通过替代。先保存这些计划决定，再修改契约与实现。
+
+## 0.6 2026-10-10 Phase G出口与进度同步
+
+Phase G PR [#8](https://github.com/Vexushi1/simulation-modeling-skill/pull/8) 已于2026-10-09合并为 main `719495b745facce688810a62c2c1d3c7aea9116f`，合并树与最终资格化候选一致。独立精确源码审查、原始材料行为测试、最终源码实际R2025b资格与合并后回读分别记在该PR；[main CI](https://github.com/Vexushi1/simulation-modeling-skill/actions/runs/37886168465)的Windows/Ubuntu全部通过，每个平台1321项测试。PR记录G三个方法18项真实采样案例、E九案例及F十一案例，三个完整G campaign和一个受控失败campaign共15次真实E尝试的独立数值回读。上述历史记录资格化仓库基础设施，不批准真实用户模型，不提供新宿主的当前执行许可。
+
+0.7.0的已实现范围为A–G受限基础设施；Simscape/Stateflow/System Composer、一般参数覆盖、连续Monte Carlo、LHS、并行和H–K仍未因此开放。完整计划首页、路线图和CHANGELOG此前未同步G出口，本次先校正这些进度记录。用户现授权审查并实施H，要求先验证计划可实施性，必要时先修订计划；针对性检测先集中记录全部问题，统一修复后才做全量回归，不因单个失败重复重跑全量。
 
 # 1. 已冻结的顶层决策
 

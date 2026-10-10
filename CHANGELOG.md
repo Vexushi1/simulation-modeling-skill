@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — Phase G finite serial experiments
+
+- Add reviewed source-bound scenario matrices, complete finite factorial catalogs and fixed-size categorical Monte Carlo with independently frozen E members.
+- Run every draw serially in a new directory; preserve failed and unattempted rows without a complete summary, and reconstruct each member's qualification, input and budget bindings.
+- Cross-check native MAT/JSON/CSV evidence and limit nominal Wilson intervals to the declared complete fixed-size categorical law.
+- Preserve A/B/D source identities and requalify E/F/G on the final source closure. PR #8 merged as `719495b`; final candidate and main Windows/Ubuntu CI passed 1321 tests per job. Native qualification, independent review and postmerge readback are recorded separately in the PR.
+- Keep advanced domains, continuous sampling, LHS, parallelism and H–K deferred; no release, tag or installation is claimed.
+
 ## 0.6.0 — Phase F parameter studies
 
 - Add source-bound draft/reviewed studies, explicit restricted mathematics, parameter provenance, data splits, bounds, budgets and candidate criteria.

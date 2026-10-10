@@ -1,6 +1,6 @@
 # v1.0.0 Implementation Roadmap
 
-> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. Version 0.7.0 adds the optional finite serial Phase G catalog experiment branch to A–F. Other D domains, general parameter sweeps, continuous Monte Carlo, LHS, parallelism and Phases H–K remain deferred; qualification and merge evidence are recorded separately in the development PR.
+> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. A–G are qualified and merged within their reviewed bounds at main `719495b745facce688810a62c2c1d3c7aea9116f` (Phase G PR #8). Version 0.7.0 adds the optional finite serial Phase G catalog experiment branch to A–F. Phase H is now under plan review; other D domains, general parameter sweeps, continuous Monte Carlo, LHS, parallelism and Phases H–K remain deferred until their respective exit gates pass. Qualification and merge evidence are recorded separately in the development PR.
 
 ## Phase A — Runtime, governance, and trusted root
 
@@ -75,7 +75,6 @@ Exit checks: domain_mapping_checks, parameter_binding_checks, native_simulink_st
 
 | Phase | Planned scope |
 |---|---|
-| G | Experiment design, campaigns, uncertainty sampling, and parallel simulation |
 | H | Primary numerical verification, sensitivity/robustness decisions, and structural/solver comparison |
 | I | Verification and claim-scoped validation, including applicable test and safety tools |
 | J | Accepted figures, result-to-claim trace, evidence package, and paper handoff |
@@ -85,7 +84,7 @@ Develop phases in the full plan's order and refine each phase's executable gates
 
 ## Release
 
-The v1.0.0 gate remains the full plan's release definition: all phases qualified and merged, complete active indexes and CI, current upstream compatibility, representative R2025b runtime evidence, accepted evidence and claim boundaries, and verified paper handoff. Version 0.4.0 does not claim that release gate.
+The v1.0.0 gate remains the full plan's release definition: all phases qualified and merged, complete active indexes and CI, current upstream compatibility, representative R2025b runtime evidence, accepted evidence and claim boundaries, and verified paper handoff. Version 0.7.0 does not claim that release gate. G's general parameter sweeps, continuous uncertainty sampling, LHS and parallel simulation remain deferred despite completion of its finite catalog branch.
 
 ## Phase E — Frozen protocols and qualified execution
 
