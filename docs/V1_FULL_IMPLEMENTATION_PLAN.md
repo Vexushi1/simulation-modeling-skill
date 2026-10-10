@@ -2009,6 +2009,68 @@ reject
 
 ---
 
+## 12.9 2026-10-10 实施前可行性审查与首版范围
+
+用户授权同步进度后实施H，并要求先审查计划，必要时先改计划再实现，集中发现并记录问题、统一修复后再做全量回归。三个独立只读审查确认原§12只有方法清单，没有typed比较配置、审查记录、输出消费者、历史身份、状态或可执行出口；直接激活它会绕过C批准值、E冻结和G固定solver边界。先补本节及§12.10–12.15，再实施消费者。
+
+0.8.0首版H包含两个明确受限的证据评估层：H1三层数值细化一致性；H2外部输入有限OAT响应、有限场景鲁棒性、同模型solver指标对照及经实质差异审查的结构模型指标对照。它们由Python生产者在全新目录生成评估证据，消费者独立只读重算；只消费真实完整E运行，不创建/冻结协议、不生成模型批准、不修改参数、SLX、primary_run或项目状态，也不另造MATLAB H operation/profile。新的对照运行继续使用现有E producer与当前独立A/E资格；H资格来自最终源码的分析正反例、实际R2025b组合和独立原始材料行为测试，不能由fixture冒充native完成。
+
+Morris/Sobol/PRCC、一般参数或初值扰动、连续/相关不确定性、自动失效边界搜索、事件定位、任意残差/守恒方程执行、积分/连续峰值与runtime性能主张仍deferred。必要但未实现的检查必须阻断相应接受，不能以能力缺失为not_required/not_applicable理由。原§12清单保留为目标，不表示这些API或方法已实现。I–K仍deferred；本轮不release/tag/install。
+
+## 12.10 H1契约、三层协议与数值含义
+
+新增core/numerical_verification_contract.yaml、modules/07_numerical_verification.md、合法draft模板、review/assessment/receipt消费者与生产者。契约status为draft/reviewed，绑定project、primary协议及有序的两份细化协议、逐输出端口/变量/单位、method、比较网格、有限先验准则、检查义务、读入预算、claim_limit和来源。运行receipt作为生产者显式输入，不写回契约产生自引用；完整评估receipt绑定原契约字节/快照/semantic摘要、review、三个协议和实际E回执以及评估源码/数字结果。
+
+每个协议都必须当前独立冻结，且有自己的完整合法E运行。三层保持当前B/C完整批准、D映射/参数/SLX/数学身份、初边值、物理时间、外部输入波形、输出映射、logging、seed、E准入界和warning policy精确相同。协议来源/场景说明/独立freeze身份与solver说明文本可不同，执行语义只有明确允许的数值设置不同。不能通过放宽G目录配置或修改E run_spec实现细化。
+
+- `ode4_step_refinement`：三层fixed_step严格为h、h/2、h/4，primary为粗层；仅支持常量外输入或断点对齐粗网格的连续分段线性输入。各实际原生时间轴必须覆盖其整数步网格；比较所有粗网格点，细层必须存在唯一实际样本，不插值、补点或复制常数。span≤30秒、每层≤3000步、输出≤2；实际时间匹配容差为64倍binary64机器epsilon乘max(1,abs(t))，且必须严格小于最细步长的1/8；过小步长、重复/歧义时间或缺格点受控拒绝。
+- `ode45_tolerance_refinement`：三层保持所有其他执行设置相同，RelTol与AbsTol依次为原值、1/10、1/100；比较源预声明的start/stop两个实际端点，不对不嵌套的自适应采样做插值，不声称全轨迹细化。H内ode15s细化组合在首版deferred，即使E已单独资格化该solver也不自动开放它。
+
+逐输出在共同声明点重算D01=max|y0-y1|、D12=max|y1-y2|；容差T=absolute_tolerance+relative_tolerance*max(abs(三层被比较值))，absolute_tolerance>0、relative_tolerance≥0，所有值、差异与T均必须有限。粗primary的D01及细化D12都须≤T；不能仅因两个细层接近就接受错误粗层。若D01大于先验roundoff_floor，要求D12≤contraction_limit*D01（0<contraction_limit<1）；若D01≤floor，D12也必须≤floor。D01=0而D12>floor失败。floor≥0且不大于absolute_tolerance。经验阶仅在两个差异都严格大于floor且非零时报告；全零/舍入底线报告有限精度一致、order=null，不制造无限阶。
+
+三档差异只能支持所声明网格/端点、所列输出和这些准则下的经验细化一致性，不给真实误差上界、四阶证明、连续全域稳定或物理真实性。H1必须逐项登记residual、constraint、conservation、event_localization、numerical_drift的required/not_applicable/deferred、来源与理由；首版没有这些通用执行器，任何required/deferred必要义务都阻断numerically_verified。C的planned validator文本和E final/min/max准入不能替这些义务产生已执行证据。
+
+## 12.11 来源、审查、结果与历史消费
+
+准则、method、检查义务、预算、claim_limit和H2决定来自当前结构化来源的完整selector/snapshot；不能只绑定数列而忽略单位或物理含义。独立review绑定project和排除status/review_record外的完整semantic digest、当前来源及reviewed_by/action=review的精确唯一上下文、Unicode原句位置与SHA。H review是授权范围内的分析审查，不替真实C Human Model Approval。合法未知草稿不能得到reviewed/assessment_ready；validators永不写决定。
+
+评估生产者只写全新拥有目录，保存完整输入快照、逐项源/回执身份和computed结果；准则失败仍保存valid evidence及failed disposition，但不写accepted。消费者重新验证完整E receipt、原MAT/JSON/CSV和执行时A/E、D/C/B链，独立重算全部H数字与exact typed结果，不接受手填passed、bool伪数值、字符串转换或失真容差。不同合法执行环境profile可以分别绑定，但每份E历史都必须严格消费其自身实际执行时资格；H不能用另一份资格替换。E完整required操作要求不因H较小需求删除。
+
+纯H历史评估不要求当前runtime TTL，仍绑定当前源码/项目/数据/产物身份；TTL豁免不豁免source-stale。输入文件必须在项目根内，避免路径逃逸/循环依赖；预检每文件及总读入字节、每输出采样点上限和H结果规模。评估前后重查输入SHA，检测读取期间变化。读入预算只能拒绝，不能截断记录、选择性删除失败点或放宽准则。任何缺失/技术错误为blocked/incomplete，保留已产出的失败证据；没有完整可复核结果不产生accepted。
+
+## 12.12 H2有限分析、共同口径与结构差异
+
+新增core/model_verification_contract.yaml、modules/08_model_verification.md、draft模板及review/assessment/receipt生产消费者。当前primary必须已通过H1，所有实际参与比较对象也各有其当前H1接受回执、真实C批准和各自D/E链。同一真实C批准可以覆盖多个已审阅模型，不能机械再造两次批准。F/G是项目可选分支，不要求所有H项目先完成它们。
+
+每个material claim声明源绑定的target_claim、requirements、所需分析决定、finite domain、metric/statistic/output mapping/unit、direction/threshold、failure disposition/impact_scope/required_action/return_stage和限制。Sensitivity/robustness/solver comparison使用required/not_required；structural comparison使用required/not_applicable。决定与任务来源的义务相符，用户明确要求或material structural uncertainty不能伪省略。required缺方法/证据/预算为blocked，不是not_required。所有选定E输出仍需满足E原先准入界；H2主张阈值与E准入界分离，合法样本越H2阈值可modify/reject，不从分母删除或改E通过状态。
+
+- 外部输入OAT：仅同一当前模型、固定全部参数/条件/solver，源审定的一个常值外部输入因素改变，其余输入波形精确相同。至少两个、最多16个有限不同水平；按源预声明基准与成员对应关系重算原单位finite difference和单位标签，不把它称参数敏感性、全局导数或连续域结论。零基准相对量为null/明确不可定义，不能除零填0。
+- 有限场景鲁棒性：绑定明确的已审定外部输入场景目录，每行实际E指标的同单位lower/upper判据逐项检查。任何越界按事先声明规则modify/reject；全部通过只支持该有限目录和指标，不证明连续域鲁棒或定位失效边界。
+- solver comparison：当前同一C/D模型及所有物理条件精确相同，只改变E数值solver配置；首版ode4/ode45双方各有对应H1。比较共同final/minimum/maximum指标，min/max只称实际采样极值，不声称连续峰值；不得直接配对不同采样下标。事件、积分和性能结论仍deferred。
+- structural comparison：绑定共同物理目标、时间、输入波形、可观测量显式输出映射、metric/unit/direction/criterion，双方完整批准实现及H1。独立差异审查具体指出方程、机制、阶数、抽象、耦合或状态表示变化，锚定双方当前C结构字段与来源。不同结构hash只是身份条件，不证明数学非等价；仅重命名/等价改写/Block、solver、参数值变化不合格。消费者核验有实质内容的审查及当前结构锚点，不宣称自动数学证明。
+
+H2技术完整/机械valid与claim_supported分开。全部required分析完成才有model_verification_decided；全部支持且H1当前才有model_verified。modify/reject必须保存实际数字与返回阶段，不升为验证通过；缺失成员、失败E/H1或源变化不能输出support。H2不输出I现实有效性、J证据接受或论文主张权限。
+
+## 12.13 状态、路由、来源闭包与失效
+
+增加只读numerical_verification/model_verification及相应receipt review路由、H artifact角色与optional `numerical_verification`/`model_verification` state scopes。NUMERICALLY_VERIFIED要求当前H1完整接受及其明确claim scope；MODEL_VERIFICATION_DECIDED要求当前H1与全部分析决定/完成；MODEL_VERIFIED另要求全部required分析support。只有显式调用者在实际检查后记录这些状态及receipt绑定；评估producer、validator/router不修改state/primary_run、冻结或批准文件。更早scopes明确H unassessed，H scopes检查B/C/D/E/H历史而runtime readiness留unassessed，all另检查当前runtime。主状态后续VALIDATED/EVIDENCE_ACCEPTED等仍不能填值通过。
+
+同步所有stage集合、批准/映射/E前置、anchors/accepted依赖、historical分派、CLI、module/resources、bootstrap authority、output/state/router/lint/index与版本0.8.x。沿用taxonomy已有H意图，保持A七项源码、B schema/validator、D十九项source-bound文件逐字节不变。E/F/G当前79文件安全清单一致，本次将完整H安全依赖保守加入三者同一闭包，H分析receipt也绑定自身完整安全来源；不能用当前TTL豁免源码变化或用不同commit但不同字节沿用green。
+
+H计划/审查/准则/范围、任一E协议/运行/数字、C/D/参数/SLX/来源、H算法/consumer或实际依赖改变使相应H及下游stale；保留旧记录及原失败。当前保守whole-Problem绑定继续，不宣称已实现§18的精细validation-only图。共享消费者改变后，最终源码重新取得E九案例、F三方法十一案例、G三方法十八案例及相应当前项目回执；A/D字节保持只免除不必要源码重资格，实际新执行仍遵守TTL及同runtime要求。
+
+## 12.14 文件与可执行开发出口
+
+除§12.8外，新增H1/H2合同、draft模板、分析公共模块、review validators、显式新目录producer、receipt消费者、route/state helper与有信息价值的正常/负例测试。保留已未实现方法explicit deferred，不创建placeholder business文件。source安全范围在最终资格前冻结，并逐文件比对最终commit LF字节、资格源码与合并main；失败及旧源码资格分别保留。
+
+退出项：numerical_contract_and_review、three_level_comparability、native_output_and_refinement_criteria、model_analysis_requirements、finite_response_and_claim_disposition、solver_and_structural_comparison、receipt_independent_recomputation、historical_source_and_stale、H_route_and_state、protected_A_B_D_bytes、authority_and_indexes及完整A–G/H回归。原生组合须实际产生固定三步长和ode45三容差E输出，有限外输入OAT/robustness、两solver及一阶/二阶实质结构对照；独立解析oracle核对原MAT/JSON/CSV和H数字。另保留粗层失败、差异不缩小、required缺项、错单位/网格/结构差异、合法claim越界modify/reject、技术失败无complete等证据；Python factory不替代这些native组合。
+
+精确最终提交独立审查、从最少原始题面进入的独立行为测试、最后source版本实际资格/项目H回执、Windows/Ubuntu CI、单主题PR、合并以及main实际回读/CI分别为开发出口。所有开发问题/批准/模型/观测明确SYNTHETIC INFRASTRUCTURE TEST，不供应实际用户Human Model Approval或物理有效性。H仅按这些已审定有限方法登记完成，不计未支持的全目标清单。
+
+## 12.15 集中检测与一次修复纪律
+
+先完成计划、受影响契约和实现，再集中进行静态审查、针对性正反例与原始输入行为检查。问题清单逐项记录复现、影响范围、责任文件、修正及定向复核；不在发现第一个错误后立刻重跑全部测试。一次收集可并行审查全部已实现表面，统一修改，定向检查关闭后才执行全量A–G/H回归。仅当之后新的修改/失败/未解决风险影响最终版本时才有依据重跑相应回归；本地tests、MATLAB资格、CI与合并回读仍分别记录，不把跳过实测当成节约。
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
