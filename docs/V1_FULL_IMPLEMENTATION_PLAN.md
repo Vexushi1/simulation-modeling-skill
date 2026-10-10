@@ -2121,7 +2121,7 @@ MATLAB只使用独立owned SLX副本和SimulationInput，参数以model Workspac
 
 ## 12.20 来源闭包、接受链与失效
 
-新的合同、runner、算法、独立消费者和资格依赖纳入同一E/F/G保守source闭包、bootstrap/module/resource/authority索引及H输入typed evidence graph。预算必须在native前完整计数、在任何hash/load前检查已存在的全transitive读集合；未产生artifact只可预声明hard cap，导出和消费时再实测拒绝，不截断。递归角色限定业务输入与资格外部路径，拒绝循环/路径逃逸/duplicate键/bool伪数值/非有限/typed snapshot漂移；所有读取集合前后SHA复核。
+新的合同、runner、算法、独立消费者和资格依赖纳入同一E/F/G保守source闭包、bootstrap/module/resource/authority索引及H输入typed evidence graph。预算必须在native前完整计数；发现未知transitive边时，只允许按逐文件/累计stat及节点/深度上限读取结构性metadata，完成全读集preflight后才hash、加载MAT/CSV/业务数字或调用业务消费者。不能声称尚未知边时已有完整读集合；固定安全repo闭包另按白名单计入预算，普通task不得获得任意外部源码路径权利。未产生artifact只可预声明hard cap，导出和消费时再实测拒绝，不截断。递归角色限定业务输入与资格外部路径，合法原receipt回绑定以visited去重，真实业务依赖环、路径逃逸、duplicate键、bool伪数值、非有限和typed snapshot漂移受控拒绝；所有读取集合前后SHA复核。
 
 H2只有所有source-required advanced study完整且接受、原primary和所有参与点当前数值接受、原有限分析及结构对照满足，才可决定或支持相应claim。单独算法返回值或native模拟成功不能升级MODEL_VERIFIED。只读review/receipt路由不要求当前runtime；新增trial执行路由明确要求当前A/E/H资格。NUMERICALLY_VERIFIED、MODEL_VERIFICATION_DECIDED、MODEL_VERIFIED继续由显式调用者记录，producer/validator/router不写state/批准/freeze/primary。新合同/方法/设计/数据/源/数字/资格依赖改变使相应H下游stale；历史首版证据及原失败保留。
 
