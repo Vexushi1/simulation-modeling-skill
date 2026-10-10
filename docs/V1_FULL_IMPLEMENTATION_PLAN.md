@@ -2057,6 +2057,8 @@ H2技术完整/机械valid与claim_supported分开。全部required分析完成�
 
 增加只读numerical_verification/model_verification及相应receipt review路由、H artifact角色与optional `numerical_verification`/`model_verification` state scopes。NUMERICALLY_VERIFIED要求当前H1完整接受及其明确claim scope；MODEL_VERIFICATION_DECIDED要求当前H1与全部分析决定/完成；MODEL_VERIFIED另要求全部required分析support。只有显式调用者在实际检查后记录这些状态及receipt绑定；评估producer、validator/router不修改state/primary_run、冻结或批准文件。更早scopes明确H unassessed，H scopes检查B/C/D/E/H历史而runtime readiness留unassessed，all另检查当前runtime。主状态后续VALIDATED/EVIDENCE_ACCEPTED等仍不能填值通过。
 
+集中原始输入准备发现：resolver缺少显式项目根，嵌套contracts目录的H审查及F producer会错误按contract.parent解析引用。新增明确project_root API/CLI上下文并由F producer忠实转发；没有state时它只确定路径根，不伪造stage、anchor、state validation或通过Gate。存在真实state时显式根必须与state项目根一致，冲突受控阻断；MATLAB expected_root仍是独立运行环境含义。这个路径修复不改变C批准、E/F/H的审查与执行权限。
+
 同步所有stage集合、批准/映射/E前置、anchors/accepted依赖、historical分派、CLI、module/resources、bootstrap authority、output/state/router/lint/index与版本0.8.x。沿用taxonomy已有H意图，保持A七项源码、B schema/validator、D十九项source-bound文件逐字节不变。E/F/G当前79文件安全清单一致，本次将完整H安全依赖保守加入三者同一闭包，H分析receipt也绑定自身完整安全来源；不能用当前TTL豁免源码变化或用不同commit但不同字节沿用green。
 
 H计划/审查/准则/范围、任一E协议/运行/数字、C/D/参数/SLX/来源、H算法/consumer或实际依赖改变使相应H及下游stale；保留旧记录及原失败。当前保守whole-Problem绑定继续，不宣称已实现§18的精细validation-only图。共享消费者改变后，最终源码重新取得E九案例、F三方法十一案例、G三方法十八案例及相应当前项目回执；A/D字节保持只免除不必要源码重资格，实际新执行仍遵守TTL及同runtime要求。
