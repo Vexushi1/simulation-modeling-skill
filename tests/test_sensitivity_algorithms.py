@@ -1,5 +1,7 @@
 """Analytic sensitivity oracles and complete-design/degeneracy boundaries."""
 import copy
+import hashlib
+import json
 import math
 
 import pytest
@@ -37,6 +39,20 @@ def estimate(method, fn, records=None, config=None, **kwargs):
     design = generate_sensitivity_design(method, records, config, budget=kwargs.get('budget'))
     responses = {row['id']: fn(row['values']) for row in design['rows']}
     return compute_sensitivity(method, records, config, design, responses, **kwargs), design
+
+
+def sobol_response_catalog(design, offset, *, scale=1.0, catalog=None):
+    """Independent role oracle: A=[0,2], B=AB0=[4,6], AB1=BA0=A."""
+    catalog = {'A': [0.0, 2.0], 'B': [4.0, 6.0],
+               'AB0': 'B', 'AB1': 'A', 'BA0': 'A', 'BA1': 'B'} if catalog is None else catalog
+    responses = {}
+    for row in design['rows']:
+        role = row['role']
+        key = role['kind'] if role['kind'] in ('A', 'B') else role['kind'] + str(role['factor_index'])
+        block = catalog[key]
+        block = catalog[block] if isinstance(block, str) else block
+        responses[row['id']] = offset + scale * block[role['base_index']]
+    return responses
 
 
 @pytest.mark.parametrize('method', ['local_derivative', 'normalized_sensitivity', 'parameter_oat'])
@@ -115,6 +131,99 @@ def test_sobol_finite_indices_above_one_remain_unclipped():
     assert result['factors'][0]['metrics'] == {'S1': 2.0, 'ST': 2.0}
     assert result['factors'][1]['metrics'] == {'S1': 0.0, 'ST': 0.0}
     assert result['global']['second_order'][0]['S2'] == 0.0
+
+
+@pytest.mark.parametrize('offset', [pytest.param(0.0, id='zero_offset'), pytest.param(1e16, id='common_offset')])
+def test_sobol_centered_role_oracle_preserves_variance_indices_and_S2(offset):
+    records, config = factors(), settings('sobol')
+    config['base_samples'] = 2
+    design = generate_sensitivity_design('sobol', records, config)
+    result = compute_sensitivity('sobol', records, config, design, sobol_response_catalog(design, offset))
+    assert result['complete'] and result['defined'] and not result['degeneracies']
+    assert result['global']['variance'] == 5.0
+    assert result['factors'][0]['metrics'] == {'S1': 1.6, 'ST': 1.6}
+    assert result['factors'][1]['metrics'] == {'S1': 0.0, 'ST': 0.0}
+    assert result['global']['second_order'][0]['S2'] == 0.0
+    # This displayed value can round at the large offset; it is never the
+    # center subtracted from responses in the actual variance calculation.
+    assert result['global']['pooled_center'] == offset + 3.0
+
+
+def test_frozen_source_sobol_ST_bound_rejects_centered_large_offset_response(tmp_path):
+    from h_analysis_study import evaluate_criterion
+    config = settings('sobol')
+    config['base_samples'] = 2
+    source = tmp_path / 'predeclared-sobol-offset-oracle.json'
+    source.write_text(json.dumps({'method': 'sobol', 'factors': factors(), 'settings': config,
+        'response_oracle': {'offset': 1e16, 'A': [0.0, 2.0], 'B': [4.0, 6.0],
+                            'AB0': 'B', 'AB1': 'A', 'BA0': 'A', 'BA1': 'B'},
+        'metric': {'statistic': 'final', 'output_port': 1, 'unit': '1'},
+        'criterion': {'quantity': 'analysis_value', 'result_selector': ['factors', 0, 'metrics', 'ST'],
+            'lower': None, 'upper': 1.4, 'unit': '1', 'failure_disposition': 'reject',
+            'reason': 'Prior finite total-index upper bound, frozen before responses.'}}, indent=2) + '\n', encoding='utf-8')
+    original_bytes = source.read_bytes()
+    identity = hashlib.sha256(original_bytes).hexdigest()
+    prior = json.loads(original_bytes)
+    design = generate_sensitivity_design(prior['method'], prior['factors'], prior['settings'])
+    responses = sobol_response_catalog(design, prior['response_oracle']['offset'], catalog=prior['response_oracle'])
+    result = compute_sensitivity(prior['method'], prior['factors'], prior['settings'], design, responses)
+    criterion = evaluate_criterion(prior['criterion'], result, [], prior['metric'], prior['factors'])
+    assert result['complete'] and result['defined'] and criterion['defined']
+    assert not criterion['satisfied'] and criterion['values'] == [1.6]
+    assert prior['criterion']['failure_disposition'] == 'reject'
+    # The historical rounded-center ST=4/3 would incorrectly satisfy this
+    # exact prior. The corrected untrimmed finite estimator must reject it.
+    assert 4/3 < prior['criterion']['upper'] < criterion['values'][0]
+    assert source.read_bytes() == original_bytes
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == identity
+
+
+def test_sobol_complete_block_bootstrap_is_common_offset_invariant():
+    records, config = factors(), settings('sobol')
+    config['base_samples'] = 2
+    design = generate_sensitivity_design('sobol', records, config)
+    inference = {'method': 'percentile_bootstrap', 'replicates': 12, 'seed': 7,
+                 'confidence': .95, 'min_valid_fraction': 1.0}
+    zero = compute_sensitivity('sobol', records, config, design, sobol_response_catalog(design, 0.0), inference=inference)
+    shifted = compute_sensitivity('sobol', records, config, design, sobol_response_catalog(design, 1e16), inference=inference)
+    assert zero['defined'] and shifted['defined']
+    assert shifted['bootstrap'] == zero['bootstrap']
+    assert shifted['bootstrap']['valid'] == shifted['bootstrap']['requested'] == 12
+    for replicate in shifted['bootstrap']['replicates']:
+        assert replicate['defined'] and not replicate['degeneracies']
+        assert replicate['estimates']['["interaction","S2","x0","x1"]'] == 0.0
+
+
+@pytest.mark.parametrize('scale', [pytest.param(1e-200, id='underflow'), pytest.param(1e200, id='overflow')])
+def test_sobol_unresolved_nonzero_variance_is_not_reported_as_constant(scale):
+    records, config = factors(), settings('sobol')
+    config['base_samples'] = 2
+    design = generate_sensitivity_design('sobol', records, config)
+    responses = sobol_response_catalog(design, 0.0, scale=scale)
+    result = compute_sensitivity('sobol', records, config, design, responses)
+    assert result['complete'] and not result['defined']
+    assert len(responses) == len(design['rows'])
+    assert result['global']['variance'] is None
+    assert all(record['metrics'] == {'S1': None, 'ST': None} for record in result['factors'])
+    assert result['global']['second_order'][0]['S2'] is None
+    assert result['degeneracies'][0]['code'] == 'unresolved_sobol_arithmetic'
+    assert not any(item['code'] == 'zero_sample_variance' for item in result['degeneracies'])
+
+
+def test_sobol_unresolved_bootstrap_replicates_remain_complete_and_undefined():
+    records, config = factors(), settings('sobol')
+    config['base_samples'] = 2
+    design = generate_sensitivity_design('sobol', records, config)
+    inference = {'method': 'percentile_bootstrap', 'replicates': 12, 'seed': 7,
+                 'confidence': .95, 'min_valid_fraction': 1.0}
+    result = compute_sensitivity('sobol', records, config, design,
+        sobol_response_catalog(design, 0.0, scale=1e-200), inference=inference)
+    assert result['complete'] and not result['defined']
+    assert result['bootstrap']['invalid'] == result['bootstrap']['requested'] == 12
+    assert len(result['bootstrap']['replicates']) == 12 and not result['bootstrap']['defined']
+    assert all(not replicate['defined'] and replicate['degeneracies'][0]['code'] == 'unresolved_sobol_arithmetic'
+               for replicate in result['bootstrap']['replicates'])
+    assert all(bounds['lower'] is None and bounds['upper'] is None for bounds in result['bootstrap']['intervals'].values())
 
 
 @pytest.mark.parametrize('method', ['sobol', 'variance_based', 'prcc'])

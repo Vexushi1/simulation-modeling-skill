@@ -7,7 +7,7 @@ ANALYSIS_KINDS = {'sensitivity_analysis': 'sensitivity', 'robustness_analysis': 
                   'solver_comparison': 'solver_comparison', 'model_comparison': 'model_comparison'}
 STUDY_METHODS = {
     'sensitivity_analysis': {'local_derivative', 'normalized_sensitivity', 'parameter_oat',
-                             'variance_based', 'morris', 'sobol', 'prcc'},
+                             'variance_based', 'morris', 'sobol', 'prcc', 'scenario_response'},
     'robustness_analysis': {'scenario_response', 'independent_mc', 'gaussian_joint_mc',
                             'gaussian_copula_mc', 'initial_condition_catalog', 'initial_condition_grid',
                             'joint_stress_catalog', 'stress_grid', 'failure_boundary'},

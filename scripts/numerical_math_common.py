@@ -101,6 +101,13 @@ def unit_dimensions(unit):
     return result
 
 
+def _positive_scale(value, label):
+    """An unresolved unit conversion cannot represent an exact zero."""
+    if not finite(value) or value <= 0:
+        raise ValueError('unresolved '+label+'; strictly positive finite scale required')
+    return number(value, label)
+
+
 def unit_scale(unit):
     if unit_dimensions(unit) is None:
         raise ValueError('unsupported canonical multiplicative unit')
@@ -110,18 +117,30 @@ def unit_scale(unit):
             sign = 1 if part == '*' else -1
         else:
             base, exponent = re.fullmatch(r'(1|[A-Za-z]+)(?:\^(-?\d+))?', part).groups()
-            scale *= UNIT_SCALES.get(base, 1.0) ** (sign*int(exponent or '1'))
-    return number(scale, 'canonical unit scale')
+            factor = _positive_scale(UNIT_SCALES.get(base, 1.0) ** (sign*int(exponent or '1')),
+                                     'canonical unit conversion factor')
+            scale = _positive_scale(scale*factor, 'canonical unit conversion')
+    return _positive_scale(scale, 'canonical unit conversion')
+
+
+def _canonical_constant(value, unit):
+    value = number(value, 'constant')
+    result = number(value*unit_scale(unit), 'canonical constant conversion')
+    if value != 0 and result == 0:
+        raise ValueError('unresolved constant unit conversion; nonzero constant underflowed to zero')
+    return result
 
 
 def observable_scale(symbol):
     if 'canonical_unit' not in symbol:
         return unit_scale(symbol['unit'])
     canonical = unit_scale(symbol['canonical_unit'])
-    declared = number(symbol.get('scale', 1), 'reviewed unit conversion')
-    if unit_dimensions(symbol['unit']) is not None and declared != unit_scale(symbol['unit'])/canonical:
-        raise ValueError('observable scale contradicts recognized physical unit conversion')
-    return number(declared*canonical, 'canonical observable scale')
+    declared = _positive_scale(symbol.get('scale', 1), 'reviewed unit conversion')
+    if unit_dimensions(symbol['unit']) is not None:
+        ratio = _positive_scale(unit_scale(symbol['unit'])/canonical, 'recognized observable unit conversion')
+        if declared != ratio:
+            raise ValueError('observable scale contradicts recognized physical unit conversion')
+    return _positive_scale(declared*canonical, 'canonical observable unit conversion')
 
 
 class WorkBudget:
@@ -296,6 +315,7 @@ def validate_expression(expression, symbols, budget, *, _active=None, _depth=0):
             dim = dimensions(expression['dimensions'])
             if unit_dimensions(expression['unit']) != dim:
                 raise ValueError('constant unit does not match its dimensions or supported unit grammar')
+            _canonical_constant(expression['value'], expression['unit'])
             return dim
         if op in ('variable', 'derivative', 'integral'):
             expected = {'op', 'id'} | ({'scheme'} if op == 'derivative' else {'start'} if op == 'integral' else set())
@@ -344,7 +364,7 @@ def evaluate_expression(expression, environment, time, budget):
     budget.charge()
     op = expression['op']
     if op == 'constant':
-        result = expression['value'] * unit_scale(expression['unit'])
+        result = _canonical_constant(expression['value'], expression['unit'])
     elif op in ('variable', 'derivative', 'integral'):
         entry = environment[expression['id']]
         if op == 'variable':

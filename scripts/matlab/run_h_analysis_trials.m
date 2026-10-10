@@ -92,6 +92,7 @@ record = struct('case_id', identity, 'attempted', false, 'completed', false, ...
 record.before_configuration = struct();
 record.after_configuration = struct();
 record.reopened_configuration = struct();
+record.timing_provenance = struct();
 end
 
 function record = simulateOwned(item, mode, directory, identity, record, checkpoint, budget)
@@ -232,7 +233,9 @@ if strcmp(mode, 'probe') && strcmp(item.expectation, 'error')
 end
 rng(spec.seed, 'twister');
 checkpoint(record);
+[callStartUtc, localOffsetStart] = actualClock();
 out = sim(in);
+[callStopUtc, localOffsetStop] = actualClock();
 assert(isa(out, 'Simulink.SimulationOutput'), 'PhaseE:OutputClass', 'Expected native SimulationOutput.');
 record.simulation_returned = true;
 record.raw_mat_file = [record.case_id '-returned.mat'];
@@ -265,6 +268,47 @@ record.effective_configuration = struct('StartTime', findMetadataField(modelInfo
     'StopTime', findMetadataField(modelInfo, {'StopTime'}), 'SimulationMode', findMetadataField(modelInfo, {'SimulationMode'}), ...
     'Solver', record.observed_solver_name);
 record.timing_info = metadata.TimingInfo;
+record.timing_provenance = struct('source', 'SimulationOutput.SimulationMetadata.TimingInfo', ...
+    'duration_fields', {{'InitializationElapsedWallTime', 'ExecutionElapsedWallTime', ...
+        'TerminationElapsedWallTime', 'TotalElapsedWallTime'}}, ...
+    'clock_resolution_seconds', 1.0, 'duration_resolution_seconds', 1e-6, ...
+    'call_started_at', callStartUtc, 'call_finished_at', callStopUtc, ...
+    'local_utc_offset_start', localOffsetStart, 'local_utc_offset_stop', localOffsetStop);
+% The original object was saved immediately above. Add independently readable
+% native primitives without reconstructing or changing the SimulationOutput.
+timing_durations = zeros(4, 1);
+for timingIndex = 1:4
+    nativeValue = record.timing_info.(record.timing_provenance.duration_fields{timingIndex});
+    assert(isa(nativeValue, 'double') && isreal(nativeValue) && isscalar(nativeValue) ...
+        && isfinite(nativeValue) && nativeValue >= 0, 'PhaseH:NativeTimingDuration', ...
+        'Actual TimingInfo durations must be finite nonnegative double scalars.');
+    timing_durations(timingIndex, 1) = nativeValue;
+end
+timing_start_local = record.timing_info.WallClockTimestampStart;
+timing_stop_local = record.timing_info.WallClockTimestampStop;
+for nativeClock = {timing_start_local, timing_stop_local}
+    assert(ischar(nativeClock{1}) && isrow(nativeClock{1}) ...
+        && ~isempty(regexp(nativeClock{1}, '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', 'once')), ...
+        'PhaseH:NativeTimingClock', 'Preserve the original documented local second-resolution char timestamp.');
+end
+timing_call_start_utc = callStartUtc;
+timing_call_stop_utc = callStopUtc;
+timing_utc_offsets = [localOffsetStart; localOffsetStop];
+timing_resolutions = [1.0; 1e-6];
+save(fullfile(directory, record.raw_mat_file), 'timing_durations', 'timing_start_local', ...
+    'timing_stop_local', 'timing_call_start_utc', 'timing_call_stop_utc', ...
+    'timing_utc_offsets', 'timing_resolutions', '-append');
+timingReload = load(fullfile(directory, record.raw_mat_file), 'timing_durations', ...
+    'timing_start_local', 'timing_stop_local', 'timing_call_start_utc', 'timing_call_stop_utc', ...
+    'timing_utc_offsets', 'timing_resolutions');
+assert(isequal(timingReload.timing_durations, timing_durations) ...
+    && isequal(timingReload.timing_start_local, timing_start_local) ...
+    && isequal(timingReload.timing_stop_local, timing_stop_local) ...
+    && isequal(timingReload.timing_call_start_utc, timing_call_start_utc) ...
+    && isequal(timingReload.timing_call_stop_utc, timing_call_stop_utc) ...
+    && isequal(timingReload.timing_utc_offsets, timing_utc_offsets) ...
+    && isequal(timingReload.timing_resolutions, timing_resolutions), ...
+    'PhaseH:NativeTimingRoundTrip', 'Native primitive TimingInfo MAT readback differs.');
 checkpoint(record);
 record.after_parameters = parameterSnapshot(model, spec.parameters);
 record.after_output_sampling = outputSamplingSnapshot(spec.outputs);
@@ -623,6 +667,17 @@ end
 
 function value = utcNow()
 value = char(datetime('now','TimeZone','UTC','Format','yyyy-MM-dd''T''HH:mm:ss.SSSSSS''Z'''));
+end
+
+function [utc, offset] = actualClock()
+% One actual instant supplies both the host local offset and explicit UTC.
+instant = datetime('now', 'TimeZone', 'local');
+offset = seconds(tzoffset(instant));
+assert(isa(offset, 'double') && isreal(offset) && isscalar(offset) && isfinite(offset), ...
+    'PhaseH:ActualClockOffset', 'Actual local UTC offset must be a finite double scalar.');
+instant.TimeZone = 'UTC';
+instant.Format = 'yyyy-MM-dd''T''HH:mm:ss.SSSSSS''Z''';
+utc = char(instant);
 end
 
 function writeJson(path, value)

@@ -90,7 +90,7 @@ def make_study_for_primary(primary_h1_receipt,*,project_root=None,filename='h-an
     return review_h_analysis_study(path,project_root=root)
 
 
-def make_study_history(study_path,*,project_root=None,output_name='synthetic-study-evidence',h_profile=None):
+def make_study_history(study_path,*,project_root=None,output_name='synthetic-study-evidence',h_profile=None,state_binding=None):
     """Build full native-format history and consume it with unmocked readers.
 
     This is a CI fixture writer. Its closed-form state oracle is independent of
@@ -105,7 +105,7 @@ def make_study_history(study_path,*,project_root=None,output_name='synthetic-stu
     from h_analysis_native_factory import make_h_analysis_profile,synthetic_native_case
     from h_analysis_study import INPUT_NAME,OPERATION,RECEIPT_NAME,RESULT_NAME,assess_study
     from probe_environment import write_json
-    from run_h_analysis_study import collect_batch_points,execution_record
+    from run_h_analysis_study import canonical_state_bindings,capture_study_request,collect_batch_points,execution_record
     from runtime_common import canonical_digest,sha256_file
     from validate_environment import _time,utc_text
     from validate_h_analysis_study import validate_h_analysis_study
@@ -119,16 +119,19 @@ def make_study_history(study_path,*,project_root=None,output_name='synthetic-stu
     assert report['method']!='failure_boundary','Synthetic history helper serves fixed designs; actual native driver owns adaptive searches.'
     a=root/'a-profile'/'evidence'/'profile.json';e=root/'numerical-e-profile'/'simulation-profile.json'
     if h_profile is None:h_profile=make_h_analysis_profile(root/'synthetic-h-profile',a,e)
-    output=root/output_name;output.mkdir()
+    output=root/output_name
     study_request={'schema_version':1,'operation_id':OPERATION,'run_id':str(uuid.uuid4()),'project_id':report['project_id'],
                    'project_root':str(root),'study':{'path':str(study_path),'sha256':report['contract_sha256']},
                    'semantic_sha256':report['semantic_sha256'],'contract_snapshot':report['_contract'],
                    'contract_original_text':study_path.read_bytes().decode('utf-8'),'design':report['design'],
-                   'input_manifest':report['input_manifest'],'sources':source_identities()}
-    write_json(output/INPUT_NAME,study_request)
+                   'input_manifest':report['input_manifest'],'sources':source_identities(),
+                   'bindings':canonical_state_bindings(state_binding,root)}
+    payload,_=capture_study_request(study_request,root,report['budget'])
+    output.mkdir();(output/INPUT_NAME).write_bytes(payload)
     batch=output/'trial-batch-000001'
     request=native.make_task_request(study_path,load_document(a)['runtime']['executable'],batch,report,
-                                    environment_profile=a,simulation_profile=e,h_analysis_profile=h_profile,project_root=root)
+                                    environment_profile=a,simulation_profile=e,h_analysis_profile=h_profile,project_root=root,
+                                    state_binding=study_request['bindings']['current_state'])
     batch.mkdir();names=native.contract()['evidence'];write_json(batch/names['input'],request)
     (batch/names['log']).write_text('SYNTHETIC INFRASTRUCTURE TEST. NO MATLAB EXECUTION OR REAL QUALIFICATION.\n',encoding='utf-8')
     # Reuse runtime installation identities from the independently checked
@@ -147,6 +150,7 @@ def make_study_history(study_path,*,project_root=None,output_name='synthetic-stu
             return {id:steady+(x-steady)*math.exp(-k*(t-t0))}
         actual=synthetic_native_case(case,batch/'cases'/case['case_id'],request['run_id'],state_values=oracle,not_before=qualification_floor)
         actual['functions']=deepcopy(raw['functions']);actuals.append(actual)
+        qualification_floor=_time(actual['finished_at'])
     start=min(_time(x['started_at']) for x in actuals);stop=max(_time(x['finished_at']) for x in actuals)
     raw.update(schema_version=1,run_id=request['run_id'],channel=request['channel'],host_fingerprint=request['host_fingerprint'],
                input_identity=request['input_identity'],source_identity=request['source_identity'],status='completed',

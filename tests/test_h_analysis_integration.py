@@ -154,15 +154,22 @@ def test_claimed_external_duplicate_is_only_an_independent_byte_claim(tmp_path):
         input_manifest(paths, root, budget())
 
 
-def test_explicit_caller_state_edge_protects_bytes_without_qualification_privilege(tmp_path):
-    state = write_json(tmp_path / 'state.json', {'bindings': {'h_analysis_profile': {'path': '/unselected/external.json', 'sha256': '0' * 64}}})
+@pytest.mark.parametrize('role', ['h_trial_request', 'h_study_request'])
+def test_explicit_caller_state_edge_protects_bytes_without_qualification_privilege(tmp_path, role):
+    root = tmp_path / 'project'
+    root.mkdir()
+    external = write_json(tmp_path / 'qualification' / 'external.json', {})
+    state = write_json(root / 'state.json', {'bindings': {'h_analysis_profile': binding(external)}})
     request = {'bindings': {'current_state': binding(state), 'protected_files': [binding(state)]}}
-    paths = evidence_paths_for_request(request, tmp_path, budget(), include_repository_sources=False)
+    paths = evidence_paths_for_request(request, root, budget(), role=role, include_repository_sources=False)
     assert paths == {state} and not paths.allowed_external
-    input_manifest(paths, tmp_path, budget())
+    input_manifest(paths, root, budget())
+    request['bindings']['protected_files'].append(binding(external))
+    with pytest.raises(ValueError, match='independently authorized'):
+        evidence_paths_for_request(request, root, budget(), role=role, include_repository_sources=False)
     state.write_text('{}', encoding='utf-8')
     with pytest.raises(ValueError, match='claimed byte identity'):
-        input_manifest(paths, tmp_path, budget())
+        input_manifest(paths, root, budget())
 
 
 def test_new_h_repository_bytes_are_statted_before_any_digest(tmp_path, monkeypatch):
@@ -354,9 +361,10 @@ def test_actual_required_study_state_and_readonly_route_keep_primary_and_runtime
     assert route['status'] == 'inspected' and route['study_complete'], route['errors']
     assert all(route[flag] is False for flag in ('execution_allowed', 'business_execution_allowed',
                                              'simulation_execution_allowed', 'h_analysis_execution_allowed', 'state_mutated'))
-    named = resolve_runtime('robustness_analysis', model_verification_path=item['h2'], project_root=item['root'])
-    assert named['status'] == 'inspected' and named['required_study_methods'] == ['scenario_response'], named['errors']
-    assert not named['execution_allowed'] and not named['h_analysis_execution_allowed'] and 'state_validation' not in named
+    for intent in ('sensitivity_analysis', 'robustness_analysis'):
+        named = resolve_runtime(intent, model_verification_path=item['h2'], project_root=item['root'])
+        assert named['status'] == 'inspected' and named['required_study_methods'] == ['scenario_response'], named['errors']
+        assert not named['execution_allowed'] and not named['h_analysis_execution_allowed'] and 'state_validation' not in named
     current = validate_project_state(item['state'], scope='all')
     assert current['valid'] and current['model_verified'], current['errors']
     assert all(current[flag] is True for flag in ('environment_checked', 'implementation_environment_checked',

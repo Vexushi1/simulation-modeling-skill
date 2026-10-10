@@ -1,6 +1,7 @@
 """Method oracles and gate negatives; pure fixtures are not native acceptance."""
 from copy import deepcopy
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,7 @@ from h_analysis_study import (assess_study, compute_runtime, design_record, eval
                               replay_boundary, selected_analysis_value, validate_design)
 from runtime_common import ROOT
 from uncertainty_metrics import (compute_uncertainty, correlation_factor, generate_uncertainty_design,
-                                 inference_settings, validate_uncertainty_design)
+                                 inference_settings, sample_statistics, validate_uncertainty_design)
 from validate_h_analysis_study import validate_h_analysis_study
 from validate_h_analysis_study_receipt import validate_h_analysis_study_receipt
 
@@ -429,3 +430,287 @@ def test_runtime_and_adaptive_replay_work_are_preflighted():
     tight=budget();tight['max_work_items']=100
     with pytest.raises(ValueError,match='before native allocation'):
         boundary_settings(report['factors'],report['settings'],tight)
+
+
+# SYNTHETIC INFRASTRUCTURE TEST. These independent closed-form priors test
+# arithmetic/criteria; they are not an accepted native or model receipt.
+def _uncertainty_response_prior(values, *, mean_method='none'):
+    f=[factor(law={'kind':'uniform','parameters':{'lower':0.,'upper':1.}})]
+    s=settings(len(values));d=generate_uncertainty_design('independent_mc',f,s,budget=budget())
+    i={'confidence':.95,'family_size':2 if mean_method=='student_t' else 1,
+       'quantiles':[.5],'event':None,'coverage':None,
+       'mean':{'method':mean_method,'assumption':'iid_normal_output' if mean_method=='student_t' else 'none','min_samples':2}}
+    responses={row['id']:value for row,value in zip(d['rows'],values)}
+    analysis=compute_uncertainty('independent_mc',f,s,d,responses,inference=i,budget=budget(),metric_unit='1')
+    return f,s,d,i,analysis
+
+
+@pytest.mark.parametrize('anchor,reverse',[(0.,False),(0.,True),(1e16,False),(1e16,True)])
+def test_uncertainty_offset_variance_has_independent_20_over_3_prior(anchor,reverse):
+    values=[anchor+x for x in (0.,2.,4.,6.)]
+    if reverse:values.reverse()
+    result=sample_statistics(values)
+    assert result['defined'] and not result['constant_response']
+    # Independent closed form: (-3)^2+(-1)^2+1^2+3^2=20, divisor 3.
+    assert result['sample_variance']==pytest.approx(20/3,rel=2e-15)
+    assert result['standard_error']==pytest.approx(math.sqrt(5/3),rel=2e-15)
+    if anchor:
+        assert result['estimate'] is None and not result['estimate_defined']
+        assert abs(result['centering']['display_rounding_error'])==1.
+        assert result['centering']['display_resolution_guard']<1e-12
+        assert 'mean_display_rounding_unresolved' in result['degeneracies']
+    else:
+        assert result['estimate']==3. and result['estimate_defined']
+
+
+def test_uncertainty_offset_variance_source_prior_genuinely_rejects():
+    f,s,d,i,analysis=_uncertainty_response_prior([1e16+x for x in (0.,2.,4.,6.)])
+    criterion={'quantity':'analysis_value','result_selector':['mean','sample_variance'],'lower':7.,'upper':None,
+               'unit':'(1)^2','failure_disposition':'reject','reason':'Independent predeclared variance lower bound is seven.'}
+    checked=evaluate_criterion(criterion,analysis,[],{'unit':'1'},f)
+    assert analysis['complete'] and analysis['defined']
+    assert checked['defined'] and not checked['satisfied'] and checked['values']==pytest.approx([20/3])
+    # Pure ordered scalar points exercise the actual disposition function.
+    # No numerical/native acceptance report is fabricated by this test.
+    report={'project_id':'synthetic-arithmetic-prior','method':'independent_mc','factors':f,'settings':s,'design':d,
+            'inference':i,'budget':budget(),'metric':{'unit':'1'},'criterion':criterion,
+            'claim_limit':'SYNTHETIC INFRASTRUCTURE TEST: pure scalar estimator prior only.'}
+    points=[{'point_id':row['id'],'accepted':True,'metric':{'value':1e16+x}}
+            for row,x in zip(d['rows'],(0.,2.,4.,6.))]
+    assessed=assess_study(report,points)
+    assert assessed['study_complete'] and assessed['defined'] and not assessed['study_accepted']
+    assert assessed['disposition']=='reject'
+    undefined=deepcopy(criterion);undefined['result_selector']=['mean','estimate'];undefined['unit']='1'
+    assert not evaluate_criterion(undefined,analysis,[],{'unit':'1'},f)['defined']
+
+
+def test_uncertainty_large_finite_variance_avoids_intermediate_overflow():
+    result=sample_statistics([-9e153,-9e153,9e153,9e153])
+    # Independent prior: 4*(9e153)^2/3 = 1.08e308 (finite binary64).
+    assert result['defined'] and result['sample_variance']==pytest.approx(1.08e308,rel=2e-15)
+    assert result['standard_error']==pytest.approx(math.sqrt(1.08e308)/2,rel=2e-15)
+    assert math.isfinite(result['sample_variance'])
+
+
+@pytest.mark.parametrize('magnitude',[1e-200,1e308])
+def test_uncertainty_unresolved_nonzero_variance_cannot_be_constant(magnitude):
+    _,_,_,_,result=_uncertainty_response_prior([-magnitude,-magnitude,magnitude,magnitude])
+    assert result['complete'] and not result['defined']
+    assert result['mean']['sample_variance'] is None and result['mean']['standard_error'] is None
+    assert 'constant_response' not in result['degeneracies']
+    assert any(code in result['degeneracies'] for code in ('sample_variance_unresolved','sample_centering_unresolved'))
+    criterion={'quantity':'analysis_value','result_selector':['mean','sample_variance'],'lower':None,'upper':1.,
+               'unit':'(1)^2','failure_disposition':'reject','reason':'Unresolved positive moment may not pass an upper bound.'}
+    assert not evaluate_criterion(criterion,result,[],{'unit':'1'},[])['defined']
+
+
+def test_uncertainty_critical_ci_rounding_is_undefined_without_widening_prior():
+    _,_,_,_,result=_uncertainty_response_prior([1e16+x for x in (0.,2.,4.,6.)],mean_method='student_t')
+    interval=result['mean']['confidence_interval']
+    assert result['complete'] and not result['defined'] and not interval['defined']
+    assert interval['lower'] is None and interval['upper'] is None
+    assert interval['display_lower'] is not None and interval['display_upper'] is not None
+    assert 'mean_confidence_interval_unresolved' in result['degeneracies']
+    assert abs(interval['lower_rounding_error'])>interval['lower_resolution_guard'] or abs(interval['upper_rounding_error'])>interval['upper_resolution_guard']
+
+
+def test_uncertainty_ordinary_rounding_and_genuine_constants_remain_resolved():
+    _,_,_,_,result=_uncertainty_response_prior([.2,.7,1.3,2.6],mean_method='student_t')
+    assert result['defined'] and result['mean']['estimate_defined']
+    assert result['mean']['estimate']==pytest.approx(1.2)
+    assert result['mean']['confidence_interval']['defined']
+    constant=sample_statistics([1e16]*4)
+    assert constant['defined'] and constant['estimate']==1e16
+    assert constant['sample_variance']==0. and constant['standard_error']==0.
+    assert constant['degeneracies']==['constant_response']
+
+
+def test_study_request_virtual_input_aggregate_rejects_before_hash_or_serialization(tmp_path,monkeypatch):
+    import run_h_analysis_study as producer
+    import verification_common as common
+    leaf=tmp_path/'source.txt';leaf.write_bytes(b'frozen source bytes')
+    request={'schema_version':1,'design':{'label':'温度','rows':[{'id':'same','values':[1.]}]}}
+    expected=(json.dumps(request,indent=2,ensure_ascii=False,allow_nan=False)+'\n').encode('utf-8')
+    declared=budget();declared['max_total_bytes']=leaf.stat().st_size+len(expected)-1
+    paths=common.EvidencePaths([leaf]);events=[]
+    def authorized(value,root,bounds,*,role):
+        assert value is request and root==tmp_path and bounds is declared and role=='h_study_request'
+        events.append('authorized');return paths
+    monkeypatch.setattr(producer,'evidence_paths_for_request',authorized)
+    monkeypatch.setattr(common,'serialized_json',lambda value:pytest.fail('aggregate failure must precede payload allocation'))
+    monkeypatch.setattr(producer,'input_manifest',lambda *args:pytest.fail('aggregate failure must precede source hash'))
+    with pytest.raises(ValueError,match='complete input byte/file'):
+        producer.capture_study_request(request,tmp_path,declared)
+    assert events==['authorized'] and declared['max_total_bytes']==leaf.stat().st_size+len(expected)-1
+
+
+def test_study_request_exact_utf8_bytes_and_authorized_input_manifest(tmp_path,monkeypatch):
+    import run_h_analysis_study as producer
+    import verification_common as common
+    import hashlib
+    leaf=tmp_path/'source.txt';source=b'frozen source bytes';leaf.write_bytes(source)
+    request={'schema_version':1,'design':{'label':'温度','rows':[{'id':'same','values':[1.]}]}}
+    expected=(json.dumps(request,indent=2,ensure_ascii=False,allow_nan=False)+'\n').encode('utf-8')
+    declared=budget();declared['max_total_bytes']=len(source)+len(expected)
+    paths=common.EvidencePaths([leaf]);events=[]
+    def authorized(*args,**kwargs):
+        assert kwargs=={'role':'h_study_request'}
+        events.append('authorized');return paths
+    original=producer.input_manifest
+    def hashed(*args,**kwargs):
+        events.append('hashed');return original(*args,**kwargs)
+    monkeypatch.setattr(producer,'evidence_paths_for_request',authorized)
+    monkeypatch.setattr(producer,'input_manifest',hashed)
+    payload,manifest=producer.capture_study_request(request,tmp_path,declared)
+    assert payload==expected and payload.endswith(b'\n') and b'\r' not in payload
+    assert manifest==[{'path':str(leaf),'bytes':len(source),'sha256':hashlib.sha256(source).hexdigest()}]
+    assert events==['authorized','hashed'] and leaf.read_bytes()==source
+
+
+@pytest.mark.parametrize('cap', ['max_document_nodes','max_document_depth','max_file_bytes','max_files'])
+def test_study_request_expanded_node_depth_and_virtual_file_caps_precede_hash(tmp_path,monkeypatch,cap):
+    import run_h_analysis_study as producer
+    import verification_common as common
+    leaf=tmp_path/'source.txt';leaf.write_bytes(b'original')
+    shared=[1.]
+    for _ in range(8):shared=[shared,shared]
+    request={'design':shared};declared=budget()
+    declared[cap]=8 if cap=='max_document_nodes' else 2 if cap=='max_document_depth' else 1024 if cap=='max_file_bytes' else 1
+    monkeypatch.setattr(producer,'evidence_paths_for_request',lambda *args,**kwargs:common.EvidencePaths([leaf]))
+    monkeypatch.setattr(common,'serialized_json',lambda value:pytest.fail('forecast failure must precede expansion allocation'))
+    monkeypatch.setattr(producer,'input_manifest',lambda *args:pytest.fail('forecast failure must precede source hash'))
+    with pytest.raises(ValueError,match='budget exceeded'):
+        producer.capture_study_request(request,tmp_path,declared)
+
+
+@pytest.fixture(scope='module')
+def explicit_parent_state_history(tmp_path_factory):
+    """One actual-format baseline/study with explicit opaque caller bytes.
+
+    SYNTHETIC INFRASTRUCTURE TEST ONLY. Real readers consume the full chain;
+    no accepted report is substituted and no MATLAB is run by this factory.
+    """
+    from h_analysis_study_factory import make_study_for_primary,make_study_history
+    from model_verification_factory import make_model_verification_contract
+    from problem_factory import write_contract
+    from runtime_common import load_document,sha256_file
+    root=tmp_path_factory.mktemp('SYNTHETIC-parent-state-full-wire')
+    baseline=make_model_verification_contract(root)
+    original=load_document(baseline);primary=root/original['primary_numerical_receipt']['path']
+    state=write_contract(root/'explicit-caller-state.json',{
+        'schema_version':1,'project_id':original['project_id'],'current_stage':'NUMERICALLY_VERIFIED',
+        'primary_numerical_receipt':{'path':str(primary),'sha256':sha256_file(primary)},
+        'purpose':'SYNTHETIC INFRASTRUCTURE TEST; caller bytes only, no real state promotion.'})
+    state_bytes=state.read_bytes()
+    study=make_study_for_primary(primary,project_root=root)
+    receipt=make_study_history(study,project_root=root,state_binding={'path':state.name,'sha256':sha256_file(state)})
+    assert state.read_bytes()==state_bytes
+    return {'root':root,'study':study,'receipt':receipt,'state':state,'state_bytes':state_bytes}
+
+
+def test_actual_parent_caller_state_is_prebound_opaque_and_unchanged(explicit_parent_state_history):
+    from runtime_common import load_document,sha256_file
+    from run_h_analysis_study import canonical_state_bindings
+    item=explicit_parent_state_history;root=item['root']
+    expected=canonical_state_bindings({'path':item['state'].name,'sha256':sha256_file(item['state'])},root)
+    # Actual constant names are source API values, not an invented filename.
+    from h_analysis_study import INPUT_NAME
+    request=load_document(item['receipt'].parent/INPUT_NAME)
+    assert request['bindings']==expected and Path(expected['current_state']['path']).is_absolute()
+    report=validate_h_analysis_study_receipt(item['receipt'],project_root=root)
+    assert report['valid'] and report['study_complete'] and report['study_accepted'],report['errors']
+    assert report['current_state']==expected['current_state']
+    for child in load_document(item['receipt'])['trial_receipts']:
+        native_request=load_document(Path(child['path']).parent/'h-analysis-input.json')
+        assert native_request['bindings']['current_state']==expected['current_state']
+    assert item['state'].read_bytes()==item['state_bytes']
+
+
+@pytest.mark.parametrize('replacement',['different_valid_state','null'])
+def test_rehashed_parent_state_cannot_differ_from_actual_child(explicit_parent_state_history,replacement):
+    from h_analysis_study import INPUT_NAME
+    from problem_factory import write_contract
+    from run_h_analysis_study import canonical_state_bindings
+    from runtime_common import canonical_digest,load_document,sha256_file
+    item=explicit_parent_state_history;root=item['root'];receipt_path=item['receipt']
+    input_path=receipt_path.parent/INPUT_NAME
+    saved={path:path.read_bytes() for path in (input_path,receipt_path)}
+    alternate=None
+    try:
+        caller=None
+        if replacement=='different_valid_state':
+            alternate=write_contract(root/'different-valid-caller-bytes.json',{
+                'schema_version':1,'project_id':load_document(receipt_path)['project_id'],
+                'purpose':'SYNTHETIC INFRASTRUCTURE TEST; another well-formed caller byte binding.'})
+            caller={'path':str(alternate),'sha256':sha256_file(alternate)}
+        request=load_document(input_path);request['bindings']=canonical_state_bindings(caller,root)
+        write_contract(input_path,request)
+        receipt=load_document(receipt_path);receipt['input_identity']=canonical_digest(request)
+        receipt['artifacts']['input']['sha256']=sha256_file(input_path);write_contract(receipt_path,receipt)
+        # Parent and both caller byte hashes are valid. Child execution still
+        # binds the original state, so rehashing must not launder the mismatch.
+        report=validate_h_analysis_study_receipt(receipt_path,project_root=root)
+        assert not report['valid'] and not report['study_complete'] and not report['study_accepted']
+        assert any('current-state binding differs from canonical parent' in error for error in report['errors'])
+    finally:
+        for path,data in saved.items():path.write_bytes(data)
+        if alternate is not None:alternate.unlink()
+    assert item['state'].read_bytes()==item['state_bytes']
+
+
+def test_parent_state_full_readset_aggregate_fails_before_allocation_or_hash(tmp_path,monkeypatch):
+    import hashlib
+    import run_h_analysis_study as producer
+    import verification_common as common
+    state=tmp_path/'state.json';state.write_bytes(b'{"caller":"SYNTHETIC INFRASTRUCTURE TEST"}')
+    source=tmp_path/'source.txt';source.write_bytes(b'reviewed original input')
+    binding=lambda path:{'path':str(path),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+    request={'bindings':producer.canonical_state_bindings(binding(state),tmp_path),'sources':[binding(source)]}
+    declared=budget()
+    paths=common.evidence_paths_for_request(request,tmp_path,declared,role='h_study_request')
+    assert state in paths and source in paths
+    complete_input_bytes=sum(path.stat().st_size for path in paths)
+    expected=(json.dumps(request,indent=2,ensure_ascii=False,allow_nan=False)+'\n').encode('utf-8')
+    declared['max_total_bytes']=complete_input_bytes+len(expected)-1
+    # Omitting the known state would fit. The complete request/read set cannot.
+    assert complete_input_bytes-state.stat().st_size+len(expected)<=declared['max_total_bytes']
+    monkeypatch.setattr(common,'serialized_json',lambda value:pytest.fail('complete known-state aggregate must fail before allocation'))
+    monkeypatch.setattr(producer,'input_manifest',lambda *args:pytest.fail('complete known-state aggregate must fail before source/state hashing'))
+    with pytest.raises(ValueError,match='complete input byte/file'):
+        producer.capture_study_request(request,tmp_path,declared)
+
+
+@pytest.mark.parametrize('change',[{'sha256':'A'*64},{'sha256':True},{'extra':'unapproved'}])
+def test_parent_state_binding_rejects_noncanonical_shape_before_source_reads(tmp_path,change):
+    from run_h_analysis_study import canonical_state_bindings
+    supplied={'path':'explicit.json','sha256':'0'*64};supplied.update(change)
+    with pytest.raises(ValueError,match='exact caller-bound'):canonical_state_bindings(supplied,tmp_path)
+    assert canonical_state_bindings(None,tmp_path)=={'current_state':None,'protected_files':[]}
+    with pytest.raises(ValueError):canonical_state_bindings({'path':'../foreign.json','sha256':'0'*64},tmp_path)
+
+
+@pytest.mark.parametrize('attack',['relative_path','wrong_sha','duplicate_protected'])
+def test_rehashed_parent_caller_shape_or_sha_cannot_accept(explicit_parent_state_history,attack):
+    from h_analysis_study import INPUT_NAME
+    from problem_factory import write_contract
+    from runtime_common import canonical_digest,load_document,sha256_file
+    item=explicit_parent_state_history;receipt_path=item['receipt'];input_path=receipt_path.parent/INPUT_NAME
+    saved={path:path.read_bytes() for path in (input_path,receipt_path)}
+    try:
+        request=load_document(input_path);bindings=request['bindings']
+        if attack=='relative_path':
+            bindings['current_state']['path']=item['state'].name
+            bindings['protected_files'][0]['path']=item['state'].name
+        elif attack=='wrong_sha':
+            bindings['current_state']['sha256']='0'*64
+            bindings['protected_files'][0]['sha256']='0'*64
+        else:bindings['protected_files'].append(deepcopy(bindings['current_state']))
+        write_contract(input_path,request)
+        receipt=load_document(receipt_path);receipt['input_identity']=canonical_digest(request)
+        receipt['artifacts']['input']['sha256']=sha256_file(input_path);write_contract(receipt_path,receipt)
+        report=validate_h_analysis_study_receipt(receipt_path,project_root=item['root'])
+        assert not report['valid'] and not report['study_complete'] and not report['study_accepted']
+        assert any('canonical contained path/SHA/protected' in error or 'byte claim' in error or 'claimed byte identity' in error for error in report['errors'])
+    finally:
+        for path,data in saved.items():path.write_bytes(data)
+    assert item['state'].read_bytes()==item['state_bytes']

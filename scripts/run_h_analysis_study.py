@@ -5,22 +5,40 @@ import argparse
 from copy import deepcopy
 from datetime import datetime,timezone
 import json
+import re
 from pathlib import Path
 import time
 import uuid
 
 from h_analysis_study import (INPUT_NAME, OPERATION, RECEIPT_NAME, RESULT_NAME, assess_point,
                               assess_study, design_record, replay_boundary)
-from runtime_common import canonical_digest, emit, sha256_file
+from runtime_common import canonical_digest, contained_path, emit, sha256_file
 from validate_h_analysis_study import validate_h_analysis_study
 from verification_common import (assert_unchanged,evidence_paths_for_request,input_manifest,limited_document,
-                                 source_identities,typed_equal)
+                                 serialized_request_bytes,source_identities,typed_equal)
 
 
 def json_bytes(value):return (json.dumps(value,indent=2,ensure_ascii=False,allow_nan=False)+'\n').encode('utf-8')
 
 
 def write_json(path,value):path.write_bytes(json_bytes(value))
+
+
+def canonical_state_bindings(state_binding,root):
+    """Bind explicit caller bytes only; never inspect or promote state content."""
+    current=None
+    if state_binding is not None:
+        if not isinstance(state_binding,dict) or set(state_binding)!={'path','sha256'} or not isinstance(state_binding['path'],str) or not isinstance(state_binding['sha256'],str) or re.fullmatch(r'[a-f0-9]{64}',state_binding['sha256']) is None:
+            raise ValueError('current state requires exact caller-bound path and SHA fields')
+        current={'path':str(contained_path(root,state_binding['path'])),'sha256':state_binding['sha256']}
+    return {'current_state':current,'protected_files':[] if current is None else [deepcopy(current)]}
+
+
+def capture_study_request(request,root,budget):
+    """Budget the exact virtual input plus authorized read set before hashing."""
+    paths=evidence_paths_for_request(request,root,budget,role='h_study_request')
+    payload=serialized_request_bytes(request,paths,root,budget)
+    return payload,input_manifest(paths,root,budget)
 
 
 def collect_batch_points(report,design,trial_report):
@@ -69,12 +87,12 @@ def run_h_analysis_study(study_path,executable,output_dir,*,environment_profile,
              'project_root':str(root),'study':{'path':str(contract),'sha256':report['contract_sha256']},
              'semantic_sha256':report['semantic_sha256'],'contract_snapshot':report['_contract'],
              'contract_original_text':contract.read_bytes().decode('utf-8'),'design':report['design'],
-             'input_manifest':report['input_manifest'],'sources':sources}
+             'input_manifest':report['input_manifest'],'sources':sources,
+             'bindings':canonical_state_bindings(state_binding,root)}
     # Profiles and their independently bound receipts are native-request
     # authority. Study request preflight binds reviewed sources before writes.
-    initial=input_manifest(evidence_paths_for_request(request,root,budget,role='h_study_request'),root,budget)
-    if len(json_bytes(request))>budget['max_file_bytes']:raise ValueError('study captured input exceeds reviewed file budget')
-    output.mkdir(parents=True,exist_ok=False);write_json(output/INPUT_NAME,request)
+    payload,initial=capture_study_request(request,root,budget)
+    output.mkdir(parents=True,exist_ok=False);(output/INPUT_NAME).write_bytes(payload)
     trials=[];points=[];errors=[];result=None;batches=[]
     try:
         assert_unchanged(initial)
@@ -93,7 +111,7 @@ def run_h_analysis_study(study_path,executable,output_dir,*,environment_profile,
             trial=run_h_analysis_trials(contract,executable,directory,environment_profile=environment_profile,
                                         simulation_profile=simulation_profile,h_analysis_profile=h_analysis_profile,
                                         project_root=root,required_operations=required_operations,design_override=design,
-                                        process_timeout_limit=remaining,state_binding=state_binding)
+                                        process_timeout_limit=remaining,state_binding=request['bindings']['current_state'])
             batch_finish=datetime.now(timezone.utc).isoformat()
             receipt_path=Path(trial.get('receipt_path') or directory/'h-analysis-trial-receipt.json').resolve()
             if not receipt_path.is_file():raise ValueError('native producer returned no preserved trial receipt')

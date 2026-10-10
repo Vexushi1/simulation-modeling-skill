@@ -25,6 +25,19 @@ def _cells(values):
     return result
 
 
+def write_synthetic_timing_primitives(actual, directory, run_id):
+    """Explicit synthetic raw primitives, never a MATLAB SimulationOutput."""
+    timing, provenance = actual['timing_info'], actual['timing_provenance']
+    fields = {'run_id': run_id, 'case_id': actual['case_id'], 'SYNTHETIC_NO_MATLAB': 'NOT A MATLAB SimulationOutput',
+        'timing_durations': np.asarray([timing[k] for k in trial.TIMING_FIELDS], dtype=np.float64).reshape(4, 1),
+        'timing_start_local': timing['WallClockTimestampStart'], 'timing_stop_local': timing['WallClockTimestampStop'],
+        'timing_call_start_utc': provenance['call_started_at'], 'timing_call_stop_utc': provenance['call_finished_at'],
+        'timing_utc_offsets': np.asarray([provenance['local_utc_offset_start'], provenance['local_utc_offset_stop']], dtype=np.float64).reshape(2, 1),
+        'timing_resolutions': np.asarray([provenance['clock_resolution_seconds'], provenance['duration_resolution_seconds']], dtype=np.float64).reshape(2, 1)}
+    savemat(Path(directory) / actual['raw_mat_file'], fields, format='5')
+    return fields
+
+
 def synthetic_native_case(case, directory, run_id, *, state_values, not_before=None):
     """Write native-shaped records from the caller's independent physical oracle."""
     directory = Path(directory)
@@ -37,11 +50,18 @@ def synthetic_native_case(case, directory, run_id, *, state_values, not_before=N
     owned = directory / (spec['model_name'] + '.slx')
     shutil.copyfile(source, owned)
     clock = datetime.now(timezone.utc)
-    reference = clock - timedelta(microseconds=50)
+    reference = clock - timedelta(milliseconds=10)
     if not_before is not None:
         reference = max(reference, _time(not_before) + timedelta(microseconds=1))
-    if reference + timedelta(microseconds=3) > clock:
+    available_us = int((clock - reference).total_seconds() * 1e6)
+    if available_us < 4:
         raise ValueError('synthetic case qualification floor must precede the current clock')
+    duration_us = min(1000, available_us - 4)
+    init_us, execution_us = duration_us // 5, duration_us // 2
+    termination_us = duration_us - init_us - execution_us
+    call_start = reference + timedelta(microseconds=1)
+    call_stop = call_start + timedelta(microseconds=duration_us + 1)
+    case_stop = call_stop + timedelta(microseconds=1)
     solver = spec['solver']
     step = solver['fixed_step'] if solver['type'] == 'fixed-step' else (spec['stop_time'] - spec['start_time']) / 20
     times = uniform_grid(spec['start_time'], spec['stop_time'], step)
@@ -67,7 +87,7 @@ def synthetic_native_case(case, directory, run_id, *, state_values, not_before=N
         SaveTime='on', SaveState='off', SaveFinalState='off', SaveOperatingPoint='off', SignalLogging='off',
         LimitDataPoints='off', Decimation='1')
     actual = {'case_id': case['case_id'], 'attempted': True, 'completed': True, 'framework_error': {},
-              'started_at': utc_text(reference), 'finished_at': utc_text(reference + timedelta(microseconds=1)),
+              'started_at': utc_text(reference), 'finished_at': utc_text(case_stop),
               'functions': [], 'simulation_returned': True, 'model_file': str(owned.resolve()),
               'source_model_file': str(source.resolve()), 'raw_mat_file': 'simulation-output.mat',
               'before_parameters': parameters(build['parameters']), 'applied_parameters': parameters(spec['parameters']),
@@ -84,16 +104,20 @@ def synthetic_native_case(case, directory, run_id, *, state_values, not_before=N
               'last_warning_message': '', 'last_warning_identifier': '', 'output_count': len(spec['outputs']),
               'output_boundary_error': '', 'data_file': 'outputs.json', 'mat_file': 'outputs.mat',
               'state_data_file': 'states.json', 'state_mat_file': 'states.mat',
-              'timing_info': {'WallClockTimestampStart': utc_text(reference), 'WallClockTimestampStop': utc_text(reference + timedelta(milliseconds=1)),
-                              'InitializationElapsedWallTime': 0.0002, 'ExecutionElapsedWallTime': 0.0005,
-                              'TerminationElapsedWallTime': 0.0003, 'TotalElapsedWallTime': 0.001}}
+              'timing_info': {'WallClockTimestampStart': call_start.strftime('%Y-%m-%d %H:%M:%S'),
+                             'WallClockTimestampStop': call_stop.strftime('%Y-%m-%d %H:%M:%S'),
+                             'InitializationElapsedWallTime': init_us / 1e6, 'ExecutionElapsedWallTime': execution_us / 1e6,
+                             'TerminationElapsedWallTime': termination_us / 1e6, 'TotalElapsedWallTime': duration_us / 1e6},
+              'timing_provenance': {'source': 'SimulationOutput.SimulationMetadata.TimingInfo', 'duration_fields': list(trial.TIMING_FIELDS),
+                   'clock_resolution_seconds': 1.0, 'duration_resolution_seconds': 1e-6,
+                   'call_started_at': trial.stable_utc(call_start), 'call_finished_at': trial.stable_utc(call_stop),
+                   'local_utc_offset_start': 0.0, 'local_utc_offset_stop': 0.0}}
     for key in ['source_unchanged', 'owned_model_unchanged', 'configuration_restored', 'parameters_restored',
                 'output_sampling_restored', 'initial_conditions_restored', 'input_sampling_restored', 'reopened', 'closed_without_save']:
         actual[key] = True
     for stem, records in [('output_sampling', output_sampling), ('input_sampling', input_sampling)]:
         for prefix in ['before', 'configured', 'after', 'reopened']: actual[prefix + '_' + stem] = deepcopy(records)
-    savemat(directory / actual['raw_mat_file'], {'run_id': run_id, 'case_id': case['case_id'],
-        'SYNTHETIC_NO_MATLAB': 'NOT A MATLAB SimulationOutput'}, format='5')
+    write_synthetic_timing_primitives(actual, directory, run_id)
     if case['expectation'] == 'error':
         actual.update(stop_event='DiagnosticError', error_message='SYNTHETIC phase_h_controlled_missing_symbol',
                       errors=[{'identifier': 'Simulink:Parameters:InvParamSetting', 'message': 'SYNTHETIC phase_h_controlled_missing_symbol'}])
@@ -149,6 +173,7 @@ def make_h_analysis_profile(directory, a_profile, e_profile):
                                       not_before=qualification_floor)
         actual['functions'] = deepcopy(functions)
         actuals.append(actual)
+        qualification_floor = _time(actual['finished_at'])
     starts = [x['started_at'] for x in actuals]
     stops = [x['finished_at'] for x in actuals]
     start, stop = min(map(_time, starts)), max(map(_time, stops))

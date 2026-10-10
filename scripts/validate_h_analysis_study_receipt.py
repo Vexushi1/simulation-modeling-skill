@@ -8,7 +8,7 @@ from pathlib import Path
 from uncertainty_metrics import exact, real
 from h_analysis_study import (INPUT_NAME, OPERATION, RECEIPT_NAME, RESULT_NAME, assess_study,
                               replay_boundary, typed_equal)
-from run_h_analysis_study import collect_batch_points
+from run_h_analysis_study import canonical_state_bindings, collect_batch_points
 from runtime_common import canonical_digest, contained_path, emit, load_contract, schema_errors
 from validate_h_analysis_study import validate_h_analysis_study
 from verification_common import (HARD_BUDGET,assert_unchanged,evidence_paths,input_manifest,limited_document,source_identities)
@@ -113,8 +113,14 @@ def validate_h_analysis_study_receipt(path,*,project_root=None,study_report=None
             raise ValueError('supplied study report differs from independently read current evidence')
         request=limited_document(path.parent/INPUT_NAME,budget)
         expected={'schema_version','operation_id','run_id','project_id','project_root','study','semantic_sha256','contract_snapshot',
-                  'contract_original_text','design','input_manifest','sources'}
+                  'contract_original_text','design','input_manifest','sources','bindings'}
         if set(request)!=expected or type(request['schema_version']) is not int or request['schema_version']!=1 or request['operation_id']!=OPERATION:raise ValueError('exact study request fields/version/operation required')
+        exact(request['bindings'],('current_state','protected_files'),'parent explicit caller bindings')
+        parent_bindings=canonical_state_bindings(request['bindings']['current_state'],root)
+        if not typed_equal(request['bindings'],parent_bindings):raise ValueError('parent explicit caller bindings must be exact canonical contained path/SHA/protected fields')
+        current_state=parent_bindings['current_state']
+        if current_state is not None and verified[current_state['path']]['sha256']!=current_state['sha256']:
+            raise ValueError('parent explicit caller current state SHA differs from independent bytes')
         if canonical_digest(request)!=receipt['input_identity']:raise ValueError('captured study input identity differs')
         for key in ('run_id','project_id','project_root','study','semantic_sha256','sources','input_manifest'):
             if not typed_equal(request[key],receipt[key]):raise ValueError('study input/receipt identity differs: '+key)
@@ -123,7 +129,7 @@ def validate_h_analysis_study_receipt(path,*,project_root=None,study_report=None
         if not isinstance(receipt['trial_receipts'],list):raise ValueError('ordered native receipt bindings required')
         from validate_h_analysis_trial_receipt import validate_h_analysis_trial_receipt
         points=[];native_reports=[];children=[];seen=set()
-        next_design=report['design'];current_state=None;state_seen=False
+        next_design=report['design']
         for batch_index,item in enumerate(receipt['trial_receipts']):
             if not isinstance(item,dict) or set(item)!={'path','sha256'}:raise ValueError('exact native trial receipt file binding required')
             file=contained_path(root,item['path'])
@@ -141,8 +147,7 @@ def validate_h_analysis_study_receipt(path,*,project_root=None,study_report=None
             trial_receipt=limited_document(file,budget)
             children.append((trial_request,trial_raw,trial_receipt,native))
             child_state=trial_request['bindings'].get('current_state')
-            if state_seen and not typed_equal(current_state,child_state):raise ValueError('explicit caller current-state binding differs between study batches')
-            current_state=child_state;state_seen=True
+            if not typed_equal(current_state,child_state):raise ValueError('explicit caller current-state binding differs from canonical parent study input')
             actual_design=trial_request['bindings']['design']
             if not typed_equal(actual_design,next_design):raise ValueError('native batch design differs from frozen/replayed next design')
             points.extend(collect_batch_points(report,next_design,native))

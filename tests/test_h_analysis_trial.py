@@ -8,12 +8,12 @@ import uuid
 
 import numpy as np
 import pytest
-from scipy.io import savemat
+from scipy.io import loadmat, savemat
 
 import h_analysis_trial as trial
 from probe_h_analysis import qualification_cases
 from validate_h_analysis_profile import analytic_state
-from h_analysis_native_factory import make_h_analysis_profile, synthetic_native_case
+from h_analysis_native_factory import make_h_analysis_profile, synthetic_native_case, write_synthetic_timing_primitives
 
 
 def matrix(tmp_path):
@@ -228,7 +228,7 @@ def test_standalone_profile_consumes_real_sibling_and_all_triplets(complete_h_pr
     (lambda x: x['observed_solver_info'].update(FixedStepSize=True), 'solver/type/step'),
     (lambda x: x['reopened_configuration'].update(SaveState='on'), 'configuration restoration'),
     (lambda x: x['functions'].pop(), 'function inventory'),
-    (lambda x: x['states'][0].update(label='OUTPUT'), 'CSTATE'),
+    (lambda x: x['states'][0].update(label='OUTPUT'), 'state JSON exact identity/records'),
     (lambda x: x['reopened_initial_conditions'][0].update(value='0.2'), 'initial-condition restoration'),
     (lambda x: x['timing_info'].update(TotalElapsedWallTime=True), 'TimingInfo'),
 ])
@@ -242,6 +242,27 @@ def test_rehashed_full_native_profile_rejects_actual_metadata(complete_h_profile
         report = validate_h_analysis_profile(complete_h_profile)
         assert not report['valid'] and not report['h_analysis_assured']
         assert any(match in error for case in report['case_results'] for error in case['errors']), report
+
+
+def test_consistent_three_format_wrong_label_reaches_actual_CSTATE_gate(complete_h_profile):
+    from probe_environment import write_json
+    from runtime_common import load_document
+    from validate_h_analysis_profile import validate_h_analysis_profile
+    with preserved_native_directory(complete_h_profile.parent):
+        raw = load_document(complete_h_profile.parent / trial.contract()['evidence']['raw'])
+        actual = raw['cases'][0]
+        actual['states'][0]['label'] = 'OUTPUT'
+        directory = complete_h_profile.parent / 'cases' / actual['case_id']
+        state_json = load_document(directory / actual['state_data_file'])
+        state_json['states'] = deepcopy(actual['states'])
+        write_json(directory / actual['state_data_file'], state_json)
+        mat = {k: v for k, v in loadmat(directory / actual['state_mat_file'], mat_dtype=True).items() if not k.startswith('__')}
+        mat['state_labels'][0, 0] = 'OUTPUT'
+        savemat(directory / actual['state_mat_file'], mat, format='5')
+        rebind_synthetic_h_profile(complete_h_profile, raw)
+        report = validate_h_analysis_profile(complete_h_profile)
+        assert not report['valid'] and not report['h_analysis_assured'], report
+        assert any('BlockPath/CSTATE/unit state identity' in e for result in report['case_results'] for e in result['errors']), report
 
 
 def test_whole_profile_rejects_independently_fitting_sets_combined_over_budget(complete_h_profile):
@@ -366,3 +387,176 @@ def test_rehashed_missing_native_case_never_becomes_readable_complete_trial(comp
         write_json(path, receipt)
         report = validate_h_analysis_trial_receipt(path, project_root=root)
         assert not report['valid'] and any('ledger cardinality' in e for e in report['errors']), report
+
+
+def timing_case(tmp_path):
+    case = matrix(tmp_path)[0][0]
+    run_id = 'SYNTHETIC-TIMING-NO-MATLAB'
+    actual = synthetic_native_case(case, tmp_path, run_id,
+        state_values=lambda t: {'x1': analytic_state(case, 'x1', t)})
+    return actual, run_id
+
+
+@pytest.mark.parametrize('zero,offset', [(False, 0), (True, 0), (False, 19800), (False, -18000)])
+def test_native_timing_zero_subsecond_and_true_local_quantization(tmp_path, zero, offset):
+    actual, run_id = timing_case(tmp_path)
+    p, info = actual['timing_provenance'], actual['timing_info']
+    for clock_key, call_key in [('WallClockTimestampStart', 'call_started_at'), ('WallClockTimestampStop', 'call_finished_at')]:
+        local = datetime.fromisoformat(p[call_key].replace('Z', '+00:00')) + timedelta(seconds=offset)
+        info[clock_key] = local.strftime('%Y-%m-%d %H:%M:%S')
+    p['local_utc_offset_start'] = p['local_utc_offset_stop'] = float(offset)
+    if zero:
+        for key in trial.TIMING_FIELDS: info[key] = 0.0
+    write_synthetic_timing_primitives(actual, tmp_path, run_id)
+    timing, provenance = trial.read_native_timing(actual, tmp_path, run_id, actual['case_id'])
+    assert timing == info and provenance == p
+    assert info['TotalElapsedWallTime'] < 1 and len(info['WallClockTimestampStart']) == 19
+    assert len(p['call_started_at']) == 27
+
+
+@pytest.mark.parametrize('mutation,match', [
+    (lambda x: x['timing_info'].update(TotalElapsedWallTime=True), 'finite nonnegative'),
+    (lambda x: x['timing_info'].update(ExecutionElapsedWallTime=float('inf')), 'finite nonnegative'),
+    (lambda x: x['timing_info'].update(InitializationElapsedWallTime=-1.0), 'finite nonnegative'),
+    (lambda x: x['timing_info'].update(WallClockTimestampStart='2026-01-01T00:00:00.000000Z'), 'original local timestamp format'),
+    (lambda x: x['timing_info'].update(WallClockTimestampStart='2099-01-01 00:00:00', WallClockTimestampStop='2000-01-01 00:00:00'), 'timestamp order'),
+    (lambda x: x['timing_info'].update(WallClockTimestampStart='2000-01-01 00:00:00', WallClockTimestampStop='2000-01-01 00:00:00'), 'quantization misses'),
+    (lambda x: x['timing_info'].update(TotalElapsedWallTime=0.1), 'components and total'),
+    (lambda x: x['timing_info'].update(InitializationElapsedWallTime=0.01, ExecutionElapsedWallTime=0.02, TerminationElapsedWallTime=0.03, TotalElapsedWallTime=0.06), 'duration exceeds'),
+    (lambda x: x['timing_provenance'].update(local_utc_offset_start=True), 'actual local UTC offset'),
+    (lambda x: x['timing_provenance'].update(clock_resolution_seconds=0.000001), 'documented resolution'),
+    (lambda x: x['timing_provenance'].update(call_started_at='2000-01-01T00:00:00.000000Z'), 'actual case enclosure'),
+    (lambda x: x['timing_provenance'].update(call_finished_at=x['timing_provenance']['call_started_at']), 'duration exceeds'),
+])
+def test_native_timing_rejects_source_and_impossible_physical_metadata(tmp_path, mutation, match):
+    actual, run_id = timing_case(tmp_path)
+    mutation(actual)
+    # Rebind even the primitive file: rejection must come from the physical
+    # source/type/interval gate, not a stale artifact hash or JSON mismatch.
+    write_synthetic_timing_primitives(actual, tmp_path, run_id)
+    with pytest.raises(ValueError, match=match):
+        trial.read_native_timing(actual, tmp_path, run_id, actual['case_id'])
+
+
+@pytest.mark.parametrize('field,kind', [
+    ('timing_durations', 'single'), ('timing_durations', 'logical'),
+    ('timing_durations', 'complex'), ('timing_durations', 'row'),
+    ('timing_durations', 'altered'), ('timing_durations', 'missing'),
+    ('timing_utc_offsets', 'altered'), ('timing_resolutions', 'altered'),
+    ('timing_start_local', 'altered'), ('timing_call_start_utc', 'altered'),
+])
+def test_native_timing_primitive_MAT_types_shapes_and_exact_JSON_values(tmp_path, field, kind):
+    actual, run_id = timing_case(tmp_path)
+    mat = write_synthetic_timing_primitives(actual, tmp_path, run_id)
+    if kind == 'single': mat[field] = mat[field].astype(np.float32)
+    if kind == 'logical': mat[field] = mat[field].astype(bool)
+    if kind == 'complex': mat[field] = mat[field].astype(complex) + 1j
+    if kind == 'row': mat[field] = mat[field].T
+    if kind == 'missing': del mat[field]
+    if kind == 'altered':
+        if isinstance(mat[field], str): mat[field] = 'DIFFERENT NATIVE CLOCK'
+        else: mat[field][0, 0] += 0.01
+    savemat(tmp_path / actual['raw_mat_file'], mat, format='5')
+    with pytest.raises(ValueError, match='primitive MAT'):
+        trial.read_native_timing(actual, tmp_path, run_id, actual['case_id'])
+
+
+def test_native_timing_timestamp_difference_must_agree_with_elapsed_quantization(tmp_path):
+    actual, run_id = timing_case(tmp_path)
+    actual.update(started_at='2020-01-01T00:00:00.000000Z', finished_at='2020-01-01T00:00:03.000000Z')
+    actual['timing_provenance'].update(call_started_at=actual['started_at'], call_finished_at=actual['finished_at'])
+    actual['timing_info'].update(WallClockTimestampStart='2020-01-01 00:00:00', WallClockTimestampStop='2020-01-01 00:00:03')
+    write_synthetic_timing_primitives(actual, tmp_path, run_id)
+    with pytest.raises(ValueError, match='elapsed and timestamp quantization are incompatible'):
+        trial.read_native_timing(actual, tmp_path, run_id, actual['case_id'])
+
+
+def test_native_timing_component_resolution_does_not_replace_exact_primitive_values(tmp_path):
+    actual, run_id = timing_case(tmp_path)
+    actual['timing_info']['TotalElapsedWallTime'] += 2e-6
+    mat = write_synthetic_timing_primitives(actual, tmp_path, run_id)
+    trial.read_native_timing(actual, tmp_path, run_id, actual['case_id'])
+    mat['timing_durations'][3, 0] -= 1e-6
+    savemat(tmp_path / actual['raw_mat_file'], mat, format='5')
+    with pytest.raises(ValueError, match='MAT double-column/JSON exact mismatch'):
+        trial.read_native_timing(actual, tmp_path, run_id, actual['case_id'])
+
+
+def test_rehashed_whole_profile_cannot_substitute_native_timing_primitive(complete_h_profile):
+    from runtime_common import load_document
+    from validate_h_analysis_profile import validate_h_analysis_profile
+    with preserved_native_directory(complete_h_profile.parent):
+        raw = load_document(complete_h_profile.parent / trial.contract()['evidence']['raw'])
+        actual = raw['cases'][0]
+        directory = complete_h_profile.parent / 'cases' / actual['case_id']
+        mat = write_synthetic_timing_primitives(actual, directory, raw['run_id'])
+        mat['timing_durations'][1, 0] += 0.01
+        savemat(directory / actual['raw_mat_file'], mat, format='5')
+        rebind_synthetic_h_profile(complete_h_profile, raw)
+        report = validate_h_analysis_profile(complete_h_profile)
+        assert not report['valid'] and not report['h_analysis_assured'], report
+        assert any('TimingInfo primitive MAT' in error for row in report['case_results'] for error in row['errors']), report
+
+
+def dense_forecast_request(tmp_path, *, knots):
+    """Review's independent exact-count construction, without native launch."""
+    cases = deepcopy(matrix(tmp_path)[0][:3])
+    for level, case in enumerate(cases):
+        spec = case['run_spec']
+        spec['solver']['fixed_step'] = 2.0 / (3000 * 2 ** level)
+        spec['inputs'] = [{**spec['inputs'][0], 'port': port, 'block_path': spec['model_name'] + '/Input' + str(port),
+                           'time': [2.0 * i / (knots - 1) for i in range(knots)], 'values': [1.0] * knots} for port in range(1, 9)]
+        spec['outputs'] = [{**spec['outputs'][0], 'port': port, 'block_path': spec['model_name'] + '/Output' + str(port)} for port in range(1, 9)]
+        case['states'] = [{**case['states'][0], 'variable_id': 'x' + str(i), 'block_path': case['build_spec']['model_name'] + '/State' + str(i)} for i in range(1, 5)]
+        case['initial_conditions'] = [{**state, 'value': 0.2} for state in case['states']]
+        blocks = []
+        connections = []
+        model = spec['model_name']
+        for i in range(1, 9):
+            blocks.extend([{'id': 'Input' + str(i), 'path': model + '/Input' + str(i), 'type': 'Inport', 'parameters': {'Port': str(i)}},
+                           {'id': 'Output' + str(i), 'path': model + '/Output' + str(i), 'type': 'Outport', 'parameters': {'Port': str(i)}}])
+            connections.append({'source': {'block_id': 'State' + str((i - 1) % 4 + 1), 'port': 1},
+                                'destination': {'block_id': 'Output' + str(i), 'port': 1}})
+        for i in range(1, 5):
+            blocks.append({'id': 'State' + str(i), 'path': model + '/State' + str(i), 'type': 'Integrator', 'parameters': {'InitialCondition': '0.25'}})
+            connections.append({'source': {'block_id': 'Input' + str(i), 'port': 1}, 'destination': {'block_id': 'State' + str(i), 'port': 1}})
+        case['build_spec']['blocks'], case['build_spec']['connections'] = blocks, connections
+    return {'cases': cases, 'groups': [{'group_id': 'SYNTHETIC-dense-triplet',
+                'physical_snapshot': trial.physical_snapshot(cases[0]['run_spec'], cases[0]['initial_conditions'])}],
+            'budget': deepcopy(trial.contract()['hard_budget']), 'output_directory': str(tmp_path)}
+
+
+def test_raw_forecast_rejects_dense_constant_inputs_when_request_itself_fits(tmp_path):
+    from verification_common import serialization_forecast
+    request = dense_forecast_request(tmp_path, knots=12001)
+    for case in request['cases']:
+        trial.validate_case_spec(case, mode='trial', budget=request['budget'])
+    measured = serialization_forecast(request, request['budget'])
+    assert measured['nodes'] < 1000000
+    sample_nodes = 25 * (3001 + 6001 + 12001) + 3 * 8 * 2 * 12001
+    assert sample_nodes == 1101123
+    with pytest.raises(ValueError, match='raw report forecast exceeds document node budget'):
+        trial.forecast_native_report(request)
+    assert not (tmp_path / trial.contract()['evidence']['input']).exists()
+
+
+def test_raw_forecast_short_inputs_pass_nodes_and_account_prettyprint_bytes(tmp_path):
+    request = dense_forecast_request(tmp_path, knots=2)
+    forecast = trial.forecast_native_report(request)
+    assert forecast['sample_numbers'] == 25 * (3001 + 6001 + 12001) + 3 * 8 * 4
+    assert forecast['sample_numbers'] < forecast['nodes'] < 1000000
+    assert forecast['bytes_upper_bound'] > 32 * forecast['sample_numbers']
+    request['budget']['max_file_bytes'] = forecast['bytes_upper_bound'] - 1
+    with pytest.raises(ValueError, match='declared file byte budget'):
+        trial.forecast_native_report(request)
+
+
+def test_raw_forecast_measures_copied_and_escaped_metadata_strings(tmp_path):
+    request = {'cases': deepcopy(matrix(tmp_path)[0][:3]), 'budget': deepcopy(trial.contract()['hard_budget'])}
+    base = trial.forecast_native_report(request)
+    for case in request['cases']:
+        case['run_spec']['inputs'][0]['unit'] = '\n"\\' * 1000
+    escaped = trial.forecast_native_report(request)
+    added_per_case = len(json.dumps('\n"\\' * 1000, ensure_ascii=True)) - len(json.dumps('1', ensure_ascii=True))
+    assert escaped['nodes'] == base['nodes']
+    assert escaped['bytes_upper_bound'] - base['bytes_upper_bound'] == 3 * added_per_case

@@ -137,6 +137,7 @@ def validate_check(check, symbols, budget, context):
     expected = dimensions(check['dimensions'])
     if unit_dimensions(check['unit']) != expected:
         raise ValueError('numerical check unit/dimension mismatch')
+    unit_scale(check['unit'])
     kind = check['kind']
     common = {'id', 'kind', 'window', 'source_ids', 'relation_ids', 'unit', 'dimensions',
               'contraction_limit', 'roundoff_floor', 'convergence_required'}

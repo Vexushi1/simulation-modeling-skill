@@ -23,6 +23,30 @@ def _factor(factor, metrics, units, diagnostics=None):
             'metrics': metrics, 'units': units, 'diagnostics': diagnostics or {}}
 
 
+def _sobol_finite(value):
+    if not finite(value):
+        raise ValueError('nonfinite centered Sobol arithmetic')
+    return value
+
+
+def _sobol_product(left, right):
+    value = _sobol_finite(left * right)
+    if left != 0.0 and right != 0.0 and value == 0.0:
+        raise ValueError('nonzero centered Sobol product underflowed')
+    return value
+
+
+def _sobol_ratio(numerator, denominator):
+    value = _sobol_finite(numerator / denominator)
+    if numerator != 0.0 and value == 0.0:
+        raise ValueError('nonzero centered Sobol ratio underflowed')
+    return value
+
+
+def _sobol_average(values, count):
+    return _sobol_ratio(_sobol_finite(math.fsum(values)), count)
+
+
 def _estimate(method, factors, settings, rows, values, output_unit):
     """Internal estimator; bootstrap calls preserve complete blocks and roles."""
     degeneracies, entries, global_result = [], [], {}
@@ -84,27 +108,56 @@ def _estimate(method, factors, settings, rows, values, output_unit):
         scope = 'Finite random grid trajectories under the declared normalized domain. Sigma combines nonlinearity, interaction and numerical variation.'
     elif method == 'sobol':
         count = len(rows) // (2 * dimension + 2 if settings['second_order'] else dimension + 2)
-        a, b = values[:count], values[count:2 * count]
-        reference = a[0]
-        center = reference + math.fsum(value - reference for value in a + b) / (2 * count)
-        variance = math.fsum((value - center)**2 for value in a + b) / (2 * count)
+        reference = values[0]
+        variance = center = None
+        metrics = [{'S1': None, 'ST': None} for _ in factors]
+        second_order = [{'factor_ids': [factors[left]['id'], factors[right]['id']], 'S2': None, 'unit': '1'}
+                        for left in range(dimension) for right in range(left + 1, dimension)] if settings['second_order'] else []
+        try:
+            offsets = [_sobol_finite(value - reference) for value in values]
+            a, b = offsets[:count], offsets[count:2 * count]
+            mean_offset = _sobol_average(a + b, 2 * count)
+            # The raw displayed mean may round. Every variance/covariance
+            # and hybrid product instead retains the anchor-relative center.
+            center = _sobol_finite(reference + mean_offset)
+            centered_a = [_sobol_finite(value - mean_offset) for value in a]
+            centered_b = [_sobol_finite(value - mean_offset) for value in b]
+            variance = _sobol_average([_sobol_product(value, value) for value in centered_a + centered_b], 2 * count)
+            ab = [offsets[(2 + i) * count:(3 + i) * count] for i in range(dimension)]
+            if variance:
+                for index in range(dimension):
+                    differences = [_sobol_finite(hybrid - aj) for aj, hybrid in zip(a, ab[index])]
+                    first = _sobol_ratio(_sobol_average([_sobol_product(bj, difference)
+                        for bj, difference in zip(centered_b, differences)], count), variance)
+                    total = _sobol_ratio(_sobol_ratio(_sobol_average([
+                        _sobol_product(difference, difference) for difference in differences], count), 2.0), variance)
+                    metrics[index] = {'S1': first, 'ST': total}
+                if settings['second_order']:
+                    ba = [offsets[(2 + dimension + i) * count:(3 + dimension + i) * count] for i in range(dimension)]
+                    record_index = 0
+                    for left in range(dimension):
+                        for right in range(left + 1, dimension):
+                            products = [_sobol_finite(_sobol_product(_sobol_finite(bai - mean_offset),
+                                _sobol_finite(abj - mean_offset)) - _sobol_product(aj, bj))
+                                for bai, abj, aj, bj in zip(ba[left], ab[right], centered_a, centered_b)]
+                            interaction = _sobol_finite(_sobol_ratio(_sobol_average(products, count), variance) -
+                                metrics[left]['S1'] - metrics[right]['S1'])
+                            second_order[record_index]['S2'] = interaction
+                            record_index += 1
+            else:
+                degeneracies.append(_degenerate('zero_sample_variance', 'No output variance resolved in this finite A/B sample; population constancy is not established.'))
+        except (ValueError, OverflowError, ZeroDivisionError) as error:
+            # Preserve undefined bootstrap replicates and complete row coverage;
+            # unresolved nonzero arithmetic must not become sampled constancy.
+            variance = center = None
+            metrics = [{'S1': None, 'ST': None} for _ in factors]
+            for record in second_order:
+                record['S2'] = None
+            degeneracies.append(_degenerate('unresolved_sobol_arithmetic', str(error)))
         global_result.update(variance=variance, pooled_center=center, base_samples=count,
                              estimator='saltelli_jansen_pooled_center_v1', second_order=[])
-        ab = [values[(2 + i) * count:(3 + i) * count] for i in range(dimension)]
-        for index, factor in enumerate(factors):
-            first = math.fsum((bj - center) * (hybrid - aj) for aj, bj, hybrid in zip(a, b, ab[index])) / (count * variance) if variance else None
-            total = math.fsum((aj - hybrid)**2 for aj, hybrid in zip(a, ab[index])) / (2 * count * variance) if variance else None
-            entries.append(_factor(factor, {'S1': first, 'ST': total}, {'S1': '1', 'ST': '1'}))
-        if settings['second_order']:
-            ba = [values[(2 + dimension + i) * count:(3 + dimension + i) * count] for i in range(dimension)]
-            for left in range(dimension):
-                for right in range(left + 1, dimension):
-                    interaction = (math.fsum((bai - center) * (abj - center) - (aj - center) * (bj - center)
-                        for bai, abj, aj, bj in zip(ba[left], ab[right], a, b)) / (count * variance) -
-                        entries[left]['metrics']['S1'] - entries[right]['metrics']['S1']) if variance else None
-                    global_result['second_order'].append({'factor_ids': [factors[left]['id'], factors[right]['id']], 'S2': interaction, 'unit': '1'})
-        if variance == 0:
-            degeneracies.append(_degenerate('zero_sample_variance', 'No output variance resolved in this finite A/B sample; population constancy is not established.'))
+        global_result['second_order'] = second_order
+        entries = [_factor(factor, metric, {'S1': '1', 'ST': '1'}) for factor, metric in zip(factors, metrics)]
         scope = 'Finite Monte Carlo estimates for the source-reviewed independent product law. Indices are untrimmed; finite negative or greater-than-one estimates remain evidence.'
     elif method == 'variance_based':
         reference = next(value for row, value in zip(rows, values) if row['weight'] > 0)

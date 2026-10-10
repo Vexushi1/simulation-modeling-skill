@@ -7,12 +7,14 @@ from __future__ import annotations
 import copy
 import math
 import shutil
+from decimal import Decimal, localcontext
 from pathlib import Path
 
 import pytest
 
-from numerical_math_common import (Series, WorkBudget, dimensions, evaluate_metric,
-    unit_dimensions, validate_expression, validate_metric_policy)
+from numerical_math_common import (Series, WorkBudget, dimensions, evaluate_expression,
+    evaluate_metric, observable_scale, unit_dimensions, unit_scale,
+    validate_expression, validate_metric_policy)
 from numerical_obligations import (evaluate_trial_numeric, numeric_context_from_documents,
     _time_weighted_slope, validate_check, validate_observables, validate_trial_numeric_policy)
 from verification_common import HARD_BUDGET, serialized_json
@@ -242,6 +244,111 @@ def test_unit_prefixes_convert_before_comparing_equations():
     result = evaluate_trial_numeric(levels, policy, context)
     assert result['numerically_verified'], result
     assert result['checks'][0]['levels'][0]['maximum_violation'] < 1e-12
+
+
+@pytest.mark.parametrize('unit', [
+    '*'.join(['mm^32/m^32']*4),
+    '*'.join(['mm^32/m^32']*4+['km^32/m^32']),
+    '*'.join(['km^32/m^32']*4),
+    '*'.join(['km^32/m^32']*4+['mm^32/m^32']),
+], ids=['scale_underflow', 'intermediate_underflow_then_cancel',
+        'scale_overflow', 'intermediate_overflow_then_cancel'])
+def test_unit_conversion_scale_loss_is_controlled_before_cancellation(unit):
+    assert unit_dimensions(unit) == dimensions({})
+    with pytest.raises(ValueError, match='unresolved canonical unit conversion'):
+        unit_scale(unit)
+
+
+@pytest.mark.parametrize('value,unit', [
+    (1e-308, 'mm^32/m^32'), (-1e-308, 'mm^32/m^32'),
+    (1e308, 'km^32/m^32'),
+], ids=['positive_nonzero_underflow', 'negative_nonzero_underflow',
+        'nonzero_overflow'])
+def test_nonzero_constant_conversion_must_not_underflow_or_overflow(value, unit):
+    expression = const(value, unit, {})
+    assert unit_scale(unit) > 0
+    with pytest.raises(ValueError, match='conversion'):
+        validate_expression(expression, {}, WorkBudget())
+    with pytest.raises(ValueError, match='conversion'):
+        evaluate_expression(expression, {}, 0., WorkBudget())
+
+
+@pytest.mark.parametrize('method', [
+    'ode4_step_refinement', 'ode45_tolerance_refinement',
+    'ode15s_tolerance_refinement',
+])
+def test_unit_conversion_decimal_counterexample_blocks_complete_three_level_policy(method):
+    # This oracle deliberately uses exact decimal factors and no production
+    # conversion helper: 1e308 * (1e-3)^(32*4) = 1e-76, above the fixed prior.
+    with localcontext() as decimal_context:
+        decimal_context.prec = 80
+        canonical = Decimal('1e308')*(Decimal('0.001')**32)**4
+        assert canonical == Decimal('1e-76')
+        assert canonical > Decimal('1e-80')
+    levels, policy, context = full_case(method)
+    check = check_definition('residual')
+    for key in ('state', 'rhs', 'mode'):
+        check.pop(key)
+    check.update(unit='1', dimensions={}, absolute_tolerance=1e-80,
+        expression=const(1e308, '*'.join(['mm^32/m^32']*4), {}))
+    require(policy, check)
+    source = validate_trial_numeric_policy(policy, levels[0]['run_spec'], context)
+    assert not source['valid'] and any('unit conversion' in e for e in source['errors']), source
+    result = evaluate_trial_numeric(levels, policy, context)
+    assert not result['complete'] and not result['criteria_satisfied'] and not result['numerically_verified'], result
+    assert result['disposition'] == 'incomplete'
+    assert any('unit conversion' in e for e in result['errors']), result
+    assert check['absolute_tolerance'] == 1e-80
+
+
+@pytest.mark.parametrize('unit', [
+    '*'.join(['mm^32/m^32']*4), '*'.join(['km^32/m^32']*4),
+], ids=['check_unit_underflow', 'check_unit_overflow'])
+def test_source_check_unit_conversion_is_validated_before_trial_arrays(unit):
+    levels, policy, context = full_case()
+    check = check_definition('residual')
+    for key in ('state', 'rhs', 'mode'):
+        check.pop(key)
+    check.update(unit=unit, dimensions={}, expression=const(0., '1', {}))
+    require(policy, check)
+    source = validate_trial_numeric_policy(policy, levels[0]['run_spec'], context)
+    assert not source['valid'] and any('unit conversion' in e for e in source['errors']), source
+    result = evaluate_trial_numeric(levels, policy, context)
+    assert not result['complete'] and not result['numerically_verified'], result
+
+
+@pytest.mark.parametrize('value', [0., -0.], ids=['true_zero', 'negative_true_zero'])
+def test_resolved_unit_conversion_preserves_true_zero(value):
+    levels, policy, context = full_case()
+    check = check_definition('residual')
+    for key in ('state', 'rhs', 'mode'):
+        check.pop(key)
+    check.update(unit='1', dimensions={}, expression=const(value, 'mm^32/m^32', {}))
+    require(policy, check)
+    source = validate_trial_numeric_policy(policy, levels[0]['run_spec'], context)
+    assert source['valid'], source
+    result = evaluate_trial_numeric(levels, policy, context)
+    assert result['complete'] and result['numerically_verified'], result
+    assert all(level['maximum_violation'] == 0. for level in result['checks'][0]['levels'])
+
+
+@pytest.mark.parametrize('value,unit,dims,expected', [
+    (100., 'cm', {'length': 1}, 1.),
+    (1000., 'ms', {'time': 1}, 1.),
+    (1e308, '*'.join(['mm^32/m^32']*3), {}, 1e20),
+], ids=['centimetres', 'milliseconds', 'finite_small_scale_large_constant'])
+def test_normal_unit_conversion_preserves_nonzero_closed_form(value, unit, dims, expected):
+    expression = const(value, unit, dims)
+    assert validate_expression(expression, {}, WorkBudget()) == dimensions(dims)
+    assert evaluate_expression(expression, {}, 0., WorkBudget()) == pytest.approx(expected, rel=1e-13, abs=0.)
+
+
+@pytest.mark.parametrize('canonical_unit,scale', [
+    ('mm^32/m^32', 1e-308), ('km^32/m^32', 1e308),
+], ids=['reviewed_scale_product_underflow', 'reviewed_scale_product_overflow'])
+def test_reviewed_observable_conversion_product_must_remain_resolved(canonical_unit, scale):
+    with pytest.raises(ValueError, match='unresolved canonical observable unit conversion'):
+        observable_scale({'unit': 'reviewed_custom_ratio', 'canonical_unit': canonical_unit, 'scale': scale})
 
 
 def test_explicit_conversion_cannot_contradict_a_known_unit():
@@ -706,6 +813,25 @@ def test_full_source_rebound_wrong_check_dimensions_cannot_be_reviewed(full_muta
     write_contract(full_mutation['path'], value); _review_extended(full_mutation['path'])
     report = validate_numerical_verification(full_mutation['path'], project_root=full_mutation['root'], require_reviewed=True)
     assert not report['valid'] and not report['assessment_ready']
+
+
+@pytest.mark.parametrize('fault', ['constant', 'check_unit'])
+def test_full_source_rebound_cannot_review_unresolved_unit_conversion(full_mutation, fault):
+    from runtime_common import load_document
+    from problem_factory import write_contract
+    from validate_numerical_verification import validate_numerical_verification
+    value = load_document(full_mutation['path'])
+    unit = '*'.join(['mm^32/m^32']*4)
+    check = value['checks'][0]
+    check.update(unit=unit if fault == 'check_unit' else '1', dimensions={}, threshold=0.,
+        absolute_tolerance=1e-80, expression=const(0. if fault == 'check_unit' else 1e308,
+            '1' if fault == 'check_unit' else unit, {}))
+    write_contract(full_mutation['path'], value)
+    _review_extended(full_mutation['path'])
+    report = validate_numerical_verification(full_mutation['path'], project_root=full_mutation['root'], require_reviewed=True)
+    assert report['schema_valid'], report
+    assert not report['valid'] and not report['assessment_ready'] and not report['reviewed'], report
+    assert any('unit conversion' in e for e in report['errors']), report
 
 
 def test_rehashed_full_receipt_cannot_forge_required_check_pass(full_mutation):

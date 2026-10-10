@@ -55,12 +55,16 @@ def derive_profile(raw, request, process):
     if not isinstance(actuals, list) or len(actuals) != len(request['cases']):
         raise ValueError('complete actual qualification ledger cardinality differs')
     results, levels, cache = [], {}, {}
+    previous_finish = _time(raw['started_at'])
     for case, actual in zip(request['cases'], actuals):
         errors = []
         try:
             assert_case_functions(actual, raw['functions'], raw['runtime']['matlabroot'])
             if not _time(raw['started_at']) <= _time(actual['started_at']) <= _time(actual['finished_at']) <= _time(raw['finished_at']):
                 raise ValueError('actual per-case timestamps outside native batch')
+            if _time(actual['started_at']) < previous_finish:
+                raise ValueError('actual qualification case intervals overlap in a serial native batch')
+            previous_finish = _time(actual['finished_at'])
             qualified_runtime = validate_case_qualifications(request, case, actual['started_at'], include_h=False, _cache=cache)
             if not same_runtime(runtime, qualified_runtime): raise ValueError('actual H probe runtime differs from independent A/E')
             checked = assert_case(actual, case, Path(request['output_directory']) / 'cases' / case['case_id'], request['run_id'], request['budget'])

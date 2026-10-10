@@ -115,8 +115,11 @@ Implemented sensitivity study methods:
   Sigma reflects nonlinear, interaction and numerical variation together.
 - `sobol`: frozen independent A/B and AB blocks, optional BA blocks for second order.
   Report pooled-center Saltelli S1, Jansen ST and optional S2 under the reviewed independent
-  product law. Finite negative or greater-than-one estimates remain untrimmed. Zero sample
-  variance is undefined and does not prove population constancy.
+  product law. Variance and covariance remain in anchor-relative centered coordinates;
+  the rounded raw mean is display-only. The same estimator handles every bootstrap block.
+  Unresolved nonzero arithmetic remains undefined with its complete diagnostics, including
+  every affected bootstrap replicate. Finite negative or greater-than-one estimates remain
+  untrimmed. Zero sample variance is undefined and does not prove population constancy.
 - `variance_based`: the complete independent weighted Cartesian design and all ANOVA
   subsets. Report variance closure and main/total indices for this exact finite discrete
   law. Conditional effects and variances are computed in centered coordinates, preserving

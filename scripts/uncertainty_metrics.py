@@ -225,6 +225,78 @@ def validate_uncertainty_inference(method,factors,settings,inference,*,budget=No
     return alpha
 
 
+def _offset_display(anchor, offset, scale):
+    """A display value may round; never reuse it to center observations.
+
+    The fixed machine guard measures the recovered offset, not the large
+    anchor. An unresolved display is retained separately from a claim value.
+    """
+    displayed = anchor + offset
+    if not math.isfinite(displayed):
+        return None, None, None, False
+    error = (displayed-anchor)-offset
+    guard = 32*np.finfo(float).eps*max(abs(offset), scale)
+    return displayed, error, guard, abs(error) <= guard
+
+
+def sample_statistics(values):
+    """Anchor-centered sample moments, shared by original/resampled values.
+
+    Normalized squared deviations and exponent scaling avoid an overflowing
+    sum when the final sample variance is representable. A nonzero unresolved
+    variance is undefined, never reclassified as a constant response.
+    """
+    ys = [real(value, 'sample response') for value in values]
+    if len(ys) < 2:
+        raise ValueError('sample statistics require at least two observations')
+    n, anchor = len(ys), ys[0]
+    constant = all(value == anchor for value in ys)
+    result = {'defined': False, 'estimate': None, 'estimate_defined': False,
+              'display_estimate': None, 'sample_variance': None,
+              'standard_error': None, 'constant_response': constant,
+              'centering': {'anchor': anchor, 'offset_mean': None, 'centered_scale': None,
+                            'display_rounding_error': None, 'display_resolution_guard': None}, 'degeneracies': []}
+    offsets = [value-anchor for value in ys]
+    if any(not math.isfinite(value) for value in offsets):
+        result['degeneracies'].append('sample_centering_unresolved')
+        return result
+    offset_scale = max(abs(value) for value in offsets)
+    offset_mean = 0.0 if offset_scale == 0 else offset_scale*(math.fsum(value/offset_scale for value in offsets)/n)
+    centered = [value-offset_mean for value in offsets]
+    scale = max(abs(value) for value in centered)
+    result['centering'].update(offset_mean=offset_mean, centered_scale=scale)
+    display, error, guard, resolved = _offset_display(anchor, offset_mean, scale)
+    result.update(display_estimate=display, estimate=display if resolved else None,
+                  estimate_defined=resolved)
+    result['centering'].update(display_rounding_error=error, display_resolution_guard=guard)
+    if not resolved:
+        result['degeneracies'].append('mean_display_rounding_unresolved')
+    if scale == 0:
+        if not constant:
+            result['degeneracies'].append('sample_variance_unresolved')
+            return result
+        variance = 0.0
+    else:
+        normalized_ss = math.fsum((value/scale)**2 for value in centered)
+        mantissa, exponent = math.frexp(scale)
+        try:
+            variance = math.ldexp(mantissa*mantissa*(normalized_ss/(n-1)), 2*exponent)
+        except OverflowError:
+            variance = None
+        if variance is None or not math.isfinite(variance) or variance <= 0:
+            result['degeneracies'].append('sample_variance_unresolved')
+            return result
+    # Divide after square root: variance/n may underflow although SE exists.
+    standard_error = math.sqrt(variance)/math.sqrt(n)
+    if not math.isfinite(standard_error) or (variance > 0 and standard_error == 0):
+        result['degeneracies'].append('standard_error_unresolved')
+        return result
+    result.update(defined=True, sample_variance=variance, standard_error=standard_error)
+    if constant:
+        result['degeneracies'].append('constant_response')
+    return result
+
+
 def compute_uncertainty(method, factors, settings, design, responses, *, inference, budget=None, metric_unit=None):
     validate_uncertainty_design(design, method, factors, settings, budget=budget)
     alpha = validate_uncertainty_inference(method,factors,settings,inference,budget=budget,metric_unit=metric_unit)
@@ -259,19 +331,35 @@ def compute_uncertainty(method, factors, settings, design, responses, *, inferen
         proportions[name] = {'successes': count, 'n': n, 'estimate': count/n,
                              'confidence_interval': binomial_interval(count, n, alpha), 'bounds': dict(rule),
                              'scope': 'mathematical input law event probability; no real-system coverage claim'}
-    mean_value = real(math.fsum(ys)/n, 'response mean')
-    variance = real(math.fsum((y-mean_value)**2 for y in ys)/(n-1), 'sample variance')
-    mean = {'estimate': mean_value, 'sample_variance': variance, 'standard_error': math.sqrt(variance/n),
-            'confidence_interval': None, 'assumption': inference['mean']['assumption'], 'defined': True}
+    moments = sample_statistics(ys)
+    mean = {key: moments[key] for key in ('estimate', 'estimate_defined', 'display_estimate',
+                                        'sample_variance', 'standard_error', 'centering', 'defined')}
+    mean.update(confidence_interval=None, assumption=inference['mean']['assumption'])
+    degeneracies = list(moments['degeneracies'])
     if inference['mean']['method'] == 'student_t':
         if n < inference['mean']['min_samples']:
             mean.update(defined=False, reason='predeclared minimum sample count not met')
-        else:
-            half = real(float(t.ppf(1-alpha/2, n-1))*math.sqrt(variance/n), 'mean interval half-width')
-            mean['confidence_interval'] = {'lower': real(mean_value-half, 'mean CI lower'),
-                                           'upper': real(mean_value+half, 'mean CI upper'),
-                                           'method': 'student_t', 'alpha': alpha,
+        elif moments['defined']:
+            coefficient = float(t.ppf(1-alpha/2, n-1))
+            half = coefficient*moments['standard_error']
+            valid_width = math.isfinite(half) and half >= 0 and (moments['constant_response'] or half > 0)
+            lower_offset = moments['centering']['offset_mean']-half
+            upper_offset = moments['centering']['offset_mean']+half
+            lower, lower_error, lower_guard, lower_resolved = _offset_display(moments['centering']['anchor'], lower_offset, abs(half)) if valid_width else (None, None, None, False)
+            upper, upper_error, upper_guard, upper_resolved = _offset_display(moments['centering']['anchor'], upper_offset, abs(half)) if valid_width else (None, None, None, False)
+            resolved = valid_width and lower_resolved and upper_resolved and (half == 0 or lower < upper)
+            mean['confidence_interval'] = {'lower': lower if resolved else None,
+                                           'upper': upper if resolved else None,
+                                           'method': 'student_t', 'alpha': alpha, 'defined': resolved,
+                                           'display_lower': lower, 'display_upper': upper,
+                                           'offset_lower': lower_offset if math.isfinite(lower_offset) else None,
+                                           'offset_upper': upper_offset if math.isfinite(upper_offset) else None,
+                                           'lower_rounding_error': lower_error, 'upper_rounding_error': upper_error,
+                                           'lower_resolution_guard': lower_guard, 'upper_resolution_guard': upper_guard,
                                            'exact_only_if_iid_normal_output': inference['mean']['assumption'] == 'iid_normal_output'}
+            if not resolved:
+                mean.update(defined=False, reason='critical mean confidence bounds unresolved in finite precision')
+                degeneracies.append('mean_confidence_interval_unresolved')
     ecdf=[];count_le=0
     for y,group in itertools.groupby(ordered):
         count_le+=sum(1 for _ in group)
@@ -281,5 +369,5 @@ def compute_uncertainty(method, factors, settings, design, responses, *, inferen
             'quantiles': quantiles, 'dkw': {'epsilon': epsilon, 'alpha': alpha,
                                           'confidence': 1-alpha, 'simultaneous': True,
                                           'assumptions': 'fixed N independent identically distributed rows; measurable fixed response'},
-            'proportions': proportions, 'mean': mean, 'degeneracies': ['constant_response'] if variance == 0 else [],
+            'proportions': proportions, 'mean': mean, 'degeneracies': degeneracies,
             'scope': 'reviewed hypothetical mathematical input law and recorded numerical metric'}

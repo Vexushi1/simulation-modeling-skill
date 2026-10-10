@@ -95,6 +95,82 @@ def assert_case_functions(actual, functions, runtime_root):
         raise ValueError('actual per-case official function inventory differs')
 
 
+def read_native_timing(actual, directory, run_id, case_id):
+    """Exact primitive MAT provenance plus documented clock-resolution bounds."""
+    import numpy as np
+    from scipy.io import loadmat
+    policy = contract()['timing_provenance']
+    timing, provenance = actual.get('timing_info'), actual.get('timing_provenance')
+    fields = {'source', 'duration_fields', 'clock_resolution_seconds', 'duration_resolution_seconds',
+              'call_started_at', 'call_finished_at', 'local_utc_offset_start', 'local_utc_offset_stop'}
+    if not isinstance(timing, dict) or any(not finite(timing.get(k)) or timing[k] < 0 for k in TIMING_FIELDS):
+        raise ValueError('native TimingInfo requires four finite nonnegative durations')
+    if not isinstance(provenance, dict) or set(provenance) != fields or provenance['source'] != policy['source'] or not typed_equal(provenance['duration_fields'], list(TIMING_FIELDS)):
+        raise ValueError('native TimingInfo exact source/field provenance differs')
+    for key in ('clock_resolution_seconds', 'duration_resolution_seconds'):
+        if not finite(provenance[key]) or provenance[key] != policy[key]:
+            raise ValueError('native TimingInfo documented resolution differs')
+    for key in ('local_utc_offset_start', 'local_utc_offset_stop'):
+        if not finite(provenance[key]) or abs(provenance[key]) > 86400:
+            raise ValueError('native TimingInfo actual local UTC offset differs')
+    utc_pattern = r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z'
+    for key in ('call_started_at', 'call_finished_at'):
+        if not isinstance(provenance[key], str) or re.fullmatch(utc_pattern, provenance[key]) is None:
+            raise ValueError('native TimingInfo invocation requires actual six-fraction UTC format')
+    call_start, call_stop = (_time(provenance[k]) for k in ('call_started_at', 'call_finished_at'))
+    case_start, case_stop = (_time(actual[k]) for k in ('started_at', 'finished_at'))
+    if not case_start <= call_start <= call_stop <= case_stop:
+        raise ValueError('native TimingInfo invocation is outside its actual case enclosure')
+    clocks = []
+    from datetime import timedelta
+    for key, offset_key in (('WallClockTimestampStart', 'local_utc_offset_start'), ('WallClockTimestampStop', 'local_utc_offset_stop')):
+        value = timing.get(key)
+        if not isinstance(value, str) or re.fullmatch(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', value) is None:
+            raise ValueError('native TimingInfo original local timestamp format differs')
+        clock = datetime.strptime(value, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+        clocks.append(clock - timedelta(seconds=provenance[offset_key]))
+    if clocks[0] > clocks[1]:
+        raise ValueError('native TimingInfo timestamp order is impossible')
+    radius = timedelta(seconds=policy['clock_resolution_seconds'])
+    windows = [(max(call_start, clock - radius), min(call_stop, clock + radius)) for clock in clocks]
+    if any(lo > hi for lo, hi in windows):
+        raise ValueError('native TimingInfo timestamp quantization misses its actual invocation')
+    durations = [timing[k] for k in TIMING_FIELDS]
+    quantum = policy['duration_resolution_seconds']
+    # Each documented microsecond value may differ by one quantum from its
+    # underlying elapsed measurement. This is not a performance-claim tolerance.
+    if abs(math.fsum(durations[:3]) - durations[3]) > 4 * quantum:
+        raise ValueError('native TimingInfo components and total are inconsistent')
+    elapsed = (call_stop - call_start).total_seconds()
+    capture_quantum = policy['call_clock_resolution_seconds']
+    if durations[3] > elapsed + quantum + 2 * capture_quantum or any(v > elapsed + quantum + 2 * capture_quantum for v in durations[:3]):
+        raise ValueError('native TimingInfo duration exceeds its actual invocation enclosure')
+    lower = max(0.0, (windows[1][0] - windows[0][1]).total_seconds())
+    upper = (windows[1][1] - windows[0][0]).total_seconds()
+    if upper < 0 or durations[3] + quantum < lower or max(0.0, durations[3] - quantum) > upper + 2 * capture_quantum:
+        raise ValueError('native TimingInfo elapsed and timestamp quantization are incompatible')
+    path = contained_path(directory, actual['raw_mat_file'])
+    assert_mat_identity(path, run_id, case_id)
+    names = policy['mat_fields']
+    stored = loadmat(path, variable_names=names, mat_dtype=False, squeeze_me=False)
+    for key in ('timing_durations', 'timing_utc_offsets', 'timing_resolutions'):
+        if key not in stored or np.iscomplexobj(stored[key]):
+            raise ValueError('native TimingInfo primitive MAT missing or complex: ' + key)
+    mat = loadmat(path, variable_names=names, mat_dtype=True, chars_as_strings=False, squeeze_me=False)
+    for key, values in [('timing_durations', durations),
+                        ('timing_utc_offsets', [provenance['local_utc_offset_start'], provenance['local_utc_offset_stop']]),
+                        ('timing_resolutions', [policy['clock_resolution_seconds'], quantum])]:
+        value = mat[key]
+        if value.dtype != np.dtype('float64') or value.shape != (len(values), 1) or value[:, 0].tolist() != values:
+            raise ValueError('native TimingInfo primitive MAT double-column/JSON exact mismatch: ' + key)
+    for key, value in [('timing_start_local', timing['WallClockTimestampStart']), ('timing_stop_local', timing['WallClockTimestampStop']),
+                       ('timing_call_start_utc', provenance['call_started_at']), ('timing_call_stop_utc', provenance['call_finished_at'])]:
+        field = mat.get(key)
+        if field is None or field.dtype != np.dtype('U1') or field.shape != (1, len(value)) or ''.join(field[0]) != value:
+            raise ValueError('native TimingInfo primitive MAT native char-row/JSON exact mismatch: ' + key)
+    return deepcopy(timing), deepcopy(provenance)
+
+
 def contract():
     return limited_document(ROOT / 'core/h_analysis_assurance_contract.yaml',
                             {'max_file_bytes': 1048576, 'max_total_bytes': 1048576})
@@ -355,6 +431,7 @@ def assert_case(actual, case, directory, run_id, budget):
     if actual.get('simulation_returned') is not True or not returned.is_file() or not returned.stat().st_size:
         raise ValueError('actual returned SimulationOutput was not immediately preserved')
     assert_mat_identity(returned, run_id, case['case_id'])
+    timing, timing_provenance = read_native_timing(actual, directory, run_id, case['case_id'])
     saved = numeric_vector(actual.get('saved_time'), 'native.tout', nonempty=False)
     if actual.get('time_source') != 'SimulationOutput.tout' or saved and not finite(actual.get('stop_event_time')) or actual.get('stop_event_time') != (saved[-1] if saved else None) or any(a > b for a, b in zip(saved, saved[1:])):
         raise ValueError('actual termination time is not preserved native tout')
@@ -364,17 +441,17 @@ def assert_case(actual, case, directory, run_id, budget):
     if expectation == 'error':
         if actual.get('stop_event') != 'DiagnosticError' or 'phase_h_controlled_missing_symbol' not in actual.get('error_message', '') or not any(x.get('identifier') == 'Simulink:Parameters:InvParamSetting' for x in actual['errors']):
             raise ValueError('actual controlled H missing-symbol error not observed')
-        return {'complete': False, 'outputs': [], 'states': [], 'timing_info': actual.get('timing_info', {})}
+        return {'complete': False, 'outputs': [], 'states': [], 'timing_info': timing, 'timing_provenance': timing_provenance}
     if expectation == 'early_stop':
         if str(actual.get('stop_event')).lower() != 'timeout' or actual.get('error_message') != '' or actual['errors'] or not saved or saved[-1] >= spec['stop_time'] or not any(x.get('identifier') == 'Simulink:Commands:SimTimeExceededTimeOut' for x in actual['warnings']):
             raise ValueError('actual controlled H timeout evidence missing')
-        return {'complete': False, 'outputs': [], 'states': [], 'timing_info': actual.get('timing_info', {})}
+        return {'complete': False, 'outputs': [], 'states': [], 'timing_info': timing, 'timing_provenance': timing_provenance}
     if actual.get('error_message') != '' or actual['errors'] or actual.get('stop_event') != 'ReachedStopTime' or not saved or saved[-1] != spec['stop_time']:
         raise ValueError('actual simulation did not reach reviewed stop without errors')
     if expectation == 'no_output':
         if type(actual.get('output_count')) is not int or actual['output_count'] != 0 or not actual.get('output_boundary_error'):
             raise ValueError('actual controlled missing-output boundary not observed')
-        return {'complete': False, 'outputs': [], 'states': [], 'timing_info': actual.get('timing_info', {})}
+        return {'complete': False, 'outputs': [], 'states': [], 'timing_info': timing, 'timing_provenance': timing_provenance}
     if case['warning_policy'] == 'reject' and (actual['warnings'] or actual.get('last_warning_message') or actual.get('last_warning_identifier')):
         raise ValueError('source-reviewed warning policy rejected native diagnostics')
     if not isinstance(actual.get('requested_solver'), dict) or not native_records_equal([actual['requested_solver']], [spec['solver']]):
@@ -394,9 +471,6 @@ def assert_case(actual, case, directory, run_id, budget):
     field = 'FixedStepSize' if spec['solver']['name'] == 'ode4' else 'MaxStepSize'
     if info.get('Solver') != name or actual.get('observed_solver_name') != name or effective.get('Solver') != name or str(info.get('Type', '')).lower() != spec['solver']['type'] or not finite(info.get(field)) or info[field] != spec['solver']['fixed_step' if field == 'FixedStepSize' else 'max_step']:
         raise ValueError('actual effective solver/type/step metadata differs')
-    timing = actual.get('timing_info')
-    if not isinstance(timing, dict) or any(not finite(timing.get(k)) or timing[k] < 0 for k in TIMING_FIELDS) or any(not isinstance(timing.get(k), str) or not timing[k] for k in ('WallClockTimestampStart', 'WallClockTimestampStop')):
-        raise ValueError('actual public TimingInfo finite duration/timestamp evidence missing')
     for output in actual.get('outputs', []):
         if not isinstance(output.get('time'), list) or len(output['time']) > budget['max_samples_per_output'] or not isinstance(output.get('values'), list) or len(output['values']) > budget['max_samples_per_output']:
             raise ValueError('native output exceeds sample budget before MAT read')
@@ -416,7 +490,7 @@ def assert_case(actual, case, directory, run_id, budget):
         limit = spec['solver']['fixed_step'] if spec['solver']['name'] == 'ode4' else spec['solver']['max_step']
         if max(b - a for a, b in zip(item['time'], item['time'][1:])) > limit + 1e-10 * max(1, limit):
             raise ValueError('actual logged output/state step exceeds configured step limit')
-    return {'complete': True, 'outputs': outputs, 'states': states, 'timing_info': timing}
+    return {'complete': True, 'outputs': outputs, 'states': states, 'timing_info': timing, 'timing_provenance': timing_provenance}
 
 
 def artifact_manifest(directory, *, include_profile=False):
@@ -484,9 +558,43 @@ def execute_request(request, *, process_timeout_limit=None):
 
 
 def forecast_native_report(request):
-    """Preflight bounded actual record shapes; no point or row is truncated."""
+    """Forecast every emitted array, key and metadata surface before launch.
+
+    Symbolic repeated arrays avoid materializing a large speculative document.
+    Four-space PrettyPrint indentation and ASCII escaping bound actual UTF-8
+    JSON; finite numeric tokens reserve 32 bytes before indentation.
+    """
     from verification_common import graph_limit
-    numbers, overhead = 0, 32
+    def measure(value, depth=0):
+        indent = 4 * (depth + 1)
+        if isinstance(value, tuple):
+            count, child = value
+            nodes, size = measure(child, depth + 1)
+            return 1 + count * nodes, 2 + 4 * depth + count * (size + indent + 2)
+        if isinstance(value, dict):
+            nodes, size = 1 + len(value), 2 + 4 * depth
+            for key, child in value.items():
+                child_nodes, child_size = measure(child, depth + 1)
+                nodes += child_nodes
+                size += len(json.dumps(key, ensure_ascii=True).encode('ascii')) + child_size + indent + 4
+            return nodes, size
+        if isinstance(value, list):
+            nodes, size = 1, 2 + 4 * depth
+            for child in value:
+                child_nodes, child_size = measure(child, depth + 1)
+                nodes += child_nodes
+                size += child_size + indent + 2
+            return nodes, size
+        if isinstance(value, str): return 1, len(json.dumps(value, ensure_ascii=True).encode('ascii'))
+        return 1, 32
+
+    installation_prefix = str(Path(request.get('matlab_executable', 'matlab')).parent.parent)
+    function_path_bound = 'x' * (512 + len(installation_prefix.encode('utf-8')))
+    functions = [{'name': name, 'path': function_path_bound} for name in request.get('required_functions', contract()['required_functions'])]
+    # Known data copied from request strings is measured at its real escaped
+    # size, including arbitrary legal units. Fixed native metadata reserves its
+    # scalar fields, complete configurations, diagnostics and function paths.
+    records, sample_numbers = [], 0
     for case in request['cases']:
         spec = case['run_spec']
         if spec['solver']['type'] == 'fixed-step':
@@ -495,13 +603,61 @@ def forecast_native_report(request):
                 raise ValueError('complete fixed native grid exceeds prior sample budget')
         else:
             count = request['budget']['max_samples_per_output']
-        numbers += count * (1 + 2 * (len(spec['outputs']) + len(case['states'])))
-        overhead += 512 + 64 * len(spec['parameters']) + 48 * (len(case['states']) + len(spec['inputs']) + len(spec['outputs']))
-    if numbers + overhead > graph_limit(request['budget'], 'max_document_nodes'):
+        sample_numbers += count * (1 + 2 * (len(spec['outputs']) + len(case['states'])))
+        sample_numbers += sum(len(signal['time']) + len(signal['values']) for signal in spec['inputs'])
+        def parameters(items):
+            return [{**item, 'class': 'Simulink.Parameter', 'data_type': 'double', 'value_class': 'double',
+                     'shape': [1, 1], 'is_real': True} for item in items]
+        record = {name: 'x' * 128 for name in (
+            'case_id', 'model_file', 'source_model_file', 'mat_file', 'raw_mat_file', 'data_file',
+            'state_mat_file', 'state_data_file', 'stop_event', 'time_source', 'observed_solver_name',
+            'started_at', 'finished_at', 'error_message', 'last_warning_message', 'last_warning_identifier', 'output_boundary_error')}
+        record.update(case_id=case['case_id'], model_file=str(Path(request.get('output_directory', '.')) / 'cases' / case['case_id'] / (spec['model_name'] + '.slx')),
+                      source_model_file=spec['model_path'], functions=functions, requested_solver=spec['solver'],
+                      saved_time=(count, 0.0), stop_event_time=0.0, output_count=len(spec['outputs']))
+        for name in ('attempted', 'completed', 'simulation_returned', 'source_unchanged', 'owned_model_unchanged',
+                     'configuration_restored', 'parameters_restored', 'output_sampling_restored', 'initial_conditions_restored',
+                     'input_sampling_restored', 'reopened', 'closed_without_save'): record[name] = True
+        for key in ('before_configuration', 'after_configuration', 'reopened_configuration'):
+            record[key] = {field: 'x' * 128 for field in CONFIGURATION_FIELDS}
+        for key in ('configured_parameters', 'effective_configuration', 'observed_solver_info'):
+            record[key] = {field: 'x' * 128 for field in CONFIGURATION_FIELDS}
+        for prefix in ('before', 'after', 'reopened'):
+            record[prefix + '_parameters'] = parameters(case['build_spec']['parameters'])
+        record['applied_parameters'] = parameters(spec['parameters'])
+        initial = [{**item, 'value': 'x' * 64} for item in case['initial_conditions']]
+        baseline_blocks = {block['path']: block for block in case['build_spec']['blocks']}
+        for item in initial:
+            item['value'] = baseline_blocks[item['block_path']]['parameters']['InitialCondition'] + 'x' * 64
+        for prefix in ('before', 'applied', 'after', 'reopened'): record[prefix + '_initial_conditions'] = initial
+        for prefix in ('before', 'configured', 'after', 'reopened'):
+            record[prefix + '_input_sampling'] = [{**{key: signal[key] for key in ('port', 'block_path')}, 'interpolate': 'off'} for signal in spec['inputs']]
+            record[prefix + '_output_sampling'] = [{**{key: signal[key] for key in ('port', 'block_path')}, 'sample_time': 'x' * 64} for signal in spec['outputs']]
+        record['applied_inputs'] = [{**signal, 'time': (len(signal['time']), 0.0), 'values': (len(signal['values']), 0.0)} for signal in spec['inputs']]
+        record['outputs'] = [{**output, 'observed_unit': output['unit'] or '', 'time': (count, 0.0), 'values': (count, 0.0), 'csv_file': case['case_id'] + '-output-123.csv'} for output in spec['outputs']]
+        record['states'] = [{**state, 'label': 'CSTATE', 'observed_unit': state['unit'], 'time': (count, 0.0), 'values': (count, 0.0), 'csv_file': case['case_id'] + '-state-123.csv'} for state in case['states']]
+        record['timing_info'] = {**{key: 0.0 for key in TIMING_FIELDS}, 'WallClockTimestampStart': 'x' * 19, 'WallClockTimestampStop': 'x' * 19, 'ProfilerData': 'x' * 128}
+        record['timing_provenance'] = {'source': contract()['timing_provenance']['source'], 'duration_fields': list(TIMING_FIELDS),
+            'clock_resolution_seconds': 1.0, 'duration_resolution_seconds': 1e-6, 'call_started_at': 'x' * 27,
+            'call_finished_at': 'x' * 27, 'local_utc_offset_start': 0.0, 'local_utc_offset_stop': 0.0}
+        # These reserves cover fixed normal and controlled qualification
+        # diagnostics; arbitrary diagnostic content still passes the actual
+        # complete-document gate before any successful receipt is accepted.
+        record['warnings'] = record['errors'] = (8, {'phase': 'x' * 128, 'time': 0.0, 'class': 'x' * 128, 'identifier': 'x' * 512, 'message': 'x' * 2048})
+        record['framework_error'] = {'identifier': 'x' * 512, 'message': 'x' * 2048, 'report': 'x' * 4096,
+            'stack': (8, {'file': 'x' * 512, 'name': 'x' * 128, 'line': 1})}
+        records.append(record)
+    shape = {'schema_version': 1, 'run_id': request.get('run_id', 'x' * 36), 'status': 'completed', 'channel': 'matlab_batch',
+             'host_fingerprint': 'x' * 128, 'input_identity': 'x' * 64, 'source_identity': 'x' * 64,
+             'started_at': 'x' * 27, 'finished_at': 'x' * 27, 'runtime': {'release': 'R2025b', 'version': 'x' * 128, 'matlabroot': installation_prefix + 'x' * 512, 'platform': 'x' * 128},
+             'installed_products': (128, {'Name': 'x' * 128, 'Version': 'x' * 64, 'Release': 'x' * 32, 'Date': 'x' * 64}),
+             'license_test': 1, 'licenses_inuse': (128, {'feature': 'x' * 128, 'user': 'x' * 128}), 'functions': functions, 'cases': records}
+    nodes, byte_bound = measure(shape)
+    if nodes > graph_limit(request['budget'], 'max_document_nodes'):
         raise ValueError('complete native raw report forecast exceeds document node budget')
-    if numbers * 32 + overhead * 64 > request['budget']['max_file_bytes']:
+    if byte_bound > request['budget']['max_file_bytes']:
         raise ValueError('complete native raw report forecast exceeds declared file byte budget')
-    return {'sample_numbers': numbers, 'overhead_nodes': overhead}
+    return {'sample_numbers': sample_numbers, 'overhead_nodes': nodes - sample_numbers, 'nodes': nodes, 'bytes_upper_bound': byte_bound}
 
 
 def validate_case_qualifications(request, case, started_at, *, include_h=True, _cache=None):

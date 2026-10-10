@@ -83,11 +83,21 @@ def assess_trial_request(request, raw, directory, report, *, process=None):
         errors.append('actual native process elapsed exceeded its enforced cap')
     if raw['status'] != 'completed': errors.append('native raw batch did not complete: ' + raw['status'])
     batch_stop = _time(raw['finished_at']) if raw.get('finished_at') else _time(process['finished_at'])
+    previous_finish = _time(raw['started_at'])
     for case, actual in zip(request['cases'], records):
         if not isinstance(actual, dict) or actual.get('case_id') != case['case_id'] or type(actual.get('attempted')) is not bool or type(actual.get('completed')) is not bool:
             raise ValueError('complete failed/attempted native ledger identity differs')
         case_errors = []
         try:
+            if actual.get('started_at'):
+                current_start = _time(actual['started_at'])
+                if current_start < previous_finish:
+                    raise ValueError('actual native case intervals overlap in a serial batch')
+                if actual.get('finished_at'):
+                    current_finish = _time(actual['finished_at'])
+                    if not current_start <= current_finish <= batch_stop:
+                        raise ValueError('actual per-case finished timestamp outside native batch')
+                    previous_finish = current_finish
             if actual['attempted'] is False:
                 if actual['completed'] is not False or actual.get('simulation_returned') is True:
                     raise ValueError('unattempted native row claims returned/completed evidence')
@@ -105,7 +115,7 @@ def assess_trial_request(request, raw, directory, report, *, process=None):
             checked = assert_case(actual, case, Path(directory) / 'cases' / case['case_id'], request['run_id'], request['budget'])
             if not checked['complete']: raise ValueError('hypothetical study point is technically incomplete')
             levels[case['case_id']] = {'level_id': case['level_id'], 'case_id': case['case_id'], 'run_spec': deepcopy(case['run_spec']),
-                'outputs': checked['outputs'], 'states': checked['states'], 'timing_info': checked['timing_info'],
+                'outputs': checked['outputs'], 'states': checked['states'], 'timing_info': checked['timing_info'], 'timing_provenance': checked['timing_provenance'],
                 'started_at': actual['started_at'], 'finished_at': actual['finished_at'],
                 'raw_path': str(Path(directory) / 'cases' / case['case_id'] / actual['raw_mat_file']),
                 'mat_path': str(Path(directory) / 'cases' / case['case_id'] / actual['mat_file']),

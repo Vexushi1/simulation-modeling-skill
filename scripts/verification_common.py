@@ -617,8 +617,8 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
             for member in value.get('members', []):
                 enqueue(member.get('numerical_receipt'), 'h1_receipt')
             skip.update({'primary_numerical_receipt', 'members'})
-            for claim in value.get('claims', []):
-                for requirement in claim.get('study_requirements', []):
+            for claim_record in value.get('claims', []):
+                for requirement in claim_record.get('study_requirements', []):
                     enqueue(requirement.get('study_contract'), 'h_study_contract')
                     enqueue(requirement.get('study_receipt'), 'h_study_receipt')
             # Generic task traversal may discover these again, but cannot turn
@@ -674,7 +674,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
                                     'base_receipt': 'simulation_receipt',
                                     'base_simulation_receipt': 'simulation_receipt',
                                     'primary_numerical_receipt': 'h1_receipt'}.get(binding_key, kind)
-                            if context == 'h_trial_request' and binding_key == 'current_state':
+                            if context in {'h_trial_request', 'h_study_request'} and binding_key == 'current_state':
                                 # Explicit caller bytes only. A state filename
                                 # or ordinary task field never grants this role.
                                 kind = 'opaque'

@@ -10,6 +10,17 @@ installation_identity_budget:
   max_file_bytes: 67108864
   max_total_bytes: 268435456
 installation_identity_scope: separately bounded official MATLAB executable VersionInfo and resolved function files; no task or review external-path authority
+timing_provenance:
+  source: SimulationOutput.SimulationMetadata.TimingInfo
+  official_reference: https://www.mathworks.com/help/releases/R2025b/simulink/slref/simulink.simulationmetadata.html
+  duration_fields: [InitializationElapsedWallTime, ExecutionElapsedWallTime, TerminationElapsedWallTime, TotalElapsedWallTime]
+  native_clock_format: yyyy-MM-dd HH:mm:ss
+  clock_resolution_seconds: 1.0
+  duration_resolution_seconds: 0.000001
+  quantization: symmetric_resolution_enclosure
+  quantization_reason: the documented second-only display does not specify rounding versus truncation; enclose each displayed time by one display unit on either side
+  call_clock_resolution_seconds: 0.000001
+  mat_fields: [timing_durations, timing_start_local, timing_stop_local, timing_call_start_utc, timing_call_stop_utc, timing_utc_offsets, timing_resolutions]
 scope: reviewed hypothetical scalar six-block owned-copy trials; no adoption or primary approval
 solvers: [ode4, ode45, ode15s]
 required_A_operations: [matlab.basic_execution, simulink.library_load]
