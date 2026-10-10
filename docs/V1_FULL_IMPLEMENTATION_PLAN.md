@@ -2042,6 +2042,8 @@ Morris/Sobol/PRCC、一般参数或初值扰动、连续/相关不确定性、�
 
 新增core/model_verification_contract.yaml、modules/08_model_verification.md、draft模板及review/assessment/receipt生产消费者。当前primary必须已通过H1，所有实际参与比较对象也各有其当前H1接受回执、真实C批准和各自D/E链。同一真实C批准可以覆盖多个已审阅模型，不能机械再造两次批准。F/G是项目可选分支，不要求所有H项目先完成它们。
 
+原始输入准备进一步发现：D文字映射要求覆盖当前C的全部main models，而受限native builder仅接受一个target；不能把多main同C审批自动升级为两个可构建目标。本轮结构native组合采用同project及同一frozen Problem下各自当前批准的单main C与独立D/E；不修改受保护D边界，也不把未支持的多main构建计入H资格。同C已有批准能否复用由其实际已资格化实现链决定，H不机械要求再批准，也不绕过D。
+
 每个material claim声明源绑定的target_claim、requirements、所需分析决定、finite domain、metric/statistic/output mapping/unit、direction/threshold、failure disposition/impact_scope/required_action/return_stage和限制。Sensitivity/robustness/solver comparison使用required/not_required；structural comparison使用required/not_applicable。决定与任务来源的义务相符，用户明确要求或material structural uncertainty不能伪省略。required缺方法/证据/预算为blocked，不是not_required。所有选定E输出仍需满足E原先准入界；H2主张阈值与E准入界分离，合法样本越H2阈值可modify/reject，不从分母删除或改E通过状态。
 
 - 外部输入OAT：仅同一当前模型、固定全部参数/条件/solver，源审定的一个常值外部输入因素改变，其余输入波形精确相同。至少两个、最多16个有限不同水平；按源预声明基准与成员对应关系重算原单位finite difference和单位标签，不把它称参数敏感性、全局导数或连续域结论。零基准相对量为null/明确不可定义，不能除零填0。
