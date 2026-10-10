@@ -1,6 +1,6 @@
 # v1.0.0 Implementation Roadmap
 
-> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. Version 0.7.0 adds the optional finite serial Phase G catalog experiment branch to A–F. Other D domains, general parameter sweeps, continuous Monte Carlo, LHS, parallelism and Phases H–K remain deferred; qualification and merge evidence are recorded separately in the development PR.
+> Summary of [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md), the sole detailed implementation authority. A–G are qualified and merged within their reviewed bounds at main `719495b745facce688810a62c2c1d3c7aea9116f` (Phase G PR #8). Version 0.8.0 implements bounded H1/H2 after the plan's feasibility amendments; H completion requires its separate final-source exit gates. Other D domains, general analyses, parameter overrides, continuous Monte Carlo, LHS, parallelism and Phases I–K remain deferred. Qualification and merge evidence are recorded separately in the development PR.
 
 ## Phase A — Runtime, governance, and trusted root
 
@@ -33,7 +33,7 @@ The five development exit checks in the full plan §6.10 are:
 - `source_and_stale_checks = passed`;
 - `authority_and_indexes = passed`.
 
-Verify legal draft, audited, and frozen paths as well as changed or missing materials, invalid offsets/references/coverage, unverified extraction, inconsistent roles/ranges, invalid dependencies, unresolved critical ambiguities, mismatching decisions or project identities, path escapes, and stale dependents. Confirm that environment expiry does not block unchanged text audit and routes never write state. Run the Phase A regressions and independent original-material review. Phase C now consumes the frozen Problem separately; other D domains and Phases E–K remain deferred.
+Verify legal draft, audited, and frozen paths as well as changed or missing materials, invalid offsets/references/coverage, unverified extraction, inconsistent roles/ranges, invalid dependencies, unresolved critical ambiguities, mismatching decisions or project identities, path escapes, and stale dependents. Confirm that environment expiry does not block unchanged text audit and routes never write state. Run the Phase A regressions and independent original-material review. Later phases consume the frozen Problem separately and require their own gates; advanced domains and Phases I–K remain deferred.
 
 Passing synthetic fixtures qualifies the B infrastructure's behavior. Formal development completion separately requires independent PR review, final-source CI, merge, and read-back. A user's project must independently meet its actual Problem Contract Gate. Problem evidence tracks material and decision changes; runtime TTL alone does not expire unchanged problem meaning.
 
@@ -59,7 +59,7 @@ The five development exit checks in the full plan §7.9 are:
 - `source_and_stale_checks = passed`;
 - `authority_and_indexes = passed`.
 
-Verify legal drafts, complete proposals, challenged and approved paths, multi-question/shared models, zero and useful alternatives, unresolved structural/challenge blockers, current human approval and rejection, stale sources/Briefs/decisions/locks, identity separation, path/reference failures, project/status mismatches, explicit validation scopes, no automatic writes, and still-deferred domain/E–K routes. Run all A/B regressions, independent raw-input behavior review, exact-final-source PR review, Windows/Ubuntu CI, merge, and post-merge read-back separately.
+Verify legal drafts, complete proposals, challenged and approved paths, multi-question/shared models, zero and useful alternatives, unresolved structural/challenge blockers, current human approval and rejection, stale sources/Briefs/decisions/locks, identity separation, path/reference failures, project/status mismatches, explicit validation scopes, no automatic writes, and still-deferred advanced-domain/I–K routes. Run all A/B regressions, independent raw-input behavior review, exact-final-source PR review, Windows/Ubuntu CI, merge, and post-merge read-back separately.
 
 `MODEL_PROPOSED`, `MODEL_CHALLENGED`, and `MODEL_APPROVED` require the matching contract status and current frozen Problem. Model scope checks B/C while leaving runtime readiness unassessed; problem scope leaves C unassessed and cannot establish overall MODEL_APPROVED validity. C conservatively binds the entire Problem and its current sources, so any changed attachment can invalidate that binding; fine-grained source impact remains future work. Runtime expiry does not expire unchanged text design. Synthetic fixtures prove infrastructure behavior, not a real model approval, mathematical/physical validity, statistical independence, or numerical execution qualification.
 
@@ -75,8 +75,6 @@ Exit checks: domain_mapping_checks, parameter_binding_checks, native_simulink_st
 
 | Phase | Planned scope |
 |---|---|
-| G | Experiment design, campaigns, uncertainty sampling, and parallel simulation |
-| H | Primary numerical verification, sensitivity/robustness decisions, and structural/solver comparison |
 | I | Verification and claim-scoped validation, including applicable test and safety tools |
 | J | Accepted figures, result-to-claim trace, evidence package, and paper handoff |
 | K | Full semantic audit, representative R2025b end-to-end qualification, and release review |
@@ -85,13 +83,13 @@ Develop phases in the full plan's order and refine each phase's executable gates
 
 ## Release
 
-The v1.0.0 gate remains the full plan's release definition: all phases qualified and merged, complete active indexes and CI, current upstream compatibility, representative R2025b runtime evidence, accepted evidence and claim boundaries, and verified paper handoff. Version 0.4.0 does not claim that release gate.
+The v1.0.0 gate remains the full plan's release definition: all phases qualified and merged, complete active indexes and CI, current upstream compatibility, representative R2025b runtime evidence, accepted evidence and claim boundaries, and verified paper handoff. Version 0.8.0 does not claim that release gate. G's general parameter sweeps, continuous uncertainty sampling, LHS and parallel simulation remain deferred despite completion of its finite catalog branch.
 
 ## Phase E — Frozen protocols and qualified execution
 
 The full plan §9.9 is the detailed Authority. Version 0.5.0 adds a source-bound draft/frozen protocol, independent A/E operation and individual solver qualification, normal serial scalar core execution, actual Dataset root outputs, cross-format MAT/JSON/CSV numeric receipts and SIMULATION_PROTOCOL_FROZEN/PRIMARY_RUN_COMPLETE. Original C/D evidence and all nineteen D source identities remain unchanged. Optional Statistics diagnostics are distinct from explicit operation requirements.
 
-E success does not grant numerical V&V or publication claims. Read-only consumers never freeze or update state. Historical qualification and current TTL are separate. Exit requires real R2025b positive/negative/cardinality cases, all prior regressions, independent behavior/final-source review, dual-platform CI, merge and readback. Advanced solver/domain and G–K workflows remain deferred.
+E success does not grant numerical V&V or publication claims. Read-only consumers never freeze or update state. Historical qualification and current TTL are separate. Exit requires real R2025b positive/negative/cardinality cases, all prior regressions, independent behavior/final-source review, dual-platform CI, merge and readback. Other modules independently gate their finite G/H evidence; advanced solver/domain and I–K workflows remain deferred.
 
 ## Phase F — Optional reviewed parameter studies
 
@@ -106,3 +104,11 @@ The separate trial ledger, raw/process evidence and cross-checked MAT/JSON candi
 The detailed Authority is the full plan §11.7–11.12. Read [the G module](../modules/06_experiment_design.md). The implemented surface is scenario matrices, complete one/two-factor finite grids and fixed-size iid categorical Monte Carlo over independently frozen E protocols. Factors, ordered probability meanings, seed, event and budgets are source-bound and independently reviewed. Each draw executes through E in a fresh directory, serially. A/E/G qualifications remain independent and required operations propagate individually.
 
 Only complete fixed-size campaigns may summarize every actual admissible draw. Technical failure, source drift or budget exhaustion preserves a partial ledger with no complete summary. Event samples remain in the denominator; nominal Wilson intervals are conditional on the declared finite iid law. General parameter changes, continuous sampling, LHS, parallelism, numerical verification and physical validation remain separate or deferred gates. Exit requires real sample qualification and campaigns, independent original-input and final-head review, all prior regressions, Windows/Ubuntu CI, merge and readback. Current runtime expiry blocks new execution while immutable historical source/evidence identities remain required.
+
+## Phase H — Bounded numerical and finite model assessment
+
+The detailed Authority is the full plan §12.9–12.15. H1 consumes three independent frozen E protocols and actual receipts, preserving approved physics. It supports ode4 h/h2/h4 over the complete coarse grid and ode45 tolerance refinement only at actual start/stop endpoints. The coarse primary, fine differences, roundoff and contraction rules must all satisfy prior reviewed criteria; required unsupported checks block acceptance. The finite result is not a true error bound or a whole-trajectory accuracy claim.
+
+H2 requires current accepted H1 for all participants and supports finite constant external-input OAT, finite scenario thresholds, sampled ode4/ode45 metrics and source-reviewed substantive structural comparison. Decisions and claim thresholds are source-bound; missing required evidence blocks, while valid threshold violations modify/reject the claim. Validators, routes and assessment producers never change approvals, protocols, primary runs or state. Historical H scopes require complete current source/receipt identities while leaving current runtime unassessed; new runs remain independently E-gated.
+
+Completion requires protected A7/B2/D19 bytes, shared E/F/G/H safety source closure, independent numeric recomputation, concentrated issue collection and batch fixes, final full A–G/H regression, actual R2025b combinations and original-input behavior, exact-commit review, Windows/Ubuntu CI, a separate PR, merge and postmerge readback. Advanced H methods and I–K remain deferred; a 0.8.0 version label alone does not certify those gates.

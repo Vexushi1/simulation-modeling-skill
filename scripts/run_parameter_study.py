@@ -81,7 +81,7 @@ def run_parameter_study(study_path, executable, directory, *, environment_profil
     intent = {METHODS[0]: 'parameter_identification', METHODS[1]: 'calibration', METHODS[2]: 'optimization'}[report['operation_id']]
     route = resolve_runtime(intent, study_path=study_path, profile_path=environment_profile,
                             parameter_study_profile_path=parameter_study_profile, simulation_profile_path=simulation_profile,
-                            required_operations=required_operations)
+                            required_operations=required_operations, project_root=root)
     if not route['parameter_study_execution_allowed'] or route['execution_scope'] != 'parameter_trial':
         raise ValueError('public parameter-trial route blocked: '+'; '.join(route.get('errors', [])+route.get('blocked_reasons', [])))
     request = make_task_request(study_path, executable, directory, report, environment_profile, parameter_study_profile, project_root=root, simulation_profile=simulation_profile, required_operations=required_operations)

@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.7.0
+version: 0.8.0
 modules:
   environment_assurance:
     phase: A
@@ -181,24 +181,141 @@ modules:
     resources: []
   numerical_verification:
     phase: H
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/07_numerical_verification.md
+    - core/numerical_verification_contract.yaml
+    - templates/contracts/numerical_verification.yaml
+    - scripts/verification_common.py
+    - scripts/validate_numerical_verification.py
+    - scripts/run_numerical_verification.py
+    - scripts/validate_numerical_verification_receipt.py
+    - scripts/numerical_verification_route.py
+    - scripts/numerical_verification_state.py
+    - packs/evidence/convergence.md
+    required_operations: []
+    execution_scope: numerical_verification_review
+    qualification_scope: read-only three-level frozen-E historical numerical consistency; no MATLAB execution
   sensitivity_analysis:
     phase: H
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/07_numerical_verification.md
+    - core/numerical_verification_contract.yaml
+    - templates/contracts/numerical_verification.yaml
+    - scripts/verification_common.py
+    - scripts/validate_numerical_verification.py
+    - scripts/run_numerical_verification.py
+    - scripts/validate_numerical_verification_receipt.py
+    - scripts/numerical_verification_route.py
+    - scripts/numerical_verification_state.py
+    - packs/evidence/convergence.md
+    - modules/08_model_verification.md
+    - core/model_verification_contract.yaml
+    - templates/contracts/model_verification.yaml
+    - scripts/model_verification_common.py
+    - scripts/validate_model_verification.py
+    - scripts/run_model_verification.py
+    - scripts/validate_model_verification_receipt.py
+    - scripts/model_verification_route.py
+    - scripts/model_verification_state.py
+    - packs/evidence/sensitivity.md
+    - packs/evidence/model_comparison.md
+    - packs/evidence/solver_comparison.md
+    required_operations: []
+    execution_scope: model_verification_review
+    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
+      comparison; no MATLAB execution
   robustness_analysis:
     phase: H
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/07_numerical_verification.md
+    - core/numerical_verification_contract.yaml
+    - templates/contracts/numerical_verification.yaml
+    - scripts/verification_common.py
+    - scripts/validate_numerical_verification.py
+    - scripts/run_numerical_verification.py
+    - scripts/validate_numerical_verification_receipt.py
+    - scripts/numerical_verification_route.py
+    - scripts/numerical_verification_state.py
+    - packs/evidence/convergence.md
+    - modules/08_model_verification.md
+    - core/model_verification_contract.yaml
+    - templates/contracts/model_verification.yaml
+    - scripts/model_verification_common.py
+    - scripts/validate_model_verification.py
+    - scripts/run_model_verification.py
+    - scripts/validate_model_verification_receipt.py
+    - scripts/model_verification_route.py
+    - scripts/model_verification_state.py
+    - packs/evidence/sensitivity.md
+    - packs/evidence/model_comparison.md
+    - packs/evidence/solver_comparison.md
+    required_operations: []
+    execution_scope: model_verification_review
+    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
+      comparison; no MATLAB execution
   model_comparison:
     phase: H
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/07_numerical_verification.md
+    - core/numerical_verification_contract.yaml
+    - templates/contracts/numerical_verification.yaml
+    - scripts/verification_common.py
+    - scripts/validate_numerical_verification.py
+    - scripts/run_numerical_verification.py
+    - scripts/validate_numerical_verification_receipt.py
+    - scripts/numerical_verification_route.py
+    - scripts/numerical_verification_state.py
+    - packs/evidence/convergence.md
+    - modules/08_model_verification.md
+    - core/model_verification_contract.yaml
+    - templates/contracts/model_verification.yaml
+    - scripts/model_verification_common.py
+    - scripts/validate_model_verification.py
+    - scripts/run_model_verification.py
+    - scripts/validate_model_verification_receipt.py
+    - scripts/model_verification_route.py
+    - scripts/model_verification_state.py
+    - packs/evidence/sensitivity.md
+    - packs/evidence/model_comparison.md
+    - packs/evidence/solver_comparison.md
+    required_operations: []
+    execution_scope: model_verification_review
+    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
+      comparison; no MATLAB execution
   solver_comparison:
     phase: H
-    status: deferred
-    resources: []
+    status: implemented
+    resources:
+    - modules/07_numerical_verification.md
+    - core/numerical_verification_contract.yaml
+    - templates/contracts/numerical_verification.yaml
+    - scripts/verification_common.py
+    - scripts/validate_numerical_verification.py
+    - scripts/run_numerical_verification.py
+    - scripts/validate_numerical_verification_receipt.py
+    - scripts/numerical_verification_route.py
+    - scripts/numerical_verification_state.py
+    - packs/evidence/convergence.md
+    - modules/08_model_verification.md
+    - core/model_verification_contract.yaml
+    - templates/contracts/model_verification.yaml
+    - scripts/model_verification_common.py
+    - scripts/validate_model_verification.py
+    - scripts/run_model_verification.py
+    - scripts/validate_model_verification_receipt.py
+    - scripts/model_verification_route.py
+    - scripts/model_verification_state.py
+    - packs/evidence/sensitivity.md
+    - packs/evidence/model_comparison.md
+    - packs/evidence/solver_comparison.md
+    required_operations: []
+    execution_scope: model_verification_review
+    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
+      comparison; no MATLAB execution
   validation:
     phase: I
     status: deferred
@@ -258,7 +375,7 @@ modules:
   parameter_study:
     phase: F
     status: implemented
-    resources: &id001
+    resources:
     - modules/05_identification_calibration_optimization.md
     - core/parameter_study.schema.yaml
     - core/parameter_study_assurance_contract.yaml
@@ -276,7 +393,20 @@ modules:
   parameter_candidate_review:
     phase: F
     status: implemented
-    resources: *id001
+    resources:
+    - modules/05_identification_calibration_optimization.md
+    - core/parameter_study.schema.yaml
+    - core/parameter_study_assurance_contract.yaml
+    - templates/contracts/parameter_study.yaml
+    - scripts/validate_parameter_study.py
+    - scripts/parameter_study_route.py
+    - scripts/parameter_study_state.py
+    - scripts/parameter_study_common.py
+    - scripts/probe_parameter_study.py
+    - scripts/run_parameter_study.py
+    - scripts/validate_parameter_study_profile.py
+    - scripts/validate_parameter_study_receipt.py
+    - scripts/matlab/run_parameter_study.m
     required_operations: []
   experiment_design:
     phase: G
@@ -348,3 +478,80 @@ modules:
     - packs/design_of_experiments.md
     - packs/monte_carlo.md
     - adapters/mathworks/experiment_methods.md
+  numerical_verification_review:
+    phase: H
+    status: implemented
+    resources:
+    - modules/07_numerical_verification.md
+    - core/numerical_verification_contract.yaml
+    - templates/contracts/numerical_verification.yaml
+    - scripts/verification_common.py
+    - scripts/validate_numerical_verification.py
+    - scripts/run_numerical_verification.py
+    - scripts/validate_numerical_verification_receipt.py
+    - scripts/numerical_verification_route.py
+    - scripts/numerical_verification_state.py
+    - packs/evidence/convergence.md
+    required_operations: []
+    execution_scope: numerical_verification_review
+    qualification_scope: read-only three-level frozen-E historical numerical consistency; no MATLAB execution
+  model_verification:
+    phase: H
+    status: implemented
+    resources:
+    - modules/07_numerical_verification.md
+    - core/numerical_verification_contract.yaml
+    - templates/contracts/numerical_verification.yaml
+    - scripts/verification_common.py
+    - scripts/validate_numerical_verification.py
+    - scripts/run_numerical_verification.py
+    - scripts/validate_numerical_verification_receipt.py
+    - scripts/numerical_verification_route.py
+    - scripts/numerical_verification_state.py
+    - packs/evidence/convergence.md
+    - modules/08_model_verification.md
+    - core/model_verification_contract.yaml
+    - templates/contracts/model_verification.yaml
+    - scripts/model_verification_common.py
+    - scripts/validate_model_verification.py
+    - scripts/run_model_verification.py
+    - scripts/validate_model_verification_receipt.py
+    - scripts/model_verification_route.py
+    - scripts/model_verification_state.py
+    - packs/evidence/sensitivity.md
+    - packs/evidence/model_comparison.md
+    - packs/evidence/solver_comparison.md
+    required_operations: []
+    execution_scope: model_verification_review
+    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
+      comparison; no MATLAB execution
+  model_verification_review:
+    phase: H
+    status: implemented
+    resources:
+    - modules/07_numerical_verification.md
+    - core/numerical_verification_contract.yaml
+    - templates/contracts/numerical_verification.yaml
+    - scripts/verification_common.py
+    - scripts/validate_numerical_verification.py
+    - scripts/run_numerical_verification.py
+    - scripts/validate_numerical_verification_receipt.py
+    - scripts/numerical_verification_route.py
+    - scripts/numerical_verification_state.py
+    - packs/evidence/convergence.md
+    - modules/08_model_verification.md
+    - core/model_verification_contract.yaml
+    - templates/contracts/model_verification.yaml
+    - scripts/model_verification_common.py
+    - scripts/validate_model_verification.py
+    - scripts/run_model_verification.py
+    - scripts/validate_model_verification_receipt.py
+    - scripts/model_verification_route.py
+    - scripts/model_verification_state.py
+    - packs/evidence/sensitivity.md
+    - packs/evidence/model_comparison.md
+    - packs/evidence/solver_comparison.md
+    required_operations: []
+    execution_scope: model_verification_review
+    qualification_scope: read-only finite input OAT/scenarios, sampled-output solver and reviewed structural
+      comparison; no MATLAB execution

@@ -4,6 +4,8 @@ from pathlib import Path
 from runtime_common import contained_path, load_document, sha256_file
 
 STAGES = {'SIMULATION_PROTOCOL_FROZEN', 'PRIMARY_RUN_COMPLETE'}
+H_STAGES = {'NUMERICALLY_VERIFIED', 'MODEL_VERIFICATION_DECIDED', 'MODEL_VERIFIED'}
+H_SCOPES = {'numerical_verification', 'model_verification'}
 HISTORICAL_ROLES = {'simulation_protocol', 'simulation_run', 'simulation_output'}
 CURRENT_ROLES = {'simulation_profile', 'simulation_route_decision'}
 
@@ -30,14 +32,14 @@ def validate_bindings(state, root, result, errors, stale, scope, requested_profi
             errors.extend('simulation environment: ' + error for error in report['errors'])
             errors.append('simulation environment qualification or SHA binding is invalid')
             stale.add('simulation_environment')
-    if scope not in {'all', 'simulation'}:
+    if scope not in {'all', 'simulation'} | H_SCOPES:
         return
     result['simulation_checked'] = True
     binding = state.get('protocol')
     if binding:
         from validate_simulation_protocol import validate_simulation_protocol
         report = validate_simulation_protocol(result['protocol_path'], project_root=root,
-                                             require_frozen=state['current_stage'] in STAGES)
+                                             require_frozen=state['current_stage'] in STAGES | H_STAGES)
         result['protocol_validation'] = report
         invalid = []
         if not report['valid']:
@@ -76,10 +78,10 @@ def validate_bindings(state, root, result, errors, stale, scope, requested_profi
             errors.extend('primary run: ' + error for error in invalid)
             stale.add('primary_run')
         result['primary_run_complete'] = not invalid
-    if state['current_stage'] in STAGES and not result['protocol_frozen']:
+    if state['current_stage'] in STAGES | H_STAGES and not result['protocol_frozen']:
         errors.append('SIMULATION_PROTOCOL_FROZEN requires the current complete frozen protocol')
         stale.add('protocol')
-    if state['current_stage'] == 'PRIMARY_RUN_COMPLETE' and not result['primary_run_complete']:
+    if state['current_stage'] in {'PRIMARY_RUN_COMPLETE'} | H_STAGES and not result['primary_run_complete']:
         errors.append('PRIMARY_RUN_COMPLETE requires actual current successful simulation evidence')
         stale.add('primary_run')
 

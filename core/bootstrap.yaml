@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.7.0
+version: 0.8.0
 development_authority: docs/V1_FULL_IMPLEMENTATION_PLAN.md
 runtime_entry:
   router: core/workflow_router.yaml
@@ -19,6 +19,8 @@ runtime_entry:
   parameter_study_assurance: core/parameter_study_assurance_contract.yaml
   experiment_design: core/experiment_design.schema.yaml
   experiment_assurance: core/experiment_assurance_contract.yaml
+  numerical_verification: core/numerical_verification_contract.yaml
+  model_verification: core/model_verification_contract.yaml
 authority_graph:
   nodes:
     plan: docs/V1_FULL_IMPLEMENTATION_PLAN.md
@@ -52,6 +54,10 @@ authority_graph:
     experiment_design: core/experiment_design.schema.yaml
     experiment_assurance: core/experiment_assurance_contract.yaml
     experiments: modules/06_experiment_design.md
+    numerical_verification: core/numerical_verification_contract.yaml
+    numerical_verification_module: modules/07_numerical_verification.md
+    model_verification: core/model_verification_contract.yaml
+    model_verification_module: modules/08_model_verification.md
   edges:
   - - plan
     - governance
@@ -139,5 +145,17 @@ authority_graph:
     - experiments
   - - experiment_assurance
     - experiments
-implemented_phase: G
+  - - bootstrap
+    - numerical_verification
+  - - simulation_protocol
+    - numerical_verification
+  - - numerical_verification
+    - numerical_verification_module
+  - - bootstrap
+    - model_verification
+  - - numerical_verification
+    - model_verification
+  - - model_verification
+    - model_verification_module
+implemented_phase: H
 business_execution_enabled: true

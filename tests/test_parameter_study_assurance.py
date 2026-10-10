@@ -408,3 +408,46 @@ def test_arx_rejected_holdout_preserves_complete_final_arrays_bound_to_verified_
     write_json(tmp_path/actual['data_file'],data); savemat(tmp_path/actual['mat_file'],mat)
     with pytest.raises(ValueError,match='complete verified split ledger'):
         assert_case(actual,case,tmp_path,'synthetic-run')
+
+
+@pytest.mark.parametrize('method', METHODS)
+@pytest.mark.parametrize('nested_explicit_root', [False, True])
+def test_public_producer_preserves_project_root_at_real_review_gate(tmp_path, monkeypatch, method, nested_explicit_root):
+    """A nested reviewed study must reach runtime gates using its caller root."""
+    import resolve_runtime as routing
+
+    root = tmp_path / 'project'
+    study = make_parameter_study(root, method)
+    if nested_explicit_root:
+        nested = root / 'nested'
+        nested.mkdir()
+        study = study.replace(nested / study.name)
+    direct = validate_parameter_study(study, project_root=root, require_reviewed=True)
+    assert direct['valid'] and direct['trial_execution_ready'], direct['errors']
+    before = {path: path.read_bytes() for path in root.rglob('*') if path.is_file()}
+    actual_resolver, observed = routing.resolve_runtime, []
+
+    def route_without_runtime_evidence(intent, **kwargs):
+        # Exercise the actual source/review route with the producer's selected
+        # root. Deliberately omit runtime profiles to stop before native work.
+        report = actual_resolver(intent, study_path=kwargs['study_path'],
+                                 project_root=kwargs.get('project_root'))
+        observed.append((kwargs, report))
+        return report
+
+    monkeypatch.setattr(routing, 'resolve_runtime', route_without_runtime_evidence)
+    output = root / 'native-attempt'
+    selected_root = {'project_root': root} if nested_explicit_root else {}
+    with pytest.raises(ValueError, match='public parameter-trial route blocked'):
+        runner.run_parameter_study(study, root / 'matlab.exe', output,
+            environment_profile=root / 'unqualified-a.json',
+            parameter_study_profile=root / 'unqualified-f.json',
+            simulation_profile=root / 'unqualified-e.json' if method == METHODS[1] else None,
+            **selected_root)
+    assert len(observed) == 1
+    forwarded, route = observed[0]
+    assert forwarded['project_root'] == root.resolve()
+    assert route['study_validation']['valid'] and route['study_validation']['trial_execution_ready'], route['errors']
+    assert route['status'] == 'blocked' and route['missing_gates'] == ['current_a_and_f_profiles'], route
+    assert not route['parameter_study_execution_allowed'] and not output.exists()
+    assert {path: path.read_bytes() for path in root.rglob('*') if path.is_file()} == before

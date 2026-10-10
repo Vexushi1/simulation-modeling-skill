@@ -1,12 +1,12 @@
 # Canonical Architecture — Simulation Modeling Skill
 
-> Scope: v0.7.0 Phase G implementation, based on A–F infrastructure
+> Scope: v0.8.0 bounded Phase H implementation, based on A–G infrastructure
 > Primary runtime baseline: MATLAB R2025b + Simulink  
 > Target: competition-oriented simulation modeling with engineering-grade reproducibility and paper-ready evidence.
 
 [V1_FULL_IMPLEMENTATION_PLAN.md](V1_FULL_IMPLEMENTATION_PLAN.md) is the detailed development authority. [V1_IMPLEMENTATION_ROADMAP.md](V1_IMPLEMENTATION_ROADMAP.md) summarizes it. This architecture describes the target layers; the active contracts begin at [../core/bootstrap.yaml](../core/bootstrap.yaml).
 
-Current implementation covers environment inspection and assurance, problem audit and text model design with challenge and human approval checks. Phase D adds approved-model mapping and qualified bounded core construction. Phase E adds frozen protocols and bounded core execution; F adds bounded optional parameter trials and G adds reviewed finite serial catalog experiments. Numerical verification, physical validation and evidence layers remain deferred in Phases H–K. Other D domains have no native construction qualification. A declared layer, toolbox or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Qualification, CI, merge and release results are recorded separately in their development PRs.
+Current implementation covers environment inspection and assurance, problem audit and text model design with challenge and human approval checks. Phase D adds approved-model mapping and qualified bounded core construction. Phase E adds frozen protocols and bounded core execution; F adds bounded optional parameter trials and G adds reviewed finite serial catalog experiments. H adds bounded three-level numerical assessment and finite input/solver/reviewed structural evidence. General sensitivity and uncertainty, real-system validation and evidence delivery remain deferred. Other D domains have no native construction qualification. A declared layer, toolbox or future project state cannot be activated by the current router. Repository development gates and a user's project states are distinct. Qualification, CI, merge and release results are recorded separately in their development PRs.
 
 ## 1. Scope
 
@@ -118,7 +118,7 @@ Supplementary specialized skills may be used after explicit compatibility review
 
 The local repository owns routing and competition methodology; upstream skills own low-level implementation behavior such as model editing, simulation, testing and supported toolbox workflows.
 
-### Layer E — Simulation experiment design (deferred)
+### Layer E — Simulation experiment design (bounded E/G infrastructure)
 
 Every nontrivial simulation records:
 
@@ -136,7 +136,7 @@ Every nontrivial simulation records:
 
 Prefer `Simulink.SimulationInput` for non-destructive per-run configuration.
 
-### Layer F — Calibration, identification & optimization (deferred)
+### Layer F — Calibration, identification & optimization (bounded Phase F infrastructure)
 
 Depending on the task:
 
@@ -159,7 +159,7 @@ Parameter provenance must distinguish:
 
 These are provenance roles, not a universal credibility ranking. Judge suitability from the parameter's role, object, conditions, units, data quality, identifiability, uncertainty, and independent validation. Trial/calibration runs are not accepted primary evidence; final parameters require a frozen final protocol, a new run, and numerical verification.
 
-### Layer G — Model verification (deferred)
+### Layer G — Model verification (bounded Phase H infrastructure)
 
 Model verification is a first-class module.
 
@@ -304,4 +304,12 @@ The separate trial ledger, raw/process evidence and cross-checked MAT/JSON candi
 
 The [G module](../modules/06_experiment_design.md) reviews source-bound finite catalogs and runs scenario matrices, ordered factorial grids and fixed-size categorical Monte Carlo through E. No parameter override bypasses C/D/E approval or freeze. G's native profile qualifies sample generation only; new execution requires independent current A/E/G identities and every actual operation dependency. E/F/G safety source lists close their shared consumer dependencies conservatively, without expanding any qualification scope.
 
-Each draw preserves its order, catalog identity and independent E run/receipt, including repetitions. Technical failure stops the serial campaign, retains partial evidence and suppresses complete statistics. E admissibility remains separate from the G event threshold. Fixed-size nominal Wilson intervals describe the declared iid finite law, without proving precision, physical validity or reliability. `EXPERIMENT_DESIGN_REVIEWED` and `CAMPAIGN_COMPLETE` are optional stages; the experiment state scope checks B/C/D and G history while leaving current runtime readiness unassessed. Earlier scopes leave G unassessed. Validators and runners do not write state, primary-run anchors or model files. General parameter sweeps, continuous sampling, LHS, correlation, parallelism and H–K remain deferred.
+Each draw preserves its order, catalog identity and independent E run/receipt, including repetitions. Technical failure stops the serial campaign, retains partial evidence and suppresses complete statistics. E admissibility remains separate from the G event threshold. Fixed-size nominal Wilson intervals describe the declared iid finite law, without proving precision, physical validity or reliability. `EXPERIMENT_DESIGN_REVIEWED` and `CAMPAIGN_COMPLETE` are optional stages; the experiment state scope checks B/C/D and G history while leaving current runtime readiness unassessed. Earlier scopes leave G unassessed. Validators and runners do not write state, primary-run anchors or model files. General parameter sweeps, continuous sampling, LHS, correlation, parallelism and I–K remain deferred.
+
+## Phase H — Bounded numerical and model evidence
+
+The full plan §12.9–12.15 controls the implemented bounds. [H1](../modules/07_numerical_verification.md) reconstructs three current frozen E runs with identical physics: ode4 complete coarse-grid step refinement or ode45 endpoint tolerance refinement. It checks the coarse primary and finer difference against prior mixed tolerances, contraction and roundoff rules. Explicit required residual, constraint, conservation, event and drift obligations cannot be replaced by E metric admission or a successful solver exit.
+
+[H2](../modules/08_model_verification.md) requires accepted H1 for all participants. It consumes finite constant external-input OAT, finite scenario thresholds, common sampled solver metrics and independently reviewed meaningful structural differences. Every analysis keeps its target claim, source-declared requirement, finite domain, units, threshold and support/modify/reject consequences. Mechanical validity and claim support are separate; general continuous robustness, parameter override, event or physical-validity claims remain outside these operations.
+
+H produces assessment receipts in new directories and independently rechecks all numeric/source/history bindings. It creates no native MATLAB H profile and grants no new MATLAB execution. Current TTL gates any new E attempt; unchanged H history still checks present source bytes and complete execution-time A/E evidence. Only explicit callers record NUMERICALLY_VERIFIED, MODEL_VERIFICATION_DECIDED and MODEL_VERIFIED under their bounded claim scope. H state scopes leave current runtime readiness unassessed and earlier scopes leave H unassessed. H safety dependencies join the shared E/F/G conservative closure; A/B/D protected sources remain byte-identical.

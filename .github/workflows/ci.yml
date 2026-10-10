@@ -2,6 +2,7 @@ name: Simulation Skill repository checks
 
 'on':
   push:
+    branches: [main]
   pull_request:
 
 permissions:
