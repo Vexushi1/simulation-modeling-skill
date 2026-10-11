@@ -4,7 +4,7 @@ These tests build explicitly SYNTHETIC records and call the actual readers.
 They neither execute MATLAB nor replace a validator with a successful report.
 """
 from contextlib import contextmanager
-from copy import deepcopy
+from copy import copy, deepcopy
 from datetime import timedelta
 from pathlib import Path
 
@@ -250,9 +250,55 @@ def test_sealed_capability_cannot_move_to_a_copied_request_or_outlive_its_scope(
     assert len(calls['full']) == 3
 
 
-def test_every_case_rechecks_solver_and_exact_deadline_after_request_local_hit(historical_pair):
+@pytest.mark.parametrize('copy_kind', ['shallow', 'deep'])
+def test_copied_active_wrapper_cannot_reuse_publish_or_discard_the_genuine_proof(historical_pair, monkeypatch, copy_kind):
+    root, first, second, _ = historical_pair
+    calls = spy_actual_consumers(monkeypatch)
+    original = reader.validate_case_qualifications
+    captured = []
+
+    def per_case(request, case, start, **kwargs):
+        result = original(request, case, start, **kwargs)
+        replay = kwargs.get('_historical_replay')
+        if not captured and isinstance(replay, native._HistoricalReplay):
+            captured.append(replay)
+            assert replay.matches(request)
+            capability = replay._capability
+            pending = capability.pending
+            assert pending is not None
+            entries = dict(capability.session.entries)
+            for complete in (False, True):
+                # Preserve the actual owner/request/raw even for deepcopy: only
+                # the new wrapper's identity may distinguish this candidate.
+                clone = copy(replay) if copy_kind == 'shallow' else deepcopy(replay, {
+                    id(request): request, id(replay._raw): replay._raw, id(capability): capability})
+                assert clone is not replay and clone._request is request and clone._capability is capability
+                assert not clone.matches(request, raw=replay._raw, directory=replay._directory)
+                native._finish_historical_replay(clone, complete=complete)
+                assert replay.matches(request) and capability.pending is pending
+                assert capability.session.entries.keys() == entries.keys()
+                assert all(capability.session.entries[key] is value for key, value in entries.items())
+                runtime = native.validate_case_qualifications(request, case, start, _historical_replay=clone)
+                assert runtime['executable'] == request['matlab_executable']
+                assert replay.matches(request) and capability.pending is pending
+        return result
+
+    monkeypatch.setattr(reader, 'validate_case_qualifications', per_case)
+    with shared.validation_session():
+        one = reader.validate_h_analysis_trial_receipt(first, project_root=root)
+        two = reader.validate_h_analysis_trial_receipt(second, project_root=root)
+    assert one['valid'] and one['trial_complete'], one['errors']
+    assert two['valid'] and two['trial_complete'], two['errors']
+    assert len(captured) == 1 and not captured[0].matches(captured[0]._request)
+    # One genuine reconstruction and two clone fallbacks; the independently
+    # completed genuine wrapper still publishes for the second actual request.
+    assert len(calls['full']) == 3, calls['full']
+
+
+def test_every_case_rechecks_solver_and_exact_deadline_after_request_local_hit(historical_pair, monkeypatch):
     _, first, _, _ = historical_pair
     request, raw = task(first)
+    calls = spy_actual_consumers(monkeypatch)
     cache = {}
     native.validate_case_qualifications(request, request['cases'][0], raw['cases'][0]['started_at'], _cache=cache)
     wrong = deepcopy(request['cases'][1])
@@ -266,6 +312,27 @@ def test_every_case_rechecks_solver_and_exact_deadline_after_request_local_hit(h
     wrong['run_spec']['solver']['name'] = 'UNQUALIFIED-SYNTHETIC-SOLVER'
     with pytest.raises(ValueError, match='solver/deadline'):
         native.validate_case_qualifications(request, wrong, raw['cases'][1]['started_at'], _cache=cache)
+    for field in ('required_A_operations', 'dropped_A_operations', 'host_fingerprint', 'matlab_executable'):
+        changed = deepcopy(request)
+        if field == 'required_A_operations':
+            changed['bindings'][field].append('SYNTHETIC-unqualified-A-operation')
+            expected = 'required A operation union'
+        elif field == 'dropped_A_operations':
+            changed['bindings']['required_A_operations'].remove(native.contract()['required_A_operations'][0])
+            expected = 'required A operation union was dropped'
+        else:
+            changed[field] += '-SYNTHETIC-changed'
+            expected = 'host/executable/runtime'
+        assert changed['input_identity'] == request['input_identity']
+        with pytest.raises(ValueError, match=expected):
+            native.validate_case_qualifications(changed, changed['cases'][1], raw['cases'][1]['started_at'], _cache=cache)
+    facts = cache[(request['input_identity'], True)]
+    before_capture = min(_time(window['captured_at']) for window in facts['windows']) - timedelta(microseconds=1)
+    future_start = max(_time(window['valid_until']) for window in facts['windows']) + timedelta(microseconds=1)
+    for start in (before_capture, future_start):
+        with pytest.raises(ValueError, match='time windows'):
+            native.validate_case_qualifications(request, request['cases'][1], start, _cache=cache)
+    assert len(calls['full']) == 1, calls['full']
 
 
 def test_reused_proof_rejects_case_between_capture_and_qualification_process_finish(historical_pair, monkeypatch):
@@ -307,6 +374,39 @@ def test_new_qualification_owned_file_is_freshly_detected_after_committed_proof(
         (profile.parent / 'SYNTHETIC-unlisted-evidence.txt').write_text('SYNTHETIC inventory mutation; not approved evidence.\n', encoding='utf-8')
         rejected = reader.validate_h_analysis_trial_receipt(second, project_root=root)
     assert not rejected['valid'], rejected
+
+
+def test_new_qualification_owned_lexical_alias_is_rejected_after_committed_proof_and_restoration(historical_pair, monkeypatch):
+    root, first, second, profile = historical_pair
+    names = native.contract()['evidence']
+    target = profile.parent / names['raw']
+    alias = profile.parent / 'SYNTHETIC-unlisted-owned-alias.json'
+    assert target.is_file() and not alias.exists()
+    calls = spy_actual_consumers(monkeypatch)
+    with preserve(profile.parent), shared.validation_session() as session:
+        accepted = reader.validate_h_analysis_trial_receipt(first, project_root=root)
+        assert accepted['valid'] and accepted['trial_complete'], accepted['errors']
+        assert len(calls['full']) == 1
+        assert any(key[0] == 'historical_qualification' for key in session.entries)
+        declared = native.artifact_manifest(profile.parent)
+        target_bytes = target.read_bytes()
+        try:
+            alias.symlink_to(target.name)
+        except OSError as error:
+            pytest.skip('owned symlink creation unavailable: ' + str(error))
+        assert alias.is_symlink() and alias.read_bytes() == target_bytes
+        assert native.artifact_manifest(profile.parent) != declared
+        rejected = reader.validate_h_analysis_trial_receipt(second, project_root=root)
+        assert not rejected['valid'], rejected
+        assert any('exact complete native artifact set' in error for error in rejected['errors']), rejected['errors']
+        assert target.read_bytes() == target_bytes
+        alias.unlink()
+        assert native.artifact_manifest(profile.parent) == declared
+        restored = reader.validate_h_analysis_trial_receipt(second, project_root=root)
+        assert restored['valid'] and restored['trial_complete'], restored['errors']
+    # Restoration may retain or reconstruct the original proof, but rejection
+    # can never create a new qualification permission or successful artifact.
+    assert len(calls['full']) >= 1
 
 
 def test_reused_qualification_never_skips_a_changed_raw_timing_primitive(historical_pair, monkeypatch):

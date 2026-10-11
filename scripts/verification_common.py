@@ -344,6 +344,66 @@ def serialized_json(value):
     return (json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + '\n').encode('utf-8')
 
 
+class _GuardMemory:
+    """Private conservative reservation for the original typed Path read set."""
+    __slots__ = ('charged',)
+    def __init__(self, charged):
+        self.charged = charged
+
+
+def _guard_path_charge(path):
+    # This projection is exclusive to actual typed discovery paths. Arbitrary
+    # Path objects in caller/report graphs remain unknown to _retained_size.
+    if type(path) is not type(Path()):
+        raise _ReuseUnavailable('unknown private guard path representation')
+    spelling, parts = str(path), tuple(path.parts)
+    hash(path)
+    projection = _retained_size((spelling, parts))
+    if projection is None:
+        raise _MemoCapacityUnavailable('private guard path capacity unavailable')
+    charge = sys.getsizeof(path)
+    for cls in type(path).__mro__:
+        for slot in getattr(cls, '__slots__', ()):
+            value = getattr(path, slot, None)
+            size = _retained_size(value)
+            if size is None:
+                raise _ReuseUnavailable('unknown private guard path metadata')
+            charge += size
+    # Cover later spelling/parts/comparison caches as well as current slots;
+    # aliases and shared strings may be charged repeatedly conservatively.
+    return charge + 4 * projection + 512
+
+
+def _guard_member_charge(value):
+    if type(value) is type(Path()):
+        return _guard_path_charge(value)
+    if type(value) is RepositorySourcePaths:
+        charge = 2 * sys.getsizeof(value) + sys.getsizeof(value.__dict__)
+        charge += _guard_path_charge(value.authority)
+        original = _retained_size(value.original_bytes)
+        if original is None:
+            raise _MemoCapacityUnavailable('source authority guard capacity unavailable')
+        return charge + original + sum(_guard_path_charge(path) for path in value)
+    if type(value) is tuple:
+        return sys.getsizeof(value) + sum(_guard_member_charge(item) for item in value)
+    size = _retained_size(value)
+    if size is None:
+        raise _ReuseUnavailable('unknown private read-set guard metadata')
+    return size
+
+
+def _capture_guard_member(paths, value):
+    capture, reservation = _H_VALIDATION_CAPTURE.get(), paths._guard_memory
+    if capture is None or reservation is None or capture['owner'] != _validation_owner():
+        return
+    charge = _guard_member_charge(value) + 512
+    containers = 2 * (sys.getsizeof(paths._documents) + sys.getsizeof(paths._edges))
+    if (capture['base_bytes'] + capture['charged'] + reservation.charged + charge + containers + 4096 >
+            min(_MEMO_BYTES, 64 * 1024 * 1024)):
+        raise _MemoCapacityUnavailable('typed read-set guard capacity unavailable')
+    reservation.charged += charge
+
+
 class EvidencePaths(set):
     def __init__(self, paths=(), *, allowed_external=()):
         super().__init__()
@@ -352,6 +412,9 @@ class EvidencePaths(set):
         self.source_authorities = []
         self._edges = []
         self._documents = {}
+        capture = _H_VALIDATION_CAPTURE.get()
+        self._guard_memory = (_GuardMemory(4096) if capture is not None and
+                              capture['owner'] == _validation_owner() else None)
         self.update(paths)
 
     def update(self, *others):
@@ -376,6 +439,31 @@ class EvidencePaths(set):
     def __ior__(self, other):
         self.update(other)
         return self
+
+
+def _capture_metadata(paths, value):
+    """Admit optional graph metadata once, with conservative running charges."""
+    capture = _H_VALIDATION_CAPTURE.get()
+    if capture is None or capture['owner'] != _validation_owner():
+        return False
+    charge = _retained_size(value)
+    containers = 2 * (sys.getsizeof(paths._documents) + sys.getsizeof(paths._edges))
+    if (charge is None or capture['base_bytes'] + capture['charged'] + charge + containers +
+            (paths._guard_memory.charged if paths._guard_memory is not None else 0) + 4096 >
+            min(_MEMO_BYTES, 64 * 1024 * 1024)):
+        raise _MemoCapacityUnavailable('optional evidence metadata capacity unavailable')
+    capture['charged'] += charge
+    return True
+
+
+def _capture_edge(paths, edge):
+    if _capture_metadata(paths, edge):
+        paths._edges.append(edge)
+
+
+def _capture_document(paths, key, value):
+    if _capture_metadata(paths, (key, value)):
+        paths._documents[key] = value
 
 
 def stat_manifest(paths, root, budget, *, allowed_external=()):
@@ -483,7 +571,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
             raise ValueError('verification evidence edge budget exceeded')
         queued.append((path, kind, qualification_root, value))
         if path is not None:
-            paths._edges.append((str(path), kind, str(qualification_root) if qualification_root else None))
+            _capture_edge(paths, (str(path), kind, str(qualification_root) if qualification_root else None))
 
     def add_repository_sources():
         nonlocal repository_added
@@ -494,6 +582,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
         stat_manifest(source_paths, ROOT, budget)
         source_paths.assert_authority_unchanged()
         source_snapshots.append(source_paths)
+        _capture_guard_member(paths, source_paths)
         paths.source_authorities.append(source_paths)
         for source in source_paths:
             queue(source, 'opaque', ROOT)
@@ -513,7 +602,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
         base = qualification_root or root
         lexical = Path(binding['path'])
         lexical = lexical if lexical.is_absolute() else base / lexical
-        paths._edges.append((str(lexical), kind, str(qualification_root) if qualification_root else None))
+        _capture_edge(paths, (str(lexical), kind, str(qualification_root) if qualification_root else None))
         candidate = Path(binding['path'])
         candidate = (candidate if candidate.is_absolute() else base / candidate).resolve()
         if qualification_root is None and not candidate.is_relative_to(root):
@@ -527,7 +616,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
         if not isinstance(binding, dict) or not isinstance(binding.get('path'), str):
             raise ValueError('malformed original qualification binding')
         lexical = Path(binding['path'])
-        paths._edges.append((str(lexical), kind, str(lexical.parent)))
+        _capture_edge(paths, (str(lexical), kind, str(lexical.parent)))
         candidate = lexical.resolve()
         queue(candidate, kind, candidate.parent)
 
@@ -591,6 +680,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
         if path is not None:
             path = contained_path(qualification_root or root, str(Path(path).resolve()))
             if qualification_root is not None and not path.is_relative_to(root):
+                _capture_guard_member(paths, path)
                 paths.allowed_external.add(path)
         key = (path if path is not None else id(value), context, qualification_root)
         if key in visited:
@@ -602,6 +692,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
             total += path.stat().st_size
             if total > budget['max_total_bytes']:
                 raise ValueError('verification total evidence byte budget exceeded')
+            _capture_guard_member(paths, path)
             paths.add(path)
             if len(paths) > file_limit:
                 raise ValueError('verification evidence file count budget exceeded')
@@ -609,8 +700,8 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
             continue
         if value is None:
             value = limited_source_document(path, budget) if context == 'task' else limited_document(path, budget)
-        if _H_VALIDATION_SESSION.get() is not None:
-            paths._documents[(str(path) if path is not None else None, context, str(qualification_root) if qualification_root else None)] = value
+        _capture_document(paths, (str(path) if path is not None else None, context,
+                                  str(qualification_root) if qualification_root else None), value)
         if (context in new_roles or context == 'h1_contract' and
                 any(key in value for key in ('scope', 'trajectory', 'observables', 'checks', 'math_budget', 'continuous_scope'))):
             add_repository_sources()
@@ -625,7 +716,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
                 child = contained_path(path.parent, binding['file'])
                 is_input = artifact_key == 'input' or context == 'h1_receipt' and artifact_key == 'numerical-verification-input.json'
                 child_context = receipt_inputs.get(context, 'task') if is_input else 'opaque'
-                paths._edges.append((str(path.parent / binding['file']), child_context, str(qualification_root) if qualification_root else None))
+                _capture_edge(paths, (str(path.parent / binding['file']), child_context, str(qualification_root) if qualification_root else None))
                 queue(child, child_context, qualification_root)
 
         skip = set()
@@ -720,6 +811,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
             raise ValueError('verification byte claim is outside the independently authorized read set or leaves project root: ' + str(candidate))
         if candidate in paths.claimed_hashes and paths.claimed_hashes[candidate] != sha256:
             raise ValueError('conflicting verification evidence byte claims')
+        _capture_guard_member(paths, (candidate, sha256))
         paths.claimed_hashes[candidate] = sha256
     for source_paths in source_snapshots:
         source_paths.assert_authority_unchanged()
@@ -729,6 +821,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
 # These proofs live only inside one read-only public validation. They are never
 # evidence fields, caller reports, current qualifications or execution grants.
 _H_VALIDATION_SESSION = ContextVar('h_validation_session', default=None)
+_H_VALIDATION_CAPTURE = ContextVar('h_validation_metadata_capture', default=None)
 _MEMO_ENTRIES = 64
 _MEMO_BYTES = 64 * 1024 * 1024
 _MEMO_KINDS = frozenset({'study_source', 'study_receipt', 'h2_source', 'h2_receipt',
@@ -737,6 +830,10 @@ _MEMO_KINDS = frozenset({'study_source', 'study_receipt', 'h2_source', 'h2_recei
 
 
 class _ReuseUnavailable(ValueError):
+    pass
+
+
+class _MemoCapacityUnavailable(_ReuseUnavailable):
     pass
 
 
@@ -756,12 +853,13 @@ def _validation_owner():
 
 
 class _ValidationSession:
-    __slots__ = ('owner', 'entries', 'inflight', 'capabilities', 'active')
+    __slots__ = ('owner', 'entries', 'inflight', 'capabilities', 'working', 'active')
     def __init__(self):
         self.owner = _validation_owner()
         self.entries = {}
         self.inflight = set()
         self.capabilities = []
+        self.working = []
         self.active = True
 
     def clear(self):
@@ -771,6 +869,7 @@ class _ValidationSession:
         self.capabilities.clear()
         self.entries.clear()
         self.inflight.clear()
+        self.working.clear()
 
 
 @contextmanager
@@ -848,7 +947,7 @@ def _retained_size(value):
         total += sys.getsizeof(node)
         if total > min(_MEMO_BYTES, 64 * 1024 * 1024):
             return None
-        if type(node) in (dict, list, tuple, set, frozenset, _HistoricalCapability, _ValidationSession):
+        if type(node) in (dict, list, tuple, set, frozenset, _HistoricalCapability, _ValidationSession, _GuardMemory):
             active.add(identity)
             pending.append((node, True))
         if type(node) is dict:
@@ -856,12 +955,19 @@ def _retained_size(value):
             pending.extend((child, False) for child in node.values())
         elif type(node) in (list, tuple, set, frozenset):
             pending.extend((child, False) for child in node)
+        elif type(node) is _GuardMemory:
+            if type(node.charged) is not int or node.charged < 0:
+                return None
+            total += node.charged
+            if total > min(_MEMO_BYTES, 64 * 1024 * 1024):
+                return None
+            pending.append((node.charged, False))
         elif type(node) is _HistoricalCapability:
             # session is the owner, not retained as a second recursive graph.
             pending.extend(((node.root, False), (node.pending, False)))
         elif type(node) is _ValidationSession:
             pending.extend((child, False) for child in
-                           (node.owner, node.entries, node.inflight, node.capabilities, node.active))
+                           (node.owner, node.entries, node.inflight, node.capabilities, node.working, node.active))
         elif type(node) not in (str, bytes, int, float, bool, type(None)):
             return None
     return total
@@ -869,6 +975,11 @@ def _retained_size(value):
 
 def _path_provenance(path):
     """Record lexical bindings and all traversed links, including link targets."""
+    # abspath removes parent components before following a preceding link.
+    # Let the original contained resolver handle these legal spellings; they
+    # cannot acquire an optional proof from a different lexical projection.
+    if '..' in Path(path).parts:
+        raise _ReuseUnavailable('parent-traversal provenance requires original validation')
     lexical = Path(os.path.abspath(str(path)))
     todo, visited, links = [lexical], set(), []
     while todo:
@@ -884,39 +995,87 @@ def _path_provenance(path):
             if prefix.is_symlink():
                 stat = prefix.lstat()
                 target = os.readlink(prefix)
+                if '..' in Path(target).parts:
+                    raise _ReuseUnavailable('parent-traversal link requires original validation')
                 links.append((str(prefix), target, stat.st_dev, stat.st_ino))
                 actual = Path(target) if Path(target).is_absolute() else prefix.parent / target
                 todo.append(Path(os.path.abspath(str(actual))))
     return str(lexical), str(lexical.resolve()), tuple(sorted(set(links)))
 
 
-def _memo_paths(descriptor):
-    if descriptor['request'] is not None:
-        return evidence_paths_for_request(descriptor['request'], descriptor['root'], descriptor['budget'],
-                                          role=descriptor['request_role'])
-    return evidence_paths(descriptor['roots'], descriptor['root'], descriptor['budget'],
-                          root_contexts=descriptor['contexts'], include_repository_sources=True)
+def _memo_paths(descriptor, *, working=()):
+    # The original consumers never retain optional parsed documents merely
+    # because an ambient public validation session happens to exist.
+    capture = {'owner': _validation_owner(), 'working': (descriptor, working),
+               'base_bytes': 0, 'charged': 0}
+    capture['base_bytes'] = _memo_capacity(capture, reserve=_GuardMemory(4096))
+    token = _H_VALIDATION_CAPTURE.set(capture)
+    try:
+        if descriptor['request'] is not None:
+            return evidence_paths_for_request(descriptor['request'], descriptor['root'], descriptor['budget'],
+                                              role=descriptor['request_role'])
+        return evidence_paths(descriptor['roots'], descriptor['root'], descriptor['budget'],
+                              root_contexts=descriptor['contexts'], include_repository_sources=True)
+    finally:
+        _H_VALIDATION_CAPTURE.reset(token)
 
 
-def _memo_base(descriptor):
-    paths = _memo_paths(descriptor)
+def _memo_capacity(*working, reserve=()):
+    """Account live private guards and reserve the next complete guard/copy."""
+    size = _retained_size((_H_VALIDATION_SESSION.get(), working))
+    extra = _retained_size(reserve)
+    if size is None or extra is None or size + extra > min(_MEMO_BYTES, 64 * 1024 * 1024):
+        raise _MemoCapacityUnavailable('live validation proof/guard capacity unavailable')
+    return size + extra
+
+
+def _memo_base(descriptor, *, working=()):
+    _memo_capacity(working, descriptor)
+    paths = _memo_paths(descriptor, working=working)
+    _memo_capacity(working, descriptor, paths._documents, paths._edges, paths._guard_memory)
+    # Include exact owned inventories in the stat-only phase. They may contain
+    # additional lexical members outside the ordinary declared input graph.
+    stats = stat_manifest(paths, descriptor['root'], descriptor['budget'])
+    extra_preflight = _memo_extra_preflight(paths, descriptor['budget'],
+        working=(working, descriptor, paths._documents, paths._edges, paths._guard_memory, stats))
+    _memo_capacity(working, descriptor, paths._documents, paths._edges, paths._guard_memory, stats, extra_preflight)
     manifest = input_manifest(paths, descriptor['root'], descriptor['budget'])
+    _memo_capacity(working, descriptor, paths._documents, paths._edges, paths._guard_memory, stats, extra_preflight,
+                   manifest, reserve=paths._edges)
     edges = list(paths._edges)
     edges.extend((str(path), descriptor['contexts'].get(str(Path(path).resolve()), 'task'), None)
                  for path in descriptor['roots'])
-    provenance = [_path_provenance(descriptor['root_lexical'])]
+    retained_before_provenance = _memo_capacity(working, descriptor, paths._documents, paths._edges, paths._guard_memory,
+                                              stats, extra_preflight, manifest, edges)
+    provenance, provenance_bytes = [], 0
+    def record_provenance(path):
+        nonlocal provenance_bytes
+        row = _path_provenance(path)
+        charge = _retained_size(row)
+        if charge is None or retained_before_provenance + provenance_bytes + charge + 2 * sys.getsizeof(provenance) + 1024 > min(_MEMO_BYTES, 64 * 1024 * 1024):
+            raise _MemoCapacityUnavailable('lexical evidence provenance capacity unavailable')
+        provenance.append(row)
+        provenance_bytes += charge
+    record_provenance(descriptor['root_lexical'])
     if descriptor.get('caller_root_lexical') is not None:
-        provenance.append(_path_provenance(descriptor['caller_root_lexical']))
-    provenance.extend(_path_provenance(path) for path, _, _ in edges)
+        record_provenance(descriptor['caller_root_lexical'])
+    for path, _, _ in edges:
+        record_provenance(path)
+    value = None
     for authority in paths.source_authorities:
         value = limited_document(authority.authority, SOURCE_AUTHORITY_BUDGET)
-        provenance.extend(_path_provenance(ROOT / name) for name in value['source_files'])
+        retained_before_provenance = _memo_capacity(working, descriptor, paths._documents, paths._edges, paths._guard_memory,
+                                                  stats, extra_preflight, manifest, edges, value)
+        for name in value['source_files']:
+            record_provenance(ROOT / name)
         authority.assert_authority_unchanged()
     snapshot = {'manifest': manifest, 'edges': sorted(edges, key=repr),
                 'provenance': sorted(set(provenance), key=repr),
                 'allowed_external': sorted(map(str, paths.allowed_external)),
                 'claimed_hashes': sorted((str(path), sha) for path, sha in paths.claimed_hashes.items()),
                 'authority': [(str(a.authority), a.original_bytes) for a in paths.source_authorities]}
+    _memo_capacity(working, descriptor, paths._documents, paths._edges, paths._guard_memory, stats, extra_preflight,
+                   snapshot, edges, provenance, value)
     return snapshot, paths
 
 
@@ -946,92 +1105,130 @@ def _memo_installation(runtime):
     return install, expected
 
 
-def _memo_extras(paths, budget):
-    """Fresh proof surfaces outside ordinary task manifests; no new authority."""
-    from runtime_common import host_fingerprint
+def _memo_extra_preflight(paths, budget, *, working=()):
+    """Stat all original extra proof surfaces before any extra or graph digest."""
     policy = limited_document(ROOT / 'core/h_analysis_assurance_contract.yaml', SOURCE_AUTHORITY_BUDGET)
-    machine_budget = policy['installation_identity_budget']
-    runtimes, owned, runtime_roots, resolutions = [], [], {}, []
-    installation_sets = {}
-    for (_, role, _), value in paths._documents.items():
+    machine_budget, names = policy['installation_identity_budget'], policy['evidence']
+    installations, runtimes, owned = {}, [], []
+    _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, policy)
+    for (path, role, _), value in paths._documents.items():
         runtime = value.get('runtime') if isinstance(value, dict) else None
         trusted = role.startswith('qualification_') and role.endswith('_profile') or role in {
             'simulation_receipt', 'implementation_receipt', 'h_trial_receipt'}
         if trusted and runtime is not None:
             install, expected = _memo_installation(runtime)
-            selected = installation_sets.setdefault(install, {})
+            selected = installations.setdefault(str(install), {})
             for target, sha in expected.items():
-                if target in selected and selected[target] != sha:
+                if str(target) in selected and selected[str(target)] != sha:
                     raise ValueError('conflicting complete installation identity')
-                selected[target] = sha
-    # Budget every selected installation file before the first installation
-    # digest. This is independent of the complete task/source stat preflight.
-    installation_stats = {}
-    installation_total = 0
-    for install, expected in installation_sets.items():
+                selected[str(target)] = sha
+            runtimes.append((path, role, runtime, str(install), {str(p): sha for p, sha in expected.items()}))
+            del expected, selected
+        if role not in {'h_trial_request', 'qualification_h_request'} or 'output_directory' not in value:
+            continue
+        # Authority is the independently selected persisted input and its typed
+        # receipt edge. The request's own directory field grants no read root.
+        if path is None:
+            raise _ReuseUnavailable('owned inventory requires a persisted input authority')
+        input_path = Path(path)
+        directory = input_path.parent
+        include_profile = role == 'qualification_h_request'
+        receipt_role = 'qualification_h_receipt' if include_profile else 'h_trial_receipt'
+        receipt_name = names['profile_receipt'] if include_profile else names['run_receipt']
+        if input_path.name != names['input'] or Path(value['output_directory']).resolve() != directory:
+            raise ValueError('H owned output directory differs from actual persisted input')
+        receipt = paths._documents.get((str(directory / receipt_name), receipt_role,
+                                       str(directory) if include_profile else None))
+        if receipt is None:
+            selected_receipts = [v for (p, r, _), v in paths._documents.items()
+                                 if p == str(directory / receipt_name) and r == receipt_role]
+            if len(selected_receipts) != 1:
+                raise _ReuseUnavailable('owned inventory requires its actual selected receipt')
+            receipt = selected_receipts[0]
+        if contained_path(directory, receipt['artifacts']['input']['file']) != input_path:
+            raise ValueError('H owned input differs from actual selected receipt')
+        excluded = {names['profile_receipt'], names['run_receipt']}
+        if not include_profile:
+            excluded.add(names['profile'])
+        # Preserve every lexical file name and its byte charge, including two
+        # links to one physical target. Original artifact_manifest does so too.
+        stats, nodes, total = [], 0, 0
+        retained_before_stats = _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, policy,
+                                             installations, runtimes, owned, receipt, excluded)
+        stat_bytes = 0
+        for target in directory.rglob('*'):
+            nodes += 1
+            if nodes > graph_limit(value['budget'], 'max_document_nodes'):
+                raise _ReuseUnavailable('bounded owned-inventory validation reuse exceeded')
+            relative = target.relative_to(directory)
+            if not target.is_file() or relative.parts[0] in {'cache', 'codegen'}:
+                continue
+            contained_path(directory, str(target))
+            size = target.stat().st_size
+            total += size
+            if size > byte_limit(value['budget'], 'max_file_bytes') or total > byte_limit(value['budget'], 'max_total_bytes'):
+                raise ValueError('actual native artifacts exceed whole-batch byte budget')
+            row = (str(target), relative.as_posix(), size, _path_provenance(target))
+            row_bytes = _retained_size(row)
+            # Charge each row independently, conservatively double-counting
+            # shared strings, plus both old and prospective list storage.
+            if row_bytes is None or retained_before_stats + stat_bytes + row_bytes + 2 * sys.getsizeof(stats) + 1024 > min(_MEMO_BYTES, 64 * 1024 * 1024):
+                raise _MemoCapacityUnavailable('owned lexical guard capacity unavailable')
+            stats.append(row)
+            stat_bytes += row_bytes
+            if len(stats) > graph_limit(value['budget'], 'max_files'):
+                raise _ReuseUnavailable('bounded owned-inventory file count exceeded')
+        owned.append((str(directory), _path_provenance(value['output_directory']), include_profile,
+                      tuple(sorted(excluded)), sorted(stats), receipt))
+        _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, policy, installations, runtimes, owned,
+                       stats, receipt, excluded, row if stats else None)
+    installation_stats, installation_total = {}, 0
+    for install, expected in installations.items():
         stats = stat_manifest(expected, install, machine_budget)
         installation_total += sum(entry['bytes'] for entry in stats)
         if installation_total > machine_budget['max_total_bytes']:
             raise _ReuseUnavailable('complete bounded installation identity exceeds reuse budget')
         installation_stats[install] = {entry['path']: entry for entry in stats}
-    for (path, role, _), value in paths._documents.items():
-        if path is None:
-            continue
-        runtime = value.get('runtime') if isinstance(value, dict) else None
-        trusted_runtime_role = role.startswith('qualification_') and role.endswith('_profile') or role in {
-            'simulation_receipt', 'implementation_receipt', 'h_trial_receipt'}
-        if trusted_runtime_role and runtime is not None:
-            install, expected = _memo_installation(runtime)
-            runtime_roots[str(Path(path).parent)] = install
-            stats = [installation_stats[install][str(target)] for target in sorted(expected, key=str)]
-            files = []
-            for entry in stats:
-                target = Path(entry['path'])
-                sha = sha256_file(target)
-                if sha != expected[target]:
-                    raise ValueError('actual installation bytes changed during validation reuse')
-                files.append({**entry, 'sha256': sha})
-            from validate_environment import _version_info
-            release, version_text = _version_info(install)
-            if runtime.get('release') != release or not runtime.get('version', '').startswith(version_text):
-                raise ValueError('actual installation release/version changed')
-            runtimes.append((path, role, files, [_path_provenance(runtime['matlabroot']), _path_provenance(runtime['executable']),
-                _path_provenance(install / 'VersionInfo.xml')] +
-                [_path_provenance(binding['path']) for binding in runtime['function_files']]))
-        if role in {'h_trial_request', 'qualification_h_request'} and 'output_directory' in value:
-            directory = Path(value['output_directory']).resolve()
-            names = policy['evidence']
-            include_profile = role == 'qualification_h_request'
-            excluded = {names['profile_receipt'], names['run_receipt']}
-            if not include_profile:
-                excluded.add(names['profile'])
-            files = []
-            nodes = 0
-            for target in directory.rglob('*'):
-                nodes += 1
-                if nodes > graph_limit(value['budget'], 'max_document_nodes') or len(files) >= graph_limit(value['budget'], 'max_files'):
-                    raise _ReuseUnavailable('bounded owned-inventory validation reuse exceeded')
-                if target.is_file() and target.relative_to(directory).parts[0] not in {'cache', 'codegen'}:
-                    files.append(target)
-            stats = stat_manifest(files, directory, value['budget'])
-            inventory = []
-            for entry in stats:
-                target = Path(entry['path'])
-                relative = target.relative_to(directory).as_posix()
-                inventory.append((relative, entry['bytes'], sha256_file(target), _path_provenance(target)))
-            # Match the original exact H artifact inventory, not only its edges.
-            receipt_name = names['profile_receipt'] if include_profile else names['run_receipt']
-            receipt_path = directory / receipt_name
-            if receipt_path.is_file():
-                receipt = limited_document(receipt_path, value['budget'])
-                actual = {row[0]: row[2] for row in inventory if row[0] not in excluded}
-                declared = {binding['file']: binding['sha256'] for binding in receipt['artifacts'].values()}
-                if actual != declared:
-                    raise ValueError('exact H owned inventory changed during validation reuse')
-            owned.append((str(directory), _path_provenance(value['output_directory']), include_profile, sorted(inventory)))
-    # Resolution paths in the immutable raw record can traverse links which
-    # runtime.function_files has already resolved. Capture those lexical paths
-    # too; a byte-identical retarget must invalidate the old resolution proof.
+        _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, policy, installations, runtimes, owned,
+                       installation_stats, stats, expected)
+    return {'runtimes': runtimes, 'installation_stats': installation_stats, 'owned': owned}
+
+
+def _memo_extras(paths, budget, *, working=()):
+    """Fresh installation/host and exact lexical inventories under old authority."""
+    from runtime_common import host_fingerprint
+    preflight = _memo_extra_preflight(paths, budget, working=working)
+    # Reserve an independent projection, including generated SHA/record fields;
+    # the stat/preflight graph already contains every selected lexical member.
+    _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight, reserve=preflight)
+    runtimes, owned, runtime_roots, resolutions = [], [], {}, []
+    raw, records, function_paths, actual, declared = None, (), (), {}, {}
+    for path, role, runtime, install, expected in preflight['runtimes']:
+        runtime_roots[str(Path(path).parent)] = install
+        files = []
+        for target in sorted(expected):
+            entry = preflight['installation_stats'][install][target]
+            sha = sha256_file(target)
+            if sha != expected[target]:
+                raise ValueError('actual installation bytes changed during validation reuse')
+            files.append({**entry, 'sha256': sha})
+        from validate_environment import _version_info
+        release, version_text = _version_info(install)
+        if runtime.get('release') != release or not runtime.get('version', '').startswith(version_text):
+            raise ValueError('actual installation release/version changed')
+        runtimes.append((path, role, files, [_path_provenance(runtime['matlabroot']),
+            _path_provenance(runtime['executable']), _path_provenance(Path(install) / 'VersionInfo.xml')] +
+            [_path_provenance(binding['path']) for binding in runtime['function_files']]))
+    for directory, provenance, include_profile, excluded, stats, receipt in preflight['owned']:
+        inventory = [(relative, size, sha256_file(target), lexical)
+                     for target, relative, size, lexical in stats]
+        actual = {row[0]: row[2] for row in inventory if row[0] not in excluded}
+        declared = {binding['file']: binding['sha256'] for binding in receipt['artifacts'].values()}
+        if actual != declared:
+            raise ValueError('exact H owned inventory changed during validation reuse')
+        owned.append((directory, provenance, include_profile, inventory))
+    _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight, runtimes, owned,
+                   runtime_roots, actual, declared)
     receipt_roles = {'qualification_a_receipt', 'qualification_d_receipt', 'qualification_e_receipt',
                      'qualification_h_receipt', 'simulation_receipt', 'implementation_receipt', 'h_trial_receipt'}
     for (path, role, _), value in paths._documents.items():
@@ -1046,24 +1243,43 @@ def _memo_extras(paths, budget):
             raise _ReuseUnavailable('actual raw resolution installation authority unavailable')
         raw_path = contained_path(directory, binding['file'])
         raw = limited_document(raw_path, budget)
+        _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight, runtimes, owned,
+                       runtime_roots, actual, declared, resolutions, raw)
         records = [raw, *_memo_records(raw.get('cases')), *_memo_records(raw.get('operations'))]
+        retained_before_resolutions = _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight,
+            runtimes, owned, runtime_roots, actual, declared, resolutions, raw, records)
+        resolution_bytes = 0
         for record in records:
-            function_paths = [item['path'] for item in _memo_records(record.get('functions'))]
+            functions = _memo_records(record.get('functions'))
+            _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight,
+                runtimes, owned, runtime_roots, actual, declared, resolutions, raw, records, reserve=functions)
+            function_paths = [item['path'] for item in functions]
             if record.get('operation_id') == 'simulink.library_load':
                 function_paths.append(record['output']['file_name'])
             for name in function_paths:
                 if name.startswith('built-in (') and name.endswith(')'):
                     name = name[len('built-in ('):-1]
                 contained_path(install, name)
-                resolutions.append((str(raw_path), _path_provenance(name), Path(name).is_file()))
-    return {'host': host_fingerprint(), 'installation': sorted(runtimes, key=repr),
-            'owned': sorted(owned, key=repr), 'resolutions': sorted(resolutions, key=repr)}
+                projection = (str(raw_path), _path_provenance(name), Path(name).is_file())
+                projection_bytes = _retained_size(projection)
+                if projection_bytes is None or retained_before_resolutions + resolution_bytes + projection_bytes + 2 * sys.getsizeof(resolutions) + sys.getsizeof(function_paths) + 1024 > min(_MEMO_BYTES, 64 * 1024 * 1024):
+                    raise _MemoCapacityUnavailable('raw lexical resolution guard capacity unavailable')
+                resolutions.append(projection)
+                resolution_bytes += projection_bytes
+        _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight, runtimes, owned,
+                       runtime_roots, actual, declared, resolutions, raw, records, function_paths, functions,
+                       projection if function_paths else None)
+    result = {'host': host_fingerprint(), 'installation': sorted(runtimes, key=repr),
+              'owned': sorted(owned, key=repr), 'resolutions': sorted(resolutions, key=repr)}
+    _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight, result, runtime_roots,
+                   actual, declared, raw, records, function_paths, functions if records else None)
+    return result
 
 
 def _publish_validation(session, key, snapshot, extras, result, *, working=()):
     caller = sys._getframe(1)
     if (Path(caller.f_code.co_filename).resolve() != ROOT / 'scripts/verification_common.py' or
-            caller.f_code.co_name not in {'_reuse_validation', '_commit_historical_validation'}):
+            caller.f_code.co_name not in {'_attempt_h_validation_reuse', '_commit_historical_validation'}):
         return
     if len(session.entries) >= min(_MEMO_ENTRIES, 64):
         return
@@ -1097,87 +1313,156 @@ def _reuse_validation(kind, *, project_root, budget, compute, eligible, options=
             session.owner != _validation_owner() or
             kind == 'historical_qualification' and not _live_capability(capability, session, root)):
         return compute()
+    changed = None
     try:
+        result = _attempt_h_validation_reuse(kind, session=session, root=root, project_root=project_root,
+            budget=budget, compute=compute, eligible=eligible, options=options, roots=roots,
+            root_contexts=root_contexts, request=request, request_role=request_role, capability=capability)
+    except _ValidationReuseChanged as error:
+        changed = (str(error), error.report)
+    # The failed attempt's frame and caught traceback have exited before either
+    # original nested computation or a clean public rejection is evaluated.
+    if changed is not None:
+        raise _ValidationReuseChanged(*changed) from None
+    if result is _MEMO_ORIGINAL:
+        return compute()
+    return result
+
+
+_MEMO_ORIGINAL = object()
+
+
+def _attempt_h_validation_reuse(kind, *, session, root, project_root, budget, compute, eligible,
+                                options, roots, root_contexts, request, request_role, capability):
+    caller = sys._getframe(1)
+    if (Path(caller.f_code.co_filename).resolve() != ROOT / 'scripts/verification_common.py' or
+            caller.f_code.co_name != '_reuse_validation'):
+        return _MEMO_ORIGINAL
+    try:
+        _memo_capacity(budget, request, options, reserve=(budget, request))
         descriptor = {'root': str(root), 'root_lexical': str(project_root), 'budget': deepcopy(budget),
                       'roots': tuple(map(str, roots)), 'contexts': {str(p): r for p, r in (root_contexts or {}).items()},
                       'request': deepcopy(request), 'request_role': request_role}
         descriptor['caller_root_lexical'] = options.get('root_lexical') if isinstance(options, dict) else None
         key = (kind, str(root), str(project_root), tuple(map(str, roots)),
                canonical_digest(budget), canonical_digest(options), request_role)
-        before, paths = _memo_base(descriptor)
-        extras_before = _memo_extras(paths, descriptor['budget'])
-        if _retained_size((session, descriptor, key, before, extras_before, paths._documents, paths._edges)) is None:
-            return compute()
-    except (OSError, ValueError, KeyError, TypeError, RecursionError):
-        return compute()
+        before, paths = _memo_base(descriptor, working=(key, budget, request, options))
+        extras_before = _memo_extras(paths, descriptor['budget'],
+            working=(descriptor, key, before, paths._documents, paths._edges, paths._guard_memory, budget, request, options))
+        if _retained_size((session, descriptor, key, before, extras_before, paths._documents, paths._edges, paths._guard_memory, budget, request, options)) is None:
+            return _MEMO_ORIGINAL
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError, MemoryError):
+        return _MEMO_ORIGINAL
     previous = session.entries.get(key)
     if previous is not None:
         try:
             if (typed_equal(before, previous['snapshot']) and
                     datetime.now(timezone.utc) >= datetime.fromisoformat(previous['clock']) and
                     typed_equal(extras_before, previous['extras'])):
-                retained = _retained_size((session, descriptor, before, extras_before, paths._documents, paths._edges))
+                retained = _retained_size((session, descriptor, key, before, extras_before, paths._documents, paths._edges, paths._guard_memory, budget, request, options))
                 cloned = _retained_size(previous['result'])
                 if retained is None or cloned is None or retained + cloned > min(_MEMO_BYTES, 64 * 1024 * 1024):
-                    return compute()
+                    return _MEMO_ORIGINAL
                 result = deepcopy(previous['result'])
                 try:
+                    working = (descriptor, key, before, extras_before, paths._documents, paths._edges, paths._guard_memory, result, budget, request, options)
+                    _memo_capacity(working, reserve=(before, extras_before, paths._documents, paths._edges, paths._guard_memory))
                     assert_unchanged(before['manifest'])
-                    final, final_paths = _memo_base(descriptor)
-                    if not typed_equal(before, final) or not typed_equal(_memo_extras(final_paths, descriptor['budget']), previous['extras']):
+                    final, final_paths = _memo_base(descriptor, working=working)
+                    final_extras = _memo_extras(final_paths, descriptor['budget'],
+                        working=(working, final, final_paths._documents, final_paths._edges, final_paths._guard_memory))
+                    _memo_capacity(working, final, final_paths._documents, final_paths._edges, final_paths._guard_memory, final_extras)
+                    if not typed_equal(before, final) or not typed_equal(final_extras, previous['extras']):
                         raise ValueError('validation reuse evidence changed before return')
-                except (OSError, ValueError, KeyError, TypeError, RecursionError) as error:
+                except _MemoCapacityUnavailable:
+                    session.entries.pop(key, None)
+                    return _MEMO_ORIGINAL
+                except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError) as error:
                     session.entries.pop(key, None)
                     raise _ValidationReuseChanged(str(error), result) from error
                 return result
         except _ValidationReuseChanged:
             raise
-        except (OSError, ValueError, KeyError, TypeError, RecursionError, MemoryError):
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError, MemoryError):
             pass
         session.entries.pop(key, None)
     if key in session.inflight:
-        return compute()
+        return _MEMO_ORIGINAL
+    work = (descriptor, key, before, extras_before, paths._documents, paths._edges, paths._guard_memory, budget, request, options)
+    try:
+        # Include the current complete graph and conservatively reserve both
+        # registry containers' growth before adding the nested parent.
+        live = _memo_capacity(work)
+        growth = 4 * sys.getsizeof(session.inflight) + 2 * sys.getsizeof(session.working) + 1024
+        if live + growth > min(_MEMO_BYTES, 64 * 1024 * 1024):
+            return _MEMO_ORIGINAL
+    except _MemoCapacityUnavailable:
+        return _MEMO_ORIGINAL
     session.inflight.add(key)
+    session.working.append(work)
     try:
         result = compute()
         if not eligible(result):
             return result
         try:
-            after, after_paths = _memo_base(descriptor)
+            working_before = (descriptor, key, before, extras_before, paths._documents, paths._edges, paths._guard_memory, result, budget, request, options)
+            _memo_capacity(working_before, reserve=(before, extras_before, paths._documents, paths._edges, paths._guard_memory))
+            after, after_paths = _memo_base(descriptor, working=working_before)
             if not typed_equal(before, after):
                 raise _ValidationReuseChanged('validation evidence changed during complete consumer', result)
-            extras = _memo_extras(after_paths, descriptor['budget'])
+            extras = _memo_extras(after_paths, descriptor['budget'],
+                working=(working_before, after, after_paths._documents, after_paths._edges, after_paths._guard_memory))
             if not typed_equal(extras_before, extras):
                 raise _ValidationReuseChanged('validation installation/host/owned inventory changed during complete consumer', result)
         except _ValidationReuseChanged:
             raise
+        except _MemoCapacityUnavailable:
+            return result
         except _ReuseUnavailable as error:
             # A missing guard before compute uses the original path. Losing an
             # established guard during compute is an observed mutation/failure.
             raise _ValidationReuseChanged('complete validation guard became unavailable: ' + str(error), result) from error
-        except (OSError, ValueError, KeyError, TypeError, RecursionError) as error:
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError) as error:
             raise _ValidationReuseChanged(str(error), result) from error
-        working = (descriptor, key, before, extras_before, paths._documents, paths._edges,
-                   after, extras, after_paths._documents, after_paths._edges, result)
+        working = (descriptor, key, before, extras_before, paths._documents, paths._edges, paths._guard_memory,
+                   after, extras, after_paths._documents, after_paths._edges, after_paths._guard_memory, result, budget, request, options)
         retainable = _retained_size((session, working)) is not None
         if kind == 'historical_qualification' and retainable:
-            pending = (key, descriptor, after, extras, result)
-            capability.pending = pending
-            if _retained_size((session, before, extras_before, paths._documents, after_paths._documents)) is None:
-                capability.pending = None
-        elif kind != 'historical_qualification' and retainable:
-            _publish_validation(session, key, after, extras, result, working=working)
+            try:
+                _memo_capacity(working, reserve=(None, None, None, None, None))
+            except _MemoCapacityUnavailable:
+                pass
+            else:
+                pending = (key, descriptor, after, extras, result)
+                capability.pending = pending
+                if _retained_size((session, working, pending)) is None:
+                    capability.pending = None
         try:
-            final, final_paths = _memo_base(descriptor)
-            if not typed_equal(before, final) or not typed_equal(extras_before, _memo_extras(final_paths, descriptor['budget'])):
+            _memo_capacity(working, reserve=(after, extras, after_paths._documents, after_paths._edges, after_paths._guard_memory))
+            final, final_paths = _memo_base(descriptor, working=working)
+            final_extras = _memo_extras(final_paths, descriptor['budget'],
+                working=(working, final, final_paths._documents, final_paths._edges, final_paths._guard_memory))
+            _memo_capacity(working, final, final_paths._documents, final_paths._edges, final_paths._guard_memory, final_extras)
+            if not typed_equal(before, final) or not typed_equal(extras_before, final_extras):
                 raise ValueError('validation evidence changed before complete consumer return')
-        except (OSError, ValueError, KeyError, TypeError, RecursionError) as error:
+        except _MemoCapacityUnavailable:
+            session.entries.pop(key, None)
+            if kind == 'historical_qualification':
+                capability.pending = None
+            return result
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError) as error:
             session.entries.pop(key, None)
             if kind == 'historical_qualification':
                 capability.pending = None
             raise _ValidationReuseChanged(str(error), result) from error
+        if kind != 'historical_qualification' and retainable:
+            # Publish after the last real guard, including its live graph in the
+            # prospective copy bound. No copied entry predates this final check.
+            _publish_validation(session, key, after, extras, result,
+                working=(working, final, final_paths._documents, final_paths._edges, final_paths._guard_memory, final_extras))
         return result
     finally:
+        session.working.pop()
         session.inflight.discard(key)
 
 
@@ -1193,10 +1478,18 @@ def _commit_historical_validation(capability, *, complete):
     if not complete or pending is None:
         return
     key, descriptor, before, extras, result = pending
-    after, paths = _memo_base(descriptor)
-    if not typed_equal(before, after) or not typed_equal(extras, _memo_extras(paths, descriptor['budget'])):
+    try:
+        _memo_capacity(pending, reserve=(before, extras))
+        after, paths = _memo_base(descriptor, working=(pending,))
+        fresh_extras = _memo_extras(paths, descriptor['budget'],
+            working=(pending, after, paths._documents, paths._edges, paths._guard_memory))
+        _memo_capacity(pending, after, paths._documents, paths._edges, paths._guard_memory, fresh_extras)
+    except _MemoCapacityUnavailable:
+        return
+    if not typed_equal(before, after) or not typed_equal(extras, fresh_extras):
         raise ValueError('historical qualification proof changed before complete receipt publication')
-    _publish_validation(session, key, after, extras, result, working=(pending, descriptor, paths._documents, paths._edges))
+    _publish_validation(session, key, after, fresh_extras, result,
+        working=(pending, descriptor, paths._documents, paths._edges, paths._guard_memory, fresh_extras))
 
 
 def _memoized_h_validation(kind, role):
@@ -1215,60 +1508,88 @@ def _memoized_h_validation(kind, role):
             with validation_session():
                 def compute():
                     return function(path, project_root=project_root, **kwargs)
-                try:
-                    actual = Path(path).resolve()
-                    value = limited_document(actual)
-                    root = Path(project_root or (value['project_root'] if kind == 'study_receipt' else actual.parent)).resolve()
-                    if kind == 'h2_receipt':
-                        request_value = limited_document(actual.parent / 'model-verification-inputs.json')
-                        root = Path(project_root or request_value['project_root']).resolve()
-                        contract = contained_path(root, request_value['contract']['path'])
-                    elif kind == 'study_receipt':
-                        contract = contained_path(root, value['study']['path'])
-                    else:
-                        contract = actual
-                    source = limited_document(contract)
-                    budget = source.get('budget') or HARD_BUDGET
-                    supplied = kwargs.get('study_report') if kind == 'study_receipt' else kwargs.get('contract_report')
-                    if supplied is not None:
-                        # The complete enclosing receipt graph is budgeted before
-                        # any supplied-report comparison invokes a child consumer.
-                        _memo_base({'root': str(root), 'root_lexical': str(project_root or root),
-                            'budget': budget, 'roots': (str(path),), 'contexts': {str(actual): role},
-                            'request': None, 'request_role': None})
-                        if kind == 'study_receipt':
-                            from validate_h_analysis_study import validate_h_analysis_study
-                            current = validate_h_analysis_study(contract, project_root=root, require_reviewed=True)
-                            fields = ('project_id', 'contract_path', 'contract_sha256', 'semantic_sha256', 'input_manifest')
+                def prepare():
+                    # Optional bootstrap documents leave this frame before the
+                    # main attempt, or before original fallback begins.
+                    try:
+                        actual = Path(path).resolve()
+                        value = limited_document(actual)
+                        root = Path(project_root or (value['project_root'] if kind == 'study_receipt' else actual.parent)).resolve()
+                        if kind == 'h2_receipt':
+                            request_value = limited_document(actual.parent / 'model-verification-inputs.json')
+                            root = Path(project_root or request_value['project_root']).resolve()
+                            contract = contained_path(root, request_value['contract']['path'])
+                        elif kind == 'study_receipt':
+                            contract = contained_path(root, value['study']['path'])
                         else:
-                            from validate_model_verification import validate_model_verification
-                            current = validate_model_verification(contract, project_root=root, require_reviewed=True)
-                            fields = ('contract_path', 'contract_sha256', 'project_id', 'semantic_sha256', 'input_manifest')
-                        if any(not typed_equal(supplied.get(key), current.get(key)) for key in fields):
-                            return compute()
-                    options = {'explicit_root': project_root is not None,
-                               'root_lexical': str(project_root) if project_root is not None else None,
-                               'require_reviewed': kwargs.get('require_reviewed', False)}
-                    def eligible(report):
-                        if not report.get('valid'):
-                            return False
-                        return {'study_source': report.get('reviewed') and report.get('study_ready'),
-                                'h2_source': report.get('reviewed') and report.get('assessment_ready'),
-                                'study_receipt': report.get('study_complete'),
-                                'h2_receipt': report.get('model_verification_decided')}[kind] is True
+                            contract = actual
+                        source = limited_document(contract)
+                        budget = source.get('budget') or HARD_BUDGET
+                        supplied = kwargs.get('study_report') if kind == 'study_receipt' else kwargs.get('contract_report')
+                        if supplied is not None:
+                            descriptor = {'root': str(root), 'root_lexical': str(project_root or root),
+                                'budget': budget, 'roots': (str(path),), 'contexts': {str(actual): role},
+                                'request': None, 'request_role': None}
+                            before, paths = _memo_base(descriptor, working=(value, source))
+                            session = _H_VALIDATION_SESSION.get()
+                            work = (descriptor, before, paths._documents, paths._edges, paths._guard_memory, value, source)
+                            live = _memo_capacity(work)
+                            if live + 2 * sys.getsizeof(session.working) + 1024 > min(_MEMO_BYTES, 64 * 1024 * 1024):
+                                return _MEMO_ORIGINAL
+                            session.working.append(work)
+                            try:
+                                if kind == 'study_receipt':
+                                    from validate_h_analysis_study import validate_h_analysis_study
+                                    current = validate_h_analysis_study(contract, project_root=root, require_reviewed=True)
+                                    fields = ('project_id', 'contract_path', 'contract_sha256', 'semantic_sha256', 'input_manifest')
+                                else:
+                                    from validate_model_verification import validate_model_verification
+                                    current = validate_model_verification(contract, project_root=root, require_reviewed=True)
+                                    fields = ('contract_path', 'contract_sha256', 'project_id', 'semantic_sha256', 'input_manifest')
+                                if any(not typed_equal(supplied.get(key), current.get(key)) for key in fields):
+                                    return _MEMO_ORIGINAL
+                            finally:
+                                session.working.pop()
+                        options = {'explicit_root': project_root is not None,
+                                   'root_lexical': str(project_root) if project_root is not None else None,
+                                   'require_reviewed': kwargs.get('require_reviewed', False)}
+                        return str(root), budget, options, str(actual)
+                    except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError):
+                        return _MEMO_ORIGINAL
+                prepared = prepare()
+                if prepared is _MEMO_ORIGINAL:
+                    return compute()
+                root, budget, options, actual = prepared
+                def eligible(report):
+                    if not report.get('valid'):
+                        return False
+                    return {'study_source': report.get('reviewed') and report.get('study_ready'),
+                            'h2_source': report.get('reviewed') and report.get('assessment_ready'),
+                            'study_receipt': report.get('study_complete'),
+                            'h2_receipt': report.get('model_verification_decided')}[kind] is True
+                changed = None
+                try:
                     return _reuse_validation(kind, project_root=root, budget=budget, compute=compute, eligible=eligible,
                         options=options, roots=[path], root_contexts={actual: role})
                 except _ValidationReuseChanged as error:
-                    report = deepcopy(error.report) if isinstance(error.report, dict) else compute()
-                    for field in ('valid', 'reviewed', 'study_ready', 'assessment_ready', 'execution_ready',
-                                  'study_complete', 'study_accepted', 'defined', 'model_verification_decided',
-                                  'model_verified', 'claim_supported'):
-                        if field in report:
-                            report[field] = False
-                    report.setdefault('errors', []).append(str(error))
-                    return report
-                except (OSError, ValueError, KeyError, TypeError, RecursionError):
+                    # Every rejection report is the actual attempt's public
+                    # result or its independent cached-entry clone. Supplied
+                    # reports and cached entry objects are never returned here.
+                    changed = (str(error), error.report)
+                except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError):
+                    pass
+                if changed is None:
                     return compute()
+                message, report = changed
+                if not isinstance(report, dict):
+                    report = compute()
+                for field in ('valid', 'reviewed', 'study_ready', 'assessment_ready', 'execution_ready',
+                              'study_complete', 'study_accepted', 'defined', 'model_verification_decided',
+                              'model_verified', 'claim_supported'):
+                    if field in report:
+                        report[field] = False
+                report.setdefault('errors', []).append(message)
+                return report
         return wrapped
     return decorate
 

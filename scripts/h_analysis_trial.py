@@ -677,11 +677,14 @@ class _HistoricalReplay:
     Full in-memory request/raw identities are checked once at assessment entry;
     subsequent cases remain bound to that exact request object and context.
     """
-    __slots__ = ('_marker', '_capability', '_request', '_raw', '_context', '_request_digest',
+    __slots__ = ('_marker', '_identity', '_capability', '_request', '_raw', '_context', '_request_digest',
                  '_raw_digest', '_directory', '_receipt', '_active')
 
     def __init__(self, marker, capability, request, raw, directory):
         self._marker = marker
+        # Copies retain this integer, but their own object identity differs.
+        # The seal adds no self-reference or request retention to the session.
+        self._identity = id(self)
         self._capability = capability
         self._request = request
         self._raw = raw
@@ -693,7 +696,7 @@ class _HistoricalReplay:
         self._active = True
 
     def matches(self, request, *, raw=None, directory=None):
-        if self._marker is not _HISTORICAL_REPLAY_MARKER or not self._active or self._request is not request:
+        if self._marker is not _HISTORICAL_REPLAY_MARKER or self._identity != id(self) or not self._active or self._request is not request:
             return False
         if self._context != _historical_request_context(request):
             return False
@@ -720,7 +723,7 @@ def _mint_historical_replay(request, raw, directory):
 
 
 def _finish_historical_replay(replay, *, complete):
-    if not isinstance(replay, _HistoricalReplay) or not replay._active: return
+    if not isinstance(replay, _HistoricalReplay) or replay._identity != id(replay) or not replay._active: return
     from verification_common import _commit_historical_validation
     try:
         if complete is True and not replay.matches(replay._request, raw=replay._raw, directory=replay._directory):
