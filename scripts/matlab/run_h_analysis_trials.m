@@ -440,7 +440,9 @@ if any(strcmp(who(out),'xout'))
         assert(numel(match)==1 && ~used(match),'PhaseH:StateIdentity','Unique actual BlockPath state required.');
         used(match)=true;
         native=xout{match}; ts=native.Values;
-        assert(strcmp(native.Label,'CSTATE') && isa(ts,'timeseries') && isa(ts.Time,'double') ...
+        assert(isa(native.Label,'Simulink.SimulationData.StateType') && isscalar(native.Label) ...
+            && native.Label == Simulink.SimulationData.StateType.CSTATE ...
+            && strcmp(native.Label,'CSTATE') && isa(ts,'timeseries') && isa(ts.Time,'double') ...
             && isa(ts.Data,'double') && isreal(ts.Time) && isreal(ts.Data) && isvector(ts.Data), ...
             'PhaseH:StateType','Native continuous scalar double state required.');
         time=ts.Time(:); data=ts.Data(:);
@@ -448,14 +450,17 @@ if any(strcmp(who(out),'xout'))
             'PhaseH:StateBudget','State shape/sample budget differs.');
         csvFile=sprintf('%s-state-%d.csv',record.case_id,index);
         writeCsv(fullfile(directory,csvFile),time,data);
+        % Serialize the validated native enum code as a portable char row.
+        % The returned SimulationOutput keeps the original native StateType.
+        stateLabel='CSTATE';
         entry=struct('block_path',getBlock(native.BlockPath,1),'variable_id',declaration.variable_id, ...
-            'unit',declaration.unit,'label',native.Label,'observed_unit',ts.DataInfo.Units, ...
+            'unit',declaration.unit,'label',stateLabel,'observed_unit',ts.DataInfo.Units, ...
             'time',{num2cell(time')},'values',{num2cell(data')},'csv_file',csvFile);
         states{end+1}=entry; %#ok<AGROW>
         state_variables{index,1}=declaration.variable_id;
         state_units{index,1}=declaration.unit;
         state_paths{index,1}=entry.block_path;
-        state_labels{index,1}=native.Label;
+        state_labels{index,1}=stateLabel;
         state_times{index,1}=time;
         state_values{index,1}=data;
     end

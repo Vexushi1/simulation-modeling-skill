@@ -2177,6 +2177,14 @@ study 输入写入前使用与实际输出完全相同的 UTF-8 LF serializer �
 
 23 个保护源、1160 份旧证据、原始先验和 active V5 先验继续逐字节保留。定向关闭后完成原定完整 H、必要 F/G、独立 oracle 和 caller 回读，再执行一次最终本地全量、最终提交独立审查、PR 与 main 双平台 CI、合并及 main 只读回读。全部材料继续明确 SYNTHETIC INFRASTRUCTURE TEST，不产生真实模型批准、采纳或状态升级。
 
+## 12.26 R2025b 原生状态枚举的明确序列化
+
+最终源码的首次实际 A/D/E/F/G 资格通过；H 的完整 20 案例收集实际得到 3 个受控负例通过、17 个正例及计时检查在同一 state_labels MAT 类型检查失败。逐一解码 18 份实际 state MAT（含受控 timeout）确认：原生 Label 是 `Simulink.SimulationData.StateType` 枚举，直接保存后为 MCOS opaque 对象；JSON 则编码为 `CSTATE`。合成夹具写入字符行，未覆盖此原生格式差别，不能据此宣称实际资格通过。
+
+先明确原生导出边界，再修正 MATLAB producer：验证 Label 的真实枚举类、标量形状及精确 `StateType.CSTATE` 值，随后将该已验证枚举的规范代码 `CSTATE` 导出为明确 char 行，供 JSON/MAT 对照。原始 returned SimulationOutput 中的原生枚举继续原样保留；不改状态值、BlockPath、单位、时间、CSV、数值阈值或 Python 严格 U1 字符行消费者，不接受 opaque 对象或宽松字符串强制转换。实际完整 20 案例重新验证导出、数值、受控失败及恢复，既有不受影响 Python 通过结果继续复用。
+
+此次单个 H MATLAB 源文件修正落在既有共同 120 项保守安全闭包内，新执行必须取得新源码 E/F/G/H 资格；保留首次全部成功与失败证据，使用新目录和命令身份，不覆盖或把旧源码资格记为新源码通过。A/D 保护源及当前资格未受改变，继续复用。后续未执行命令显式绑定这些新 profile；只修正相应 scratch 配置与严格原始 caller/final-freeze 元数据绑定，不以 helper 固定名称为由重跑旧测试。最终本地全量仍只在全部实际业务及独立出口闭合后执行一次。
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
