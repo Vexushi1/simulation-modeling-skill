@@ -57,7 +57,35 @@ def spy_original(monkeypatch, module, name, calls, label):
 
 def test_actual_four_roles_and_three_baselines_reuse_with_fresh_whole_graph_and_independent_copies(full_wire_history, monkeypatch):
     item = full_wire_history
-    calls, guards = [], []
+    calls, guards, phases, active_phases = [], [], [], []
+    original_size = shared._retained_size
+    def size(value):
+        if active_phases:
+            phase = active_phases[-1]
+            if type(value) is tuple and any(type(child) is shared._ValidationSession for child in value):
+                phase['full'] += 1
+            else:
+                phase['local'] += 1
+                if type(value) is dict and ('cases' in value or 'operations' in value):
+                    for key in ('cases', 'operations'):
+                        records = value.get(key)
+                        phase['records'] += len(records) if type(records) is list else int(type(records) is dict)
+        return original_size(value)
+    def phase_observer(name, original):
+        def observe(*args, **kwargs):
+            phase = {'name': name, 'full': 0, 'local': 0, 'records': 0, 'complete': False}
+            phases.append(phase)
+            active_phases.append(phase)
+            try:
+                result = original(*args, **kwargs)
+                phase['complete'] = True
+                return result
+            finally:
+                active_phases.pop()
+        return observe
+    monkeypatch.setattr(shared, '_retained_size', size)
+    for name in ('_memo_extra_preflight', '_memo_extras'):
+        monkeypatch.setattr(shared, name, phase_observer(name, getattr(shared, name)))
     for name in ('validate_simulation_protocol', 'validate_simulation_receipt', 'validate_numerical_verification_receipt'):
         spy_original(monkeypatch, source_reader, name, calls, name)
     spy_original(monkeypatch, study_reader, 'assess_study', calls, 'study_metric')
@@ -85,6 +113,12 @@ def test_actual_four_roles_and_three_baselines_reuse_with_fresh_whole_graph_and_
         assert third['valid'] and third['metric']['unit'] == original_metric
         assert not any('memo' in key or 'session' in key for report in first for key in report)
         assert shared._retained_size(session) is not None
+        completed = [phase for phase in phases if phase['complete']]
+        assert {phase['name'] for phase in completed} == {'_memo_extra_preflight', '_memo_extras'}
+        # Forwarding real accounting sees a fixed number of complete owner/
+        # ancestor walks per closed phase, even on many actual native records.
+        assert all(0 < phase['full'] <= 4 for phase in completed), completed
+        assert any(phase['records'] > 10 and phase['local'] > phase['full'] for phase in completed), completed
     assert not session.active and not session.entries and not session.capabilities
     assert shared._H_VALIDATION_SESSION.get() is None
 
@@ -321,6 +355,56 @@ def test_capacity_fallback_preserves_actual_acceptance_and_retains_no_proof(full
         one = readers(item)[0](); two = readers(item)[0]()
         assert one['valid'] and two['valid'], [one['errors'], two['errors']]
         assert not session.entries and calls == ['real_source', 'real_source']
+    if cap == '_MEMO_BYTES':
+        # Decline a real newly parsed raw graph midway through the closed extras
+        # phase, using its measured size and the phase's actual live baseline.
+        # This also verifies that each admission reads the current cap.
+        monkeypatch.setattr(shared, '_MEMO_BYTES', 64 * 1024 * 1024)
+        expected = readers(item)[1]()
+        assert expected['valid'], expected['errors']
+        refused, guards, original_calls = [], [], []
+        original_add, original_extras = shared._memo_builder_add, shared._memo_extras
+        original_receipt, original_size = study_reader.schema_errors, shared._retained_size
+        def add(ledger, graph=(), **kwargs):
+            if not refused and type(graph) is dict and ('cases' in graph or 'operations' in graph):
+                charge = original_size(graph)
+                assert charge is not None and charge > 0
+                limit = ledger['base'] + ledger['charged'] + charge // 2
+                assert 0 < charge < limit < 64 * 1024 * 1024
+                assert ledger['base'] + ledger['charged'] < limit
+                patch.setattr(shared, '_MEMO_BYTES', limit)
+                try:
+                    return original_add(ledger, graph, **kwargs)
+                except shared._MemoCapacityUnavailable:
+                    refused.append((charge, limit))
+                    raise
+                pytest.fail('actual new raw graph exceeded the current live cap without declining')
+            return original_add(ledger, graph, **kwargs)
+        def extras(paths, *args, **kwargs):
+            if not refused:
+                guards.append(weakref.ref(paths))
+            return original_extras(paths, *args, **kwargs)
+        def receipt(*args, **kwargs):
+            original_calls.append(True)
+            assert refused and sys.exc_info()[0] is None
+            assert guards and all(reference() is None for reference in guards)
+            assert shared._H_VALIDATION_CAPTURE.get() is None
+            assert not shared._H_VALIDATION_SESSION.get().working
+            return original_receipt(*args, **kwargs)
+        with monkeypatch.context() as patch:
+            patch.setattr(shared, '_memo_builder_add', add)
+            patch.setattr(shared, '_memo_extras', extras)
+            patch.setattr(study_reader, 'schema_errors', receipt)
+            with shared.validation_session() as session:
+                actual = readers(item)[1]()
+                assert actual['valid'] and shared.typed_equal(expected, actual), actual['errors']
+                assert len(refused) == 1 and original_calls == [True]
+                assert not any(key[0] == 'study_receipt' for key in session.entries)
+                assert not session.working and all(reference() is None for reference in guards)
+        with shared.validation_session() as session:
+            recovered = readers(item)[1]()
+            assert recovered['valid'] and shared.typed_equal(expected, recovered), recovered['errors']
+            assert any(key[0] == 'study_receipt' for key in session.entries)
 
 
 def test_actual_object_memory_unknown_types_cycles_and_exception_cleanup():

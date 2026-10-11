@@ -1089,49 +1089,136 @@ def _memo_records(value):
     raise _ReuseUnavailable('native record shape unavailable for reuse')
 
 
-def _memo_installation(runtime):
+def _memo_builder(*working):
+    """One complete live baseline for a synchronous, callback-free builder."""
+    ledger = {'base': 0, 'charged': 0}
+    # The ledger/token/scalar control storage and small simultaneous temporary
+    # wrappers are conservatively reserved independently of all new data rows.
+    ledger['base'] = _memo_capacity(working, ledger, reserve=_GuardMemory(4096))
+    return ledger
+
+
+def _memo_builder_check(ledger, extra=0):
+    if ledger['base'] + ledger['charged'] + extra > min(_MEMO_BYTES, 64 * 1024 * 1024):
+        raise _MemoCapacityUnavailable('closed validation builder capacity unavailable')
+
+
+def _memo_builder_add(ledger, value=(), *, containers=(), reserve=()):
+    """Admit a complete new local graph and prospective container/copy growth."""
+    charge, copied = _retained_size(value), _retained_size(reserve)
+    if charge is None or copied is None:
+        raise _MemoCapacityUnavailable('unknown closed-builder object graph')
+    old, growth = [], 0
+    for container, additions in containers:
+        if type(container) not in (list, dict, set) or type(additions) is not int or additions < 0:
+            raise _ReuseUnavailable('unknown private builder container')
+        size = sys.getsizeof(container)
+        # Conservative CPython list/dict/set reallocation including simultaneous
+        # old/new table storage. Actual retained growth is reconciled afterward.
+        bound = 4 * (size + 32 * additions) + 1024
+        old.append((container, size, bound))
+        growth += bound
+    _memo_builder_check(ledger, charge + copied + growth + 512 + 128 * len(old))
+    ledger['charged'] += charge
+    return charge, tuple(old)
+
+
+def _memo_builder_grew(ledger, token):
+    charge, containers = token
+    delta = 0
+    for container, size, bound in containers:
+        change = max(0, sys.getsizeof(container) - size)
+        if change > bound:
+            raise _MemoCapacityUnavailable('private builder storage exceeded reserved growth')
+        delta += change
+    _memo_builder_check(ledger, delta)
+    ledger['charged'] += delta
+    return charge + delta
+
+
+def _memo_builder_storage(ledger, count):
+    # Includes the new list object, spare capacity, and simultaneous old/new
+    # pointer storage; no new list is allocated before its admission.
+    return _memo_builder_add(ledger, _GuardMemory(2 * (sys.getsizeof([]) + 8 * count) + 512))[0]
+
+
+def _memo_installation(runtime, ledger):
     if not isinstance(runtime, dict) or not {'matlabroot', 'executable', 'executable_sha256',
                                             'version_file_sha256', 'function_files'} <= set(runtime):
         raise _ReuseUnavailable('complete runtime identity is unavailable for validation reuse')
     install = Path(runtime['matlabroot']).resolve()
     executable = contained_path(install, runtime['executable'])
     version = contained_path(install, str(install / 'VersionInfo.xml'))
-    expected = {executable: runtime['executable_sha256'], version: runtime['version_file_sha256']}
+    expected = {}
+    temporary = _memo_builder_add(ledger, _GuardMemory(_guard_member_charge((install, executable, version))))[0]
+    temporary += _memo_builder_add(ledger, expected)[0]
+    for target, sha in [(executable, runtime['executable_sha256']), (version, runtime['version_file_sha256'])]:
+        token = _memo_builder_add(ledger, _GuardMemory(_guard_member_charge((target, sha))),
+                                  containers=((expected, 1),))
+        expected[target] = sha
+        temporary += _memo_builder_grew(ledger, token)
     for binding in runtime['function_files']:
         target = contained_path(install, binding['path'])
         if target in expected and expected[target] != binding['sha256']:
             raise ValueError('conflicting actual installation identity')
+        token = _memo_builder_add(ledger, _GuardMemory(_guard_member_charge((target, binding['sha256']))),
+                                  containers=((expected, 1),))
         expected[target] = binding['sha256']
-    return install, expected
+        temporary += _memo_builder_grew(ledger, token)
+    canonical = {}
+    _memo_builder_add(ledger, canonical)
+    for target, sha in expected.items():
+        row = (str(target), sha)
+        token = _memo_builder_add(ledger, row, containers=((canonical, 1),))
+        canonical[row[0]] = row[1]
+        _memo_builder_grew(ledger, token)
+    # Original Path-keyed lookup and canonical output were admitted together.
+    # Only the original temporary credit can be released after this frame ends;
+    # canonical strings/rows have their independent complete persistent charge.
+    installation = str(install)
+    _memo_builder_add(ledger, installation)
+    return installation, canonical, temporary
 
 
 def _memo_extra_preflight(paths, budget, *, working=()):
     """Stat all original extra proof surfaces before any extra or graph digest."""
     policy = limited_document(ROOT / 'core/h_analysis_assurance_contract.yaml', SOURCE_AUTHORITY_BUDGET)
     machine_budget, names = policy['installation_identity_budget'], policy['evidence']
-    installations, runtimes, owned = {}, [], []
-    _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, policy)
+    installations, runtimes, owned, installation_stats = {}, [], [], {}
+    ledger = _memo_builder(working, paths._documents, paths._edges, paths._guard_memory,
+                           policy, installations, runtimes, owned, installation_stats)
     for (path, role, _), value in paths._documents.items():
         runtime = value.get('runtime') if isinstance(value, dict) else None
         trusted = role.startswith('qualification_') and role.endswith('_profile') or role in {
             'simulation_receipt', 'implementation_receipt', 'h_trial_receipt'}
         if trusted and runtime is not None:
-            install, expected = _memo_installation(runtime)
-            selected = installations.setdefault(str(install), {})
+            install, expected, temporary = _memo_installation(runtime, ledger)
+            # The helper and every original Path-map alias have now exited.
+            ledger['charged'] -= temporary
+            if install not in installations:
+                selected = {}
+                token = _memo_builder_add(ledger, (install, selected), containers=((installations, 1),))
+                installations[install] = selected
+                _memo_builder_grew(ledger, token)
+            selected = installations[install]
             for target, sha in expected.items():
-                if str(target) in selected and selected[str(target)] != sha:
+                if target in selected and selected[target] != sha:
                     raise ValueError('conflicting complete installation identity')
-                selected[str(target)] = sha
-            runtimes.append((path, role, runtime, str(install), {str(p): sha for p, sha in expected.items()}))
+            token = _memo_builder_add(ledger, containers=((selected, len(expected)),))
+            selected.update(expected)
+            _memo_builder_grew(ledger, token)
+            row = (path, role, runtime, install, expected)
+            token = _memo_builder_add(ledger, row, containers=((runtimes, 1),))
+            runtimes.append(row)
+            _memo_builder_grew(ledger, token)
             del expected, selected
         if role not in {'h_trial_request', 'qualification_h_request'} or 'output_directory' not in value:
             continue
-        # Authority is the independently selected persisted input and its typed
-        # receipt edge. The request's own directory field grants no read root.
         if path is None:
             raise _ReuseUnavailable('owned inventory requires a persisted input authority')
         input_path = Path(path)
         directory = input_path.parent
+        _memo_builder_add(ledger, _GuardMemory(_guard_member_charge((input_path, directory))))
         include_profile = role == 'qualification_h_request'
         receipt_role = 'qualification_h_receipt' if include_profile else 'h_trial_receipt'
         receipt_name = names['profile_receipt'] if include_profile else names['run_receipt']
@@ -1140,8 +1227,9 @@ def _memo_extra_preflight(paths, budget, *, working=()):
         receipt = paths._documents.get((str(directory / receipt_name), receipt_role,
                                        str(directory) if include_profile else None))
         if receipt is None:
-            selected_receipts = [v for (p, r, _), v in paths._documents.items()
+            selected_receipts = [v for (p, r, _) in paths._documents.items()
                                  if p == str(directory / receipt_name) and r == receipt_role]
+            _memo_builder_add(ledger, selected_receipts)
             if len(selected_receipts) != 1:
                 raise _ReuseUnavailable('owned inventory requires its actual selected receipt')
             receipt = selected_receipts[0]
@@ -1150,12 +1238,8 @@ def _memo_extra_preflight(paths, budget, *, working=()):
         excluded = {names['profile_receipt'], names['run_receipt']}
         if not include_profile:
             excluded.add(names['profile'])
-        # Preserve every lexical file name and its byte charge, including two
-        # links to one physical target. Original artifact_manifest does so too.
         stats, nodes, total = [], 0, 0
-        retained_before_stats = _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, policy,
-                                             installations, runtimes, owned, receipt, excluded)
-        stat_bytes = 0
+        _memo_builder_add(ledger, (excluded, stats))
         for target in directory.rglob('*'):
             nodes += 1
             if nodes > graph_limit(value['budget'], 'max_document_nodes'):
@@ -1169,66 +1253,149 @@ def _memo_extra_preflight(paths, budget, *, working=()):
             if size > byte_limit(value['budget'], 'max_file_bytes') or total > byte_limit(value['budget'], 'max_total_bytes'):
                 raise ValueError('actual native artifacts exceed whole-batch byte budget')
             row = (str(target), relative.as_posix(), size, _path_provenance(target))
-            row_bytes = _retained_size(row)
-            # Charge each row independently, conservatively double-counting
-            # shared strings, plus both old and prospective list storage.
-            if row_bytes is None or retained_before_stats + stat_bytes + row_bytes + 2 * sys.getsizeof(stats) + 1024 > min(_MEMO_BYTES, 64 * 1024 * 1024):
-                raise _MemoCapacityUnavailable('owned lexical guard capacity unavailable')
+            token = _memo_builder_add(ledger, row, containers=((stats, 1),))
             stats.append(row)
-            stat_bytes += row_bytes
+            _memo_builder_grew(ledger, token)
             if len(stats) > graph_limit(value['budget'], 'max_files'):
                 raise _ReuseUnavailable('bounded owned-inventory file count exceeded')
-        owned.append((str(directory), _path_provenance(value['output_directory']), include_profile,
-                      tuple(sorted(excluded)), sorted(stats), receipt))
-        _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, policy, installations, runtimes, owned,
-                       stats, receipt, excluded, row if stats else None)
-    installation_stats, installation_total = {}, 0
+        _memo_builder_storage(ledger, len(stats))
+        row = (str(directory), _path_provenance(value['output_directory']), include_profile,
+               tuple(sorted(excluded)), sorted(stats), receipt)
+        token = _memo_builder_add(ledger, row, containers=((owned, 1),))
+        owned.append(row)
+        _memo_builder_grew(ledger, token)
+    installation_total = 0
     for install, expected in installations.items():
         stats = stat_manifest(expected, install, machine_budget)
+        _memo_builder_add(ledger, stats)
         installation_total += sum(entry['bytes'] for entry in stats)
         if installation_total > machine_budget['max_total_bytes']:
             raise _ReuseUnavailable('complete bounded installation identity exceeds reuse budget')
-        installation_stats[install] = {entry['path']: entry for entry in stats}
-        _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, policy, installations, runtimes, owned,
-                       installation_stats, stats, expected)
-    return {'runtimes': runtimes, 'installation_stats': installation_stats, 'owned': owned}
+        projected = {}
+        _memo_builder_add(ledger, projected)
+        for entry in stats:
+            token = _memo_builder_add(ledger, (entry['path'], entry), containers=((projected, 1),))
+            projected[entry['path']] = entry
+            _memo_builder_grew(ledger, token)
+        token = _memo_builder_add(ledger, containers=((installation_stats, 1),))
+        installation_stats[install] = projected
+        _memo_builder_grew(ledger, token)
+    result = {'runtimes': runtimes, 'installation_stats': installation_stats, 'owned': owned}
+    _memo_builder_add(ledger, result)
+    _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, policy,
+                   installations, runtimes, owned, installation_stats, stats if installations else None,
+                   expected if installations else None, ledger, result, token if installations or owned or runtimes else None,
+                   reserve=_GuardMemory(ledger['charged']))
+    return result
+
+
+def _memo_raw_resolutions(directory, raw_name, install, budget, ledger):
+    """Keep every raw alias inside this frame; output rows have separate credit."""
+    directory = Path(directory)
+    raw_path = contained_path(directory, raw_name)
+    temporary = _memo_builder_add(ledger, _GuardMemory(_guard_member_charge((directory, raw_path))))[0]
+    raw = limited_document(raw_path, budget)
+    temporary += _memo_builder_add(ledger, raw)[0]
+    temporary += _memo_builder_storage(ledger, 2)
+    cases, operations = _memo_records(raw.get('cases')), _memo_records(raw.get('operations'))
+    temporary += _memo_builder_storage(ledger, 1 + len(cases) + len(operations))
+    records = [raw, *cases, *operations]
+    rows = []
+    rows_storage = _memo_builder_add(ledger, rows)[0]
+    for record in records:
+        temporary += _memo_builder_storage(ledger, 1)
+        functions = _memo_records(record.get('functions'))
+        temporary += _memo_builder_storage(ledger, len(functions) + 1)
+        function_paths = [item['path'] for item in functions]
+        if record.get('operation_id') == 'simulink.library_load':
+            function_paths.append(record['output']['file_name'])
+        for name in function_paths:
+            if name.startswith('built-in (') and name.endswith(')'):
+                name = name[len('built-in ('):-1]
+            temporary += _memo_builder_add(ledger, name)[0]
+            contained_path(install, name)
+            projection = (str(raw_path), _path_provenance(name), Path(name).is_file())
+            token = _memo_builder_add(ledger, projection, containers=((rows, 1),))
+            rows.append(projection)
+            _memo_builder_grew(ledger, token)
+            rows_storage += max(0, sys.getsizeof(rows) - token[1][0][1])
+    # The caller releases temporary only after raw/records/current functions/
+    # function_paths/name/projection/cases/operations and this frame are gone.
+    return rows, temporary, rows_storage
 
 
 def _memo_extras(paths, budget, *, working=()):
     """Fresh installation/host and exact lexical inventories under old authority."""
     from runtime_common import host_fingerprint
     preflight = _memo_extra_preflight(paths, budget, working=working)
-    # Reserve an independent projection, including generated SHA/record fields;
-    # the stat/preflight graph already contains every selected lexical member.
     _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight, reserve=preflight)
     runtimes, owned, runtime_roots, resolutions = [], [], {}, []
-    raw, records, function_paths, actual, declared = None, (), (), {}, {}
+    ledger = _memo_builder(working, paths._documents, paths._edges, paths._guard_memory,
+                           preflight, runtimes, owned, runtime_roots, resolutions)
     for path, role, runtime, install, expected in preflight['runtimes']:
-        runtime_roots[str(Path(path).parent)] = install
+        row = (str(Path(path).parent), install)
+        token = _memo_builder_add(ledger, row, containers=((runtime_roots, 1),))
+        runtime_roots[row[0]] = row[1]
+        _memo_builder_grew(ledger, token)
         files = []
+        _memo_builder_add(ledger, files)
+        _memo_builder_storage(ledger, len(expected))
         for target in sorted(expected):
             entry = preflight['installation_stats'][install][target]
             sha = sha256_file(target)
             if sha != expected[target]:
                 raise ValueError('actual installation bytes changed during validation reuse')
-            files.append({**entry, 'sha256': sha})
+            row = {**entry, 'sha256': sha}
+            token = _memo_builder_add(ledger, row, containers=((files, 1),))
+            files.append(row)
+            _memo_builder_grew(ledger, token)
         from validate_environment import _version_info
         release, version_text = _version_info(install)
         if runtime.get('release') != release or not runtime.get('version', '').startswith(version_text):
             raise ValueError('actual installation release/version changed')
-        runtimes.append((path, role, files, [_path_provenance(runtime['matlabroot']),
-            _path_provenance(runtime['executable']), _path_provenance(Path(install) / 'VersionInfo.xml')] +
-            [_path_provenance(binding['path']) for binding in runtime['function_files']]))
+        provenance = []
+        _memo_builder_add(ledger, provenance)
+        for name in (runtime['matlabroot'], runtime['executable'], str(Path(install) / 'VersionInfo.xml')):
+            row = _path_provenance(name)
+            token = _memo_builder_add(ledger, row, containers=((provenance, 1),))
+            provenance.append(row)
+            _memo_builder_grew(ledger, token)
+        for binding in runtime['function_files']:
+            row = _path_provenance(binding['path'])
+            token = _memo_builder_add(ledger, row, containers=((provenance, 1),))
+            provenance.append(row)
+            _memo_builder_grew(ledger, token)
+        row = (path, role, files, provenance)
+        token = _memo_builder_add(ledger, row, containers=((runtimes, 1),))
+        runtimes.append(row)
+        _memo_builder_grew(ledger, token)
+    actual, declared = {}, {}
+    _memo_builder_add(ledger, (actual, declared))
     for directory, provenance, include_profile, excluded, stats, receipt in preflight['owned']:
-        inventory = [(relative, size, sha256_file(target), lexical)
-                     for target, relative, size, lexical in stats]
-        actual = {row[0]: row[2] for row in inventory if row[0] not in excluded}
-        declared = {binding['file']: binding['sha256'] for binding in receipt['artifacts'].values()}
+        inventory = []
+        _memo_builder_add(ledger, inventory)
+        for target, relative, size, lexical in stats:
+            row = (relative, size, sha256_file(target), lexical)
+            token = _memo_builder_add(ledger, row, containers=((inventory, 1),))
+            inventory.append(row)
+            _memo_builder_grew(ledger, token)
+        actual, declared = {}, {}
+        _memo_builder_add(ledger, (actual, declared))
+        for relative, _, sha, _ in inventory:
+            if relative not in excluded:
+                token = _memo_builder_add(ledger, (relative, sha), containers=((actual, 1),))
+                actual[relative] = sha
+                _memo_builder_grew(ledger, token)
+        for binding in receipt['artifacts'].values():
+            token = _memo_builder_add(ledger, (binding['file'], binding['sha256']), containers=((declared, 1),))
+            declared[binding['file']] = binding['sha256']
+            _memo_builder_grew(ledger, token)
         if actual != declared:
             raise ValueError('exact H owned inventory changed during validation reuse')
-        owned.append((directory, provenance, include_profile, inventory))
-    _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight, runtimes, owned,
-                   runtime_roots, actual, declared)
+        row = (directory, provenance, include_profile, inventory)
+        token = _memo_builder_add(ledger, row, containers=((owned, 1),))
+        owned.append(row)
+        _memo_builder_grew(ledger, token)
     receipt_roles = {'qualification_a_receipt', 'qualification_d_receipt', 'qualification_e_receipt',
                      'qualification_h_receipt', 'simulation_receipt', 'implementation_receipt', 'h_trial_receipt'}
     for (path, role, _), value in paths._documents.items():
@@ -1237,42 +1404,31 @@ def _memo_extras(paths, budget, *, working=()):
         binding = value.get('artifacts', {}).get('raw')
         if binding is None:
             continue
-        directory = Path(path).parent
-        install = runtime_roots.get(str(directory))
+        directory = str(Path(path).parent)
+        install = runtime_roots.get(directory)
         if install is None:
             raise _ReuseUnavailable('actual raw resolution installation authority unavailable')
-        raw_path = contained_path(directory, binding['file'])
-        raw = limited_document(raw_path, budget)
-        _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight, runtimes, owned,
-                       runtime_roots, actual, declared, resolutions, raw)
-        records = [raw, *_memo_records(raw.get('cases')), *_memo_records(raw.get('operations'))]
-        retained_before_resolutions = _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight,
-            runtimes, owned, runtime_roots, actual, declared, resolutions, raw, records)
-        resolution_bytes = 0
-        for record in records:
-            functions = _memo_records(record.get('functions'))
-            _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight,
-                runtimes, owned, runtime_roots, actual, declared, resolutions, raw, records, reserve=functions)
-            function_paths = [item['path'] for item in functions]
-            if record.get('operation_id') == 'simulink.library_load':
-                function_paths.append(record['output']['file_name'])
-            for name in function_paths:
-                if name.startswith('built-in (') and name.endswith(')'):
-                    name = name[len('built-in ('):-1]
-                contained_path(install, name)
-                projection = (str(raw_path), _path_provenance(name), Path(name).is_file())
-                projection_bytes = _retained_size(projection)
-                if projection_bytes is None or retained_before_resolutions + resolution_bytes + projection_bytes + 2 * sys.getsizeof(resolutions) + sys.getsizeof(function_paths) + 1024 > min(_MEMO_BYTES, 64 * 1024 * 1024):
-                    raise _MemoCapacityUnavailable('raw lexical resolution guard capacity unavailable')
-                resolutions.append(projection)
-                resolution_bytes += projection_bytes
-        _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight, runtimes, owned,
-                       runtime_roots, actual, declared, resolutions, raw, records, function_paths, functions,
-                       projection if function_paths else None)
-    result = {'host': host_fingerprint(), 'installation': sorted(runtimes, key=repr),
+        rows, temporary, storage = _memo_raw_resolutions(directory, binding['file'], install, budget, ledger)
+        # The raw helper frame has exited; complete persistent row charges cover
+        # every output string even when it was borrowed from the temporary raw.
+        ledger['charged'] -= temporary
+        token = _memo_builder_add(ledger, containers=((resolutions, len(rows)),))
+        resolutions.extend(rows)
+        _memo_builder_grew(ledger, token)
+        rows = None
+        ledger['charged'] -= storage
+    _memo_builder_storage(ledger, len(runtimes))
+    _memo_builder_storage(ledger, len(owned))
+    _memo_builder_storage(ledger, len(resolutions))
+    host = host_fingerprint()
+    _memo_builder_add(ledger, host)
+    result = {'host': host, 'installation': sorted(runtimes, key=repr),
               'owned': sorted(owned, key=repr), 'resolutions': sorted(resolutions, key=repr)}
-    _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight, result, runtime_roots,
-                   actual, declared, raw, records, function_paths, functions if records else None)
+    _memo_builder_add(ledger, result)
+    _memo_capacity(working, paths._documents, paths._edges, paths._guard_memory, preflight,
+                   result, runtime_roots, actual, declared, runtimes, owned, resolutions, ledger,
+                   files if runtimes else None, provenance if runtimes else None, token if runtimes or owned or resolutions else None,
+                   reserve=_GuardMemory(ledger['charged']))
     return result
 
 
