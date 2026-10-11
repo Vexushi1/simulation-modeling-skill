@@ -86,7 +86,8 @@ def spy_actual_consumers(monkeypatch):
         return original_native(actual, case, directory, run_id, budget)
 
     def numeric(levels, policy, context=None, **kwargs):
-        if kwargs.get('project_id') != 'SYNTHETIC-H-QUALIFICATION':
+        if (kwargs.get('physical_sha256') is not None and
+                kwargs.get('project_id') != 'SYNTHETIC-H-QUALIFICATION'):
             calls['numeric'].append(tuple(level['case_id'] for level in levels))
         return original_numeric(levels, policy, context, **kwargs)
 

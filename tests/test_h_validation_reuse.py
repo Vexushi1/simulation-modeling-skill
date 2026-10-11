@@ -158,16 +158,17 @@ def test_real_receipts_do_not_accept_supplied_forged_source_reports_on_a_hit(ful
         assert any('supplied' in error for error in rejected['errors'])
     # Neither a cold call nor a malformed optional object can seed a proof or
     # escape the original controlled-invalid-report boundary.
-    for index, argument in ((1, 'study_report'), (3, 'contract_report')):
-        source = readers(item)[index - 1]()
-        forged = deepcopy(source); forged['contract_sha256'] = '0' * 64
+    for index, argument, source_report in ((1, 'study_report', source), (3, 'contract_report', h2)):
+        forged = deepcopy(source_report); forged['contract_sha256'] = '0' * 64
         consumer = study_reader.validate_h_analysis_study_receipt if index == 1 else h2_reader.validate_model_verification_receipt
         path = item['study_receipt'] if index == 1 else item['h2_receipt']
-        for supplied in (forged, [], 'SYNTHETIC malformed optional report'):
-            with shared.validation_session() as session:
+        kind = 'study_receipt' if index == 1 else 'h2_receipt'
+        with shared.validation_session() as session:
+            for supplied in (forged, [], 'SYNTHETIC malformed optional report'):
+                assert not any(k[0] == kind for k in session.entries)
                 rejected = consumer(path, project_root=item['root'], **{argument: supplied})
                 assert not rejected['valid'] and rejected['errors'], rejected
-                assert not any(k[0] == ('study_receipt' if index == 1 else 'h2_receipt') for k in session.entries)
+                assert not any(k[0] == kind for k in session.entries)
 
 
 def test_real_whole_receipt_rechecks_mutated_bytes_and_exact_owned_inventory(full_wire_history):
@@ -798,19 +799,27 @@ def test_lawful_failed_study_and_H2_dispositions_hit_without_promotion(failed_re
         spy_original(monkeypatch, h2_reader, 'compute_assessment', calls, 'claim_metric')
         with shared.validation_session():
             first = study_reader.validate_h_analysis_study_receipt(item['failed_receipt'], project_root=item['root'])
-            decision = h2_reader.validate_model_verification_receipt(path, project_root=item['root'])
             second = study_reader.validate_h_analysis_study_receipt(item['failed_receipt'], project_root=item['root'])
-            again = h2_reader.validate_model_verification_receipt(path, project_root=item['root'])
             assert first['valid'] and first['study_complete'] and first['defined'] and not first['study_accepted'], first
-            assert shared.typed_equal(first, second) and shared.typed_equal(decision, again)
+            assert shared.typed_equal(first, second)
+            assert calls.count('study_metric') == 1, calls
+            second['study_accepted'] = True
+            third = study_reader.validate_h_analysis_study_receipt(item['failed_receipt'], project_root=item['root'])
+            assert not third['study_accepted'] and shared.typed_equal(first, third)
+            assert calls.count('study_metric') == 1, calls
+            # H2's larger live parent graph may lawfully discard the study proof.
+            decision = h2_reader.validate_model_verification_receipt(path, project_root=item['root'])
+            again = h2_reader.validate_model_verification_receipt(path, project_root=item['root'])
+            assert shared.typed_equal(decision, again)
             assert decision['valid'] and decision['model_verification_decided'] and not decision['model_verified'] and not decision['claim_supported']
             assert decision['claims'][0]['disposition'] == disposition
             assert decision['claims'][0]['required_action'] == value['claims'][0]['required_action']
             assert decision['claims'][0]['impact_scope'] == value['claims'][0]['impact_scope']
-            assert calls.count('study_metric') == 1 and calls.count('claim_metric') == 1, calls
-            second['study_accepted'] = True; again['model_verified'] = True
-            assert not study_reader.validate_h_analysis_study_receipt(item['failed_receipt'], project_root=item['root'])['study_accepted']
-            assert not h2_reader.validate_model_verification_receipt(path, project_root=item['root'])['model_verified']
+            assert calls.count('claim_metric') == 1, calls
+            again['model_verified'] = True
+            third_decision = h2_reader.validate_model_verification_receipt(path, project_root=item['root'])
+            assert not third_decision['model_verified'] and shared.typed_equal(decision, third_decision)
+            assert calls.count('claim_metric') == 1, calls
         with monkeypatch.context() as patch:
             patch.setattr(shared, '_MEMO_ENTRIES', 0)
             with shared.validation_session() as session:
@@ -991,9 +1000,10 @@ def test_deferred_real_qualification_commit_capacity_drops_only_optional_fact(fu
             assert live is not None and live > 4096
             monkeypatch.setattr(shared, '_MEMO_BYTES', live + 1024)
         return original_finish(replay, complete=complete)
-    def collect(*args, **kwargs):
-        calls.append(True)
-        return original_collect(*args, **kwargs)
+    def collect(request, case, started_at, *, include_h):
+        if request['mode'] == 'trial' and include_h is True:
+            calls.append(True)
+        return original_collect(request, case, started_at, include_h=include_h)
     monkeypatch.setattr(native_reader, '_finish_historical_replay', finish)
     monkeypatch.setattr(native, '_collect_qualification_facts', collect)
     with shared.validation_session() as session:
