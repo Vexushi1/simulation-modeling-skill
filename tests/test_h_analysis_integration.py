@@ -426,6 +426,8 @@ def test_actual_trial_route_preserves_extra_A_and_blocks_missing_comparator_solv
     value = load_document(item['study'])
     adaptive = deepcopy(value['numerical_policy'])
     adaptive['method'] = 'ode45_tolerance_refinement'
+    adaptive['comparison_times'] = [value['numerical_policy']['comparison_times'][0],
+                                    value['numerical_policy']['comparison_times'][-1]]
     adaptive['solver_levels'] = [{'name': 'ode45', 'type': 'variable-step', 'fixed_step': None, 'max_step': 0.1,
         'min_step': 1e-9, 'initial_step': 0.01, 'rel_tol': 1e-4 / 10**index,
         'abs_tol': 1e-6 / 10**index, 'zero_crossing': 'EnableAll'} for index in range(3)]
@@ -441,6 +443,8 @@ def test_actual_trial_route_preserves_extra_A_and_blocks_missing_comparator_solv
     review_h_analysis_study(runtime_study, project_root=root)
     missing_solver = resolve_runtime('h_analysis_trials', **{**arguments, 'h_analysis_study_path': runtime_study, 'simulation_profile_path': partial_e})
     assert missing_solver['status'] == 'blocked' and not missing_solver['h_analysis_execution_allowed']
+    assert missing_solver['missing_gates'] == ['h_analysis_solver_union'], {
+        'missing_gates': missing_solver['missing_gates'], 'errors': missing_solver['errors'],
+        'study_validation': missing_solver.get('h_analysis_study_validation')}
     assert missing_solver['required_solvers'] == ['ode4', 'ode45']
-    assert missing_solver['missing_gates'] == ['h_analysis_solver_union']
     assert any('E lacks actual required solver qualification: ode45' in error for error in missing_solver['errors'])

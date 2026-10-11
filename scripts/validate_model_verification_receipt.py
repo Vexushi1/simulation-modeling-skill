@@ -8,11 +8,12 @@ import uuid
 from runtime_common import canonical_digest, contained_path, emit, load_contract, schema_errors, sha256_file
 from model_verification_common import RECEIPT_NAME, compute_assessment
 from verification_common import (HARD_BUDGET, assert_unchanged, evidence_paths, input_manifest,
-                                 limited_document, source_identities, typed_equal)
+                                 limited_document, source_identities, typed_equal,_memoized_h_validation)
 from validate_model_verification import validate_model_verification
 from run_model_verification import INPUT_NAME, RESULT_NAME
 
 
+@_memoized_h_validation('h2_receipt', 'h2_receipt')
 def validate_model_verification_receipt(path, *, project_root=None, contract_report=None):
     result = {'valid': False, 'model_verification_decided': False, 'model_verified': False,
               'claim_supported': False, 'primary_numerical_receipt_path': None,

@@ -660,20 +660,81 @@ def forecast_native_report(request):
     return {'sample_numbers': sample_numbers, 'overhead_nodes': nodes - sample_numbers, 'nodes': nodes, 'bytes_upper_bound': byte_bound}
 
 
-def validate_case_qualifications(request, case, started_at, *, include_h=True, _cache=None):
+_HISTORICAL_REPLAY_MARKER = object()
+
+
+def _historical_request_context(request):
+    return (request['run_id'], request['input_identity'], request['source_identity'],
+            request['mode'], request['channel'], request['host_fingerprint'],
+            request['matlab_executable'], request['output_directory'],
+            request['bindings']['project_root'], canonical_digest(request['budget']))
+
+
+class _HistoricalReplay:
+    """Receipt-owned scope around the shared live-session capability.
+
+    This object is never accepted from a public API or emitted in a report.
+    Full in-memory request/raw identities are checked once at assessment entry;
+    subsequent cases remain bound to that exact request object and context.
+    """
+    __slots__ = ('_marker', '_capability', '_request', '_raw', '_context', '_request_digest',
+                 '_raw_digest', '_directory', '_receipt', '_active')
+
+    def __init__(self, marker, capability, request, raw, directory):
+        self._marker = marker
+        self._capability = capability
+        self._request = request
+        self._raw = raw
+        self._context = _historical_request_context(request)
+        self._request_digest = canonical_digest(request)
+        self._raw_digest = canonical_digest(raw)
+        self._directory = Path(directory).resolve()
+        self._receipt = self._directory / contract()['evidence']['run_receipt']
+        self._active = True
+
+    def matches(self, request, *, raw=None, directory=None):
+        if self._marker is not _HISTORICAL_REPLAY_MARKER or not self._active or self._request is not request:
+            return False
+        if self._context != _historical_request_context(request):
+            return False
+        if raw is not None and (canonical_digest(raw) != self._raw_digest or canonical_digest(request) != self._request_digest):
+            return False
+        if directory is not None and (Path(directory).resolve() != self._directory or
+                self._receipt != Path(directory).resolve() / contract()['evidence']['run_receipt']):
+            return False
+        return True
+
+
+def _mint_historical_replay(request, raw, directory):
+    """Called only after the real historical receipt's original full guards."""
+    import sys
+    caller = sys._getframe(1)
+    if caller.f_code.co_name != '_validate_h_analysis_trial_receipt' or \
+            Path(caller.f_code.co_filename).resolve() != ROOT / 'scripts/validate_h_analysis_trial_receipt.py':
+        return None
+    from verification_common import _historical_validation_capability
+    if request['mode'] != 'trial': return None
+    capability = _historical_validation_capability(request['bindings']['project_root'])
+    if capability is None: return None
+    return _HistoricalReplay(_HISTORICAL_REPLAY_MARKER, capability, request, raw, directory)
+
+
+def _finish_historical_replay(replay, *, complete):
+    if not isinstance(replay, _HistoricalReplay) or not replay._active: return
+    from verification_common import _commit_historical_validation
+    try:
+        if complete is True and not replay.matches(replay._request, raw=replay._raw, directory=replay._directory):
+            _commit_historical_validation(replay._capability, complete=False)
+            raise ValueError('historical receipt-owned request/raw scope changed before publication')
+        _commit_historical_validation(replay._capability, complete=complete is True)
+    finally:
+        replay._active = False
+
+
+def _collect_qualification_facts(request, case, started_at, *, include_h):
+    """Original full profile consumers establish facts, never caller reports."""
     b = request['bindings']
     required = b['required_A_operations']
-    if not isinstance(required, list) or not set(contract()['required_A_operations']) <= set(required):
-        raise ValueError('H required A operation union was dropped')
-    cache_key = (request['input_identity'], include_h)
-    if _cache is not None and cache_key in _cache:
-        cached = _cache[cache_key]
-        clock = _time(started_at)
-        if not all(start <= clock <= stop for start, stop in cached['windows']):
-            raise ValueError('case began outside independently verified qualification time windows')
-        if case['run_spec']['solver']['name'] not in cached['solvers'] or _time(case['qualification_not_after']) != cached['deadline']:
-            raise ValueError('case solver/deadline differs from independently verified qualifications')
-        return cached['runtime']
     for name in ('environment_profile', 'environment_receipt', 'simulation_profile', 'simulation_profile_receipt') + (('h_analysis_profile', 'h_analysis_profile_receipt') if include_h else ()):
         binding = b[name]
         if sha256_file(binding['path']) != binding['sha256']:
@@ -690,14 +751,87 @@ def validate_case_qualifications(request, case, started_at, *, include_h=True, _
         h = validate_h_analysis_profile(b['h_analysis_profile']['path'], now=started_at, required_solver=case['run_spec']['solver']['name'])
         if not h['valid'] or not same_runtime(runtime, h['runtime']):
             raise ValueError('actual per-case independent H qualification failed: ' + '; '.join(h['errors']))
-    deadlines = [_time(load_document(b[key]['path'])['valid_until']) for key in ('environment_profile', 'simulation_profile') + (('h_analysis_profile',) if include_h else ())]
-    if _time(case['qualification_not_after']) != min(deadlines) or _time(started_at) > min(deadlines):
-        raise ValueError('case began outside its exact execution-time qualification TTL')
-    if _cache is not None:
-        keys = ('environment_profile', 'simulation_profile') + (('h_analysis_profile',) if include_h else ())
-        _cache[cache_key] = {'runtime': runtime, 'deadline': min(deadlines),
-            'windows': [(_time(load_document(b[key]['path'])['captured_at']), _time(load_document(b[key]['path'])['valid_until'])) for key in keys],
-            'solvers': set(e['qualified_solvers']) & (set(h['qualified_solvers']) if include_h else set(contract()['solvers']))}
+    keys = ('environment_profile', 'simulation_profile') + (('h_analysis_profile',) if include_h else ())
+    windows = []
+    from verification_common import limited_document
+    for key in keys:
+        profile = limited_document(b[key]['path'], request['budget'])
+        receipt_key = 'environment_receipt' if key == 'environment_profile' else key + '_receipt'
+        receipt = limited_document(b[receipt_key]['path'], request['budget'])
+        raw_name = profile['evidence']['raw_file'] if key == 'environment_profile' else (
+            'raw-simulation.json' if key == 'simulation_profile' else contract()['evidence']['raw'])
+        raw = limited_document(contained_path(Path(b[key]['path']).parent, raw_name), request['budget'])
+        windows.append({'captured_at': profile['captured_at'], 'valid_until': profile['valid_until'],
+                        'process_started_at': receipt['process']['started_at'],
+                        'raw_started_at': raw['started_at'], 'raw_finished_at': raw['finished_at'],
+                        'process_finished_at': receipt['process']['finished_at']})
+    facts = {'runtime': deepcopy(runtime), 'deadline': stable_utc(min(_time(x['valid_until']) for x in windows)),
+             'windows': windows, 'solvers': sorted(set(e['qualified_solvers']) &
+                 (set(h['qualified_solvers']) if include_h else set(contract()['solvers']))),
+             'qualified_A_operations': deepcopy(a['qualified_operations']), 'required_A_operations': deepcopy(required),
+             'host_fingerprint': request['host_fingerprint'], 'matlab_executable': request['matlab_executable'],
+             'include_h': include_h}
+    _apply_qualification_facts(request, case, started_at, facts, include_h=include_h)
+    return facts
+
+
+def _apply_qualification_facts(request, case, started_at, facts, *, include_h):
+    """Always compare this actual case; facts never mean blanket acceptance."""
+    required = request['bindings']['required_A_operations']
+    if not typed_equal(facts['required_A_operations'], required) or not set(required) <= set(facts['qualified_A_operations']):
+        raise ValueError('case required A operation union differs from independently verified qualifications')
+    if facts['include_h'] is not include_h or facts['host_fingerprint'] != request['host_fingerprint'] or facts['matlab_executable'] != request['matlab_executable'] or _path(request['matlab_executable']) != _path(facts['runtime']['executable']):
+        raise ValueError('case host/executable/runtime differs from independently verified qualifications')
+    clock = _time(started_at)
+    for window in facts['windows']:
+        process_start, raw_start, raw_stop, process_stop = (_time(window[key]) for key in
+            ('process_started_at', 'raw_started_at', 'raw_finished_at', 'process_finished_at'))
+        captured, expiry = _time(window['captured_at']), _time(window['valid_until'])
+        if not process_start <= raw_start <= raw_stop <= process_stop or captured != raw_stop:
+            raise ValueError('independently verified qualification process/raw ordering differs')
+        if not max(captured, process_stop) <= clock <= expiry:
+            raise ValueError('case began outside independently verified qualification time windows or completion floor')
+    deadlines = [_time(window['valid_until']) for window in facts['windows']]
+    if _time(facts['deadline']) != min(deadlines) or _time(case['qualification_not_after']) != min(deadlines):
+        raise ValueError('case solver/deadline differs from independently verified qualifications')
+    if case['run_spec']['solver']['name'] not in facts['solvers']:
+        raise ValueError('case solver/deadline differs from independently verified qualifications')
+    return deepcopy(facts['runtime'])
+
+
+def _historical_qualification_facts(replay, request, case, started_at):
+    from verification_common import _reuse_validation
+    b = request['bindings']
+    keys = ('environment_profile', 'environment_receipt', 'simulation_profile', 'simulation_profile_receipt',
+            'h_analysis_profile', 'h_analysis_profile_receipt')
+    qualification_request = {'bindings': {key: deepcopy(b[key]) for key in keys}}
+    options = {'bindings': deepcopy(qualification_request['bindings']),
+               'required_A_operations': deepcopy(b['required_A_operations']), 'include_h': True,
+               'host_fingerprint': request['host_fingerprint'], 'matlab_executable': request['matlab_executable'],
+               'sources': deepcopy(request['sources'])}
+    return _reuse_validation('historical_qualification', project_root=b['project_root'], budget=request['budget'],
+        request=qualification_request, request_role='h_trial_request', options=options,
+        capability=replay._capability,
+        compute=lambda: _collect_qualification_facts(request, case, started_at, include_h=True),
+        eligible=lambda value: isinstance(value, dict) and value.get('include_h') is True)
+
+
+def validate_case_qualifications(request, case, started_at, *, include_h=True, _cache=None,
+                                 _historical_replay=None):
+    required = request['bindings']['required_A_operations']
+    if not isinstance(required, list) or not set(contract()['required_A_operations']) <= set(required):
+        raise ValueError('H required A operation union was dropped')
+    cache_key = (request['input_identity'], include_h)
+    if _cache is not None and cache_key in _cache:
+        return _apply_qualification_facts(request, case, started_at, _cache[cache_key], include_h=include_h)
+    if include_h is True and isinstance(_historical_replay, _HistoricalReplay) and _historical_replay.matches(request):
+        facts = _historical_qualification_facts(_historical_replay, request, case, started_at)
+    else:
+        # Actual new execution, direct/current profiles and include_h=False
+        # qualification reconstruction always retain the original full path.
+        facts = _collect_qualification_facts(request, case, started_at, include_h=include_h)
+    runtime = _apply_qualification_facts(request, case, started_at, facts, include_h=include_h)
+    if _cache is not None: _cache[cache_key] = deepcopy(facts)
     return runtime
 
 

@@ -3,6 +3,14 @@ from __future__ import annotations
 
 import math
 import json
+import os
+import sys
+import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
+from copy import deepcopy
+from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
 
 import yaml
@@ -342,10 +350,14 @@ class EvidencePaths(set):
         self.allowed_external = set(allowed_external)
         self.claimed_hashes = {}
         self.source_authorities = []
+        self._edges = []
+        self._documents = {}
         self.update(paths)
 
     def update(self, *others):
         for other in others:
+            self._edges.extend(getattr(other, '_edges', ()))
+            self._documents.update(getattr(other, '_documents', {}))
             self.allowed_external.update(getattr(other, 'allowed_external', ()))
             for authority in getattr(other, 'source_authorities', ()):
                 if authority not in self.source_authorities:
@@ -470,6 +482,8 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
         if edge_count > edge_limit:
             raise ValueError('verification evidence edge budget exceeded')
         queued.append((path, kind, qualification_root, value))
+        if path is not None:
+            paths._edges.append((str(path), kind, str(qualification_root) if qualification_root else None))
 
     def add_repository_sources():
         nonlocal repository_added
@@ -497,6 +511,9 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
         if not isinstance(binding, dict) or not isinstance(binding.get('path'), str):
             raise ValueError('malformed verification evidence path binding')
         base = qualification_root or root
+        lexical = Path(binding['path'])
+        lexical = lexical if lexical.is_absolute() else base / lexical
+        paths._edges.append((str(lexical), kind, str(qualification_root) if qualification_root else None))
         candidate = Path(binding['path'])
         candidate = (candidate if candidate.is_absolute() else base / candidate).resolve()
         if qualification_root is None and not candidate.is_relative_to(root):
@@ -509,7 +526,9 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
     def qualification(binding, kind):
         if not isinstance(binding, dict) or not isinstance(binding.get('path'), str):
             raise ValueError('malformed original qualification binding')
-        candidate = Path(binding['path']).resolve()
+        lexical = Path(binding['path'])
+        paths._edges.append((str(lexical), kind, str(lexical.parent)))
+        candidate = lexical.resolve()
         queue(candidate, kind, candidate.parent)
 
     def task_bindings(node, *, skip=()):
@@ -590,6 +609,8 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
             continue
         if value is None:
             value = limited_source_document(path, budget) if context == 'task' else limited_document(path, budget)
+        if _H_VALIDATION_SESSION.get() is not None:
+            paths._documents[(str(path) if path is not None else None, context, str(qualification_root) if qualification_root else None)] = value
         if (context in new_roles or context == 'h1_contract' and
                 any(key in value for key in ('scope', 'trajectory', 'observables', 'checks', 'math_budget', 'continuous_scope'))):
             add_repository_sources()
@@ -604,6 +625,7 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
                 child = contained_path(path.parent, binding['file'])
                 is_input = artifact_key == 'input' or context == 'h1_receipt' and artifact_key == 'numerical-verification-input.json'
                 child_context = receipt_inputs.get(context, 'task') if is_input else 'opaque'
+                paths._edges.append((str(path.parent / binding['file']), child_context, str(qualification_root) if qualification_root else None))
                 queue(child, child_context, qualification_root)
 
         skip = set()
@@ -702,3 +724,565 @@ def _discover_evidence(receipt_paths, root, budget, *, root_contexts=None,
     for source_paths in source_snapshots:
         source_paths.assert_authority_unchanged()
     return paths
+
+
+# These proofs live only inside one read-only public validation. They are never
+# evidence fields, caller reports, current qualifications or execution grants.
+_H_VALIDATION_SESSION = ContextVar('h_validation_session', default=None)
+_MEMO_ENTRIES = 64
+_MEMO_BYTES = 64 * 1024 * 1024
+_MEMO_KINDS = frozenset({'study_source', 'study_receipt', 'h2_source', 'h2_receipt',
+                         'baseline_protocol', 'baseline_simulation', 'baseline_h1',
+                         'historical_qualification'})
+
+
+class _ReuseUnavailable(ValueError):
+    pass
+
+
+class _ValidationReuseChanged(ValueError):
+    def __init__(self, message, report=None):
+        super().__init__(message)
+        self.report = report
+
+
+def _validation_owner():
+    import asyncio
+    try:
+        task = asyncio.current_task()
+    except RuntimeError:
+        task = None
+    return threading.get_ident(), id(task) if task is not None else None
+
+
+class _ValidationSession:
+    __slots__ = ('owner', 'entries', 'inflight', 'capabilities', 'active')
+    def __init__(self):
+        self.owner = _validation_owner()
+        self.entries = {}
+        self.inflight = set()
+        self.capabilities = []
+        self.active = True
+
+    def clear(self):
+        self.active = False
+        for capability in self.capabilities:
+            capability.pending = None
+        self.capabilities.clear()
+        self.entries.clear()
+        self.inflight.clear()
+
+
+@contextmanager
+def validation_session():
+    existing = _H_VALIDATION_SESSION.get()
+    if existing is not None and existing.active and existing.owner == _validation_owner():
+        yield existing
+        return
+    current = _ValidationSession()
+    token = _H_VALIDATION_SESSION.set(current)
+    try:
+        yield current
+    finally:
+        current.clear()
+        _H_VALIDATION_SESSION.reset(token)
+
+
+def _validation_operation(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        with validation_session():
+            return function(*args, **kwargs)
+    return wrapped
+
+
+class _HistoricalCapability:
+    __slots__ = ('session', 'root', 'pending')
+    def __init__(self, session, root):
+        self.session = session
+        self.root = root
+        self.pending = None
+
+
+def _historical_validation_capability(project_root):
+    caller = sys._getframe(1)
+    if (Path(caller.f_code.co_filename).resolve() != ROOT / 'scripts/h_analysis_trial.py' or
+            caller.f_code.co_name != '_mint_historical_replay'):
+        return None
+    session = _H_VALIDATION_SESSION.get()
+    if session is None or not session.active or session.owner != _validation_owner():
+        return None
+    capability = _HistoricalCapability(session, str(Path(project_root).resolve()))
+    session.capabilities.append(capability)
+    if _retained_size(session) is None:
+        session.capabilities.pop()
+        return None
+    return capability
+
+
+def _live_capability(capability, session, root):
+    return (type(capability) is _HistoricalCapability and capability.session is session and
+            session.active and session.owner == _validation_owner() and
+            capability.root == str(Path(root).resolve()) and
+            any(value is capability for value in session.capabilities))
+
+
+def _retained_size(value):
+    """Conservative retained Python memory, including private proof metadata."""
+    pending, seen, active, total = [(value, False)], set(), set(), 0
+    work = 0
+    while pending:
+        node, leaving = pending.pop()
+        identity = id(node)
+        if leaving:
+            active.remove(identity)
+            continue
+        if identity in active:
+            return None
+        if identity in seen:
+            continue
+        seen.add(identity)
+        work += 1
+        if work > 1000000:
+            return None
+        total += sys.getsizeof(node)
+        if total > min(_MEMO_BYTES, 64 * 1024 * 1024):
+            return None
+        if type(node) in (dict, list, tuple, set, frozenset, _HistoricalCapability, _ValidationSession):
+            active.add(identity)
+            pending.append((node, True))
+        if type(node) is dict:
+            pending.extend((child, False) for child in node.keys())
+            pending.extend((child, False) for child in node.values())
+        elif type(node) in (list, tuple, set, frozenset):
+            pending.extend((child, False) for child in node)
+        elif type(node) is _HistoricalCapability:
+            # session is the owner, not retained as a second recursive graph.
+            pending.extend(((node.root, False), (node.pending, False)))
+        elif type(node) is _ValidationSession:
+            pending.extend((child, False) for child in
+                           (node.owner, node.entries, node.inflight, node.capabilities, node.active))
+        elif type(node) not in (str, bytes, int, float, bool, type(None)):
+            return None
+    return total
+
+
+def _path_provenance(path):
+    """Record lexical bindings and all traversed links, including link targets."""
+    lexical = Path(os.path.abspath(str(path)))
+    todo, visited, links = [lexical], set(), []
+    while todo:
+        current = todo.pop()
+        if str(current) in visited:
+            continue
+        visited.add(str(current))
+        if len(visited) > 128:
+            raise ValueError('bounded validation symlink provenance exceeded')
+        prefix = Path(current.anchor)
+        for part in current.parts[1:]:
+            prefix = prefix / part
+            if prefix.is_symlink():
+                stat = prefix.lstat()
+                target = os.readlink(prefix)
+                links.append((str(prefix), target, stat.st_dev, stat.st_ino))
+                actual = Path(target) if Path(target).is_absolute() else prefix.parent / target
+                todo.append(Path(os.path.abspath(str(actual))))
+    return str(lexical), str(lexical.resolve()), tuple(sorted(set(links)))
+
+
+def _memo_paths(descriptor):
+    if descriptor['request'] is not None:
+        return evidence_paths_for_request(descriptor['request'], descriptor['root'], descriptor['budget'],
+                                          role=descriptor['request_role'])
+    return evidence_paths(descriptor['roots'], descriptor['root'], descriptor['budget'],
+                          root_contexts=descriptor['contexts'], include_repository_sources=True)
+
+
+def _memo_base(descriptor):
+    paths = _memo_paths(descriptor)
+    manifest = input_manifest(paths, descriptor['root'], descriptor['budget'])
+    edges = list(paths._edges)
+    edges.extend((str(path), descriptor['contexts'].get(str(Path(path).resolve()), 'task'), None)
+                 for path in descriptor['roots'])
+    provenance = [_path_provenance(descriptor['root_lexical'])]
+    if descriptor.get('caller_root_lexical') is not None:
+        provenance.append(_path_provenance(descriptor['caller_root_lexical']))
+    provenance.extend(_path_provenance(path) for path, _, _ in edges)
+    for authority in paths.source_authorities:
+        value = limited_document(authority.authority, SOURCE_AUTHORITY_BUDGET)
+        provenance.extend(_path_provenance(ROOT / name) for name in value['source_files'])
+        authority.assert_authority_unchanged()
+    snapshot = {'manifest': manifest, 'edges': sorted(edges, key=repr),
+                'provenance': sorted(set(provenance), key=repr),
+                'allowed_external': sorted(map(str, paths.allowed_external)),
+                'claimed_hashes': sorted((str(path), sha) for path, sha in paths.claimed_hashes.items()),
+                'authority': [(str(a.authority), a.original_bytes) for a in paths.source_authorities]}
+    return snapshot, paths
+
+
+def _memo_records(value):
+    if value is None:
+        return []
+    if type(value) is list:
+        return value
+    if type(value) is dict:
+        return [value]
+    raise _ReuseUnavailable('native record shape unavailable for reuse')
+
+
+def _memo_installation(runtime):
+    if not isinstance(runtime, dict) or not {'matlabroot', 'executable', 'executable_sha256',
+                                            'version_file_sha256', 'function_files'} <= set(runtime):
+        raise _ReuseUnavailable('complete runtime identity is unavailable for validation reuse')
+    install = Path(runtime['matlabroot']).resolve()
+    executable = contained_path(install, runtime['executable'])
+    version = contained_path(install, str(install / 'VersionInfo.xml'))
+    expected = {executable: runtime['executable_sha256'], version: runtime['version_file_sha256']}
+    for binding in runtime['function_files']:
+        target = contained_path(install, binding['path'])
+        if target in expected and expected[target] != binding['sha256']:
+            raise ValueError('conflicting actual installation identity')
+        expected[target] = binding['sha256']
+    return install, expected
+
+
+def _memo_extras(paths, budget):
+    """Fresh proof surfaces outside ordinary task manifests; no new authority."""
+    from runtime_common import host_fingerprint
+    policy = limited_document(ROOT / 'core/h_analysis_assurance_contract.yaml', SOURCE_AUTHORITY_BUDGET)
+    machine_budget = policy['installation_identity_budget']
+    runtimes, owned, runtime_roots, resolutions = [], [], {}, []
+    installation_sets = {}
+    for (_, role, _), value in paths._documents.items():
+        runtime = value.get('runtime') if isinstance(value, dict) else None
+        trusted = role.startswith('qualification_') and role.endswith('_profile') or role in {
+            'simulation_receipt', 'implementation_receipt', 'h_trial_receipt'}
+        if trusted and runtime is not None:
+            install, expected = _memo_installation(runtime)
+            selected = installation_sets.setdefault(install, {})
+            for target, sha in expected.items():
+                if target in selected and selected[target] != sha:
+                    raise ValueError('conflicting complete installation identity')
+                selected[target] = sha
+    # Budget every selected installation file before the first installation
+    # digest. This is independent of the complete task/source stat preflight.
+    installation_stats = {}
+    installation_total = 0
+    for install, expected in installation_sets.items():
+        stats = stat_manifest(expected, install, machine_budget)
+        installation_total += sum(entry['bytes'] for entry in stats)
+        if installation_total > machine_budget['max_total_bytes']:
+            raise _ReuseUnavailable('complete bounded installation identity exceeds reuse budget')
+        installation_stats[install] = {entry['path']: entry for entry in stats}
+    for (path, role, _), value in paths._documents.items():
+        if path is None:
+            continue
+        runtime = value.get('runtime') if isinstance(value, dict) else None
+        trusted_runtime_role = role.startswith('qualification_') and role.endswith('_profile') or role in {
+            'simulation_receipt', 'implementation_receipt', 'h_trial_receipt'}
+        if trusted_runtime_role and runtime is not None:
+            install, expected = _memo_installation(runtime)
+            runtime_roots[str(Path(path).parent)] = install
+            stats = [installation_stats[install][str(target)] for target in sorted(expected, key=str)]
+            files = []
+            for entry in stats:
+                target = Path(entry['path'])
+                sha = sha256_file(target)
+                if sha != expected[target]:
+                    raise ValueError('actual installation bytes changed during validation reuse')
+                files.append({**entry, 'sha256': sha})
+            from validate_environment import _version_info
+            release, version_text = _version_info(install)
+            if runtime.get('release') != release or not runtime.get('version', '').startswith(version_text):
+                raise ValueError('actual installation release/version changed')
+            runtimes.append((path, role, files, [_path_provenance(runtime['matlabroot']), _path_provenance(runtime['executable']),
+                _path_provenance(install / 'VersionInfo.xml')] +
+                [_path_provenance(binding['path']) for binding in runtime['function_files']]))
+        if role in {'h_trial_request', 'qualification_h_request'} and 'output_directory' in value:
+            directory = Path(value['output_directory']).resolve()
+            names = policy['evidence']
+            include_profile = role == 'qualification_h_request'
+            excluded = {names['profile_receipt'], names['run_receipt']}
+            if not include_profile:
+                excluded.add(names['profile'])
+            files = []
+            nodes = 0
+            for target in directory.rglob('*'):
+                nodes += 1
+                if nodes > graph_limit(value['budget'], 'max_document_nodes') or len(files) >= graph_limit(value['budget'], 'max_files'):
+                    raise _ReuseUnavailable('bounded owned-inventory validation reuse exceeded')
+                if target.is_file() and target.relative_to(directory).parts[0] not in {'cache', 'codegen'}:
+                    files.append(target)
+            stats = stat_manifest(files, directory, value['budget'])
+            inventory = []
+            for entry in stats:
+                target = Path(entry['path'])
+                relative = target.relative_to(directory).as_posix()
+                inventory.append((relative, entry['bytes'], sha256_file(target), _path_provenance(target)))
+            # Match the original exact H artifact inventory, not only its edges.
+            receipt_name = names['profile_receipt'] if include_profile else names['run_receipt']
+            receipt_path = directory / receipt_name
+            if receipt_path.is_file():
+                receipt = limited_document(receipt_path, value['budget'])
+                actual = {row[0]: row[2] for row in inventory if row[0] not in excluded}
+                declared = {binding['file']: binding['sha256'] for binding in receipt['artifacts'].values()}
+                if actual != declared:
+                    raise ValueError('exact H owned inventory changed during validation reuse')
+            owned.append((str(directory), _path_provenance(value['output_directory']), include_profile, sorted(inventory)))
+    # Resolution paths in the immutable raw record can traverse links which
+    # runtime.function_files has already resolved. Capture those lexical paths
+    # too; a byte-identical retarget must invalidate the old resolution proof.
+    receipt_roles = {'qualification_a_receipt', 'qualification_d_receipt', 'qualification_e_receipt',
+                     'qualification_h_receipt', 'simulation_receipt', 'implementation_receipt', 'h_trial_receipt'}
+    for (path, role, _), value in paths._documents.items():
+        if path is None or role not in receipt_roles:
+            continue
+        binding = value.get('artifacts', {}).get('raw')
+        if binding is None:
+            continue
+        directory = Path(path).parent
+        install = runtime_roots.get(str(directory))
+        if install is None:
+            raise _ReuseUnavailable('actual raw resolution installation authority unavailable')
+        raw_path = contained_path(directory, binding['file'])
+        raw = limited_document(raw_path, budget)
+        records = [raw, *_memo_records(raw.get('cases')), *_memo_records(raw.get('operations'))]
+        for record in records:
+            function_paths = [item['path'] for item in _memo_records(record.get('functions'))]
+            if record.get('operation_id') == 'simulink.library_load':
+                function_paths.append(record['output']['file_name'])
+            for name in function_paths:
+                if name.startswith('built-in (') and name.endswith(')'):
+                    name = name[len('built-in ('):-1]
+                contained_path(install, name)
+                resolutions.append((str(raw_path), _path_provenance(name), Path(name).is_file()))
+    return {'host': host_fingerprint(), 'installation': sorted(runtimes, key=repr),
+            'owned': sorted(owned, key=repr), 'resolutions': sorted(resolutions, key=repr)}
+
+
+def _publish_validation(session, key, snapshot, extras, result, *, working=()):
+    caller = sys._getframe(1)
+    if (Path(caller.f_code.co_filename).resolve() != ROOT / 'scripts/verification_common.py' or
+            caller.f_code.co_name not in {'_reuse_validation', '_commit_historical_validation'}):
+        return
+    if len(session.entries) >= min(_MEMO_ENTRIES, 64):
+        return
+    entry = {'snapshot': snapshot, 'extras': extras, 'result': result,
+             'clock': datetime.now(timezone.utc).isoformat()}
+    # Include the live proof/copy and retained session while allocating a second
+    # graph. Two upper bounds conservatively count any shared immutable objects.
+    live_size = _retained_size((session, key, entry, working))
+    copy_size = _retained_size((key, entry))
+    if live_size is None or copy_size is None or live_size + copy_size > min(_MEMO_BYTES, 64 * 1024 * 1024):
+        return
+    try:
+        copied = deepcopy(entry)
+    except (TypeError, ValueError, RecursionError, MemoryError):
+        return
+    session.entries[key] = copied
+    if _retained_size(session) is None:
+        session.entries.pop(key, None)
+
+
+def _reuse_validation(kind, *, project_root, budget, compute, eligible, options=(), roots=(),
+                      root_contexts=None, request=None, request_role=None, capability=None):
+    """Only actual H-owned consumers can publish operation-local proof results."""
+    session = _H_VALIDATION_SESSION.get()
+    root = Path(project_root).resolve()
+    caller = sys._getframe(1)
+    permitted = {'wrapped', '_validated_h_baseline'} if kind != 'historical_qualification' else {'_historical_qualification_facts'}
+    owner_file = ROOT / ('scripts/h_analysis_trial.py' if kind == 'historical_qualification' else 'scripts/verification_common.py')
+    if (kind not in _MEMO_KINDS or session is None or not session.active or
+            Path(caller.f_code.co_filename).resolve() != owner_file or caller.f_code.co_name not in permitted or
+            session.owner != _validation_owner() or
+            kind == 'historical_qualification' and not _live_capability(capability, session, root)):
+        return compute()
+    try:
+        descriptor = {'root': str(root), 'root_lexical': str(project_root), 'budget': deepcopy(budget),
+                      'roots': tuple(map(str, roots)), 'contexts': {str(p): r for p, r in (root_contexts or {}).items()},
+                      'request': deepcopy(request), 'request_role': request_role}
+        descriptor['caller_root_lexical'] = options.get('root_lexical') if isinstance(options, dict) else None
+        key = (kind, str(root), str(project_root), tuple(map(str, roots)),
+               canonical_digest(budget), canonical_digest(options), request_role)
+        before, paths = _memo_base(descriptor)
+        extras_before = _memo_extras(paths, descriptor['budget'])
+        if _retained_size((session, descriptor, key, before, extras_before, paths._documents, paths._edges)) is None:
+            return compute()
+    except (OSError, ValueError, KeyError, TypeError, RecursionError):
+        return compute()
+    previous = session.entries.get(key)
+    if previous is not None:
+        try:
+            if (typed_equal(before, previous['snapshot']) and
+                    datetime.now(timezone.utc) >= datetime.fromisoformat(previous['clock']) and
+                    typed_equal(extras_before, previous['extras'])):
+                retained = _retained_size((session, descriptor, before, extras_before, paths._documents, paths._edges))
+                cloned = _retained_size(previous['result'])
+                if retained is None or cloned is None or retained + cloned > min(_MEMO_BYTES, 64 * 1024 * 1024):
+                    return compute()
+                result = deepcopy(previous['result'])
+                try:
+                    assert_unchanged(before['manifest'])
+                    final, final_paths = _memo_base(descriptor)
+                    if not typed_equal(before, final) or not typed_equal(_memo_extras(final_paths, descriptor['budget']), previous['extras']):
+                        raise ValueError('validation reuse evidence changed before return')
+                except (OSError, ValueError, KeyError, TypeError, RecursionError) as error:
+                    session.entries.pop(key, None)
+                    raise _ValidationReuseChanged(str(error), result) from error
+                return result
+        except _ValidationReuseChanged:
+            raise
+        except (OSError, ValueError, KeyError, TypeError, RecursionError, MemoryError):
+            pass
+        session.entries.pop(key, None)
+    if key in session.inflight:
+        return compute()
+    session.inflight.add(key)
+    try:
+        result = compute()
+        if not eligible(result):
+            return result
+        try:
+            after, after_paths = _memo_base(descriptor)
+            if not typed_equal(before, after):
+                raise _ValidationReuseChanged('validation evidence changed during complete consumer', result)
+            extras = _memo_extras(after_paths, descriptor['budget'])
+            if not typed_equal(extras_before, extras):
+                raise _ValidationReuseChanged('validation installation/host/owned inventory changed during complete consumer', result)
+        except _ValidationReuseChanged:
+            raise
+        except _ReuseUnavailable as error:
+            # A missing guard before compute uses the original path. Losing an
+            # established guard during compute is an observed mutation/failure.
+            raise _ValidationReuseChanged('complete validation guard became unavailable: ' + str(error), result) from error
+        except (OSError, ValueError, KeyError, TypeError, RecursionError) as error:
+            raise _ValidationReuseChanged(str(error), result) from error
+        working = (descriptor, key, before, extras_before, paths._documents, paths._edges,
+                   after, extras, after_paths._documents, after_paths._edges, result)
+        retainable = _retained_size((session, working)) is not None
+        if kind == 'historical_qualification' and retainable:
+            pending = (key, descriptor, after, extras, result)
+            capability.pending = pending
+            if _retained_size((session, before, extras_before, paths._documents, after_paths._documents)) is None:
+                capability.pending = None
+        elif kind != 'historical_qualification' and retainable:
+            _publish_validation(session, key, after, extras, result, working=working)
+        try:
+            final, final_paths = _memo_base(descriptor)
+            if not typed_equal(before, final) or not typed_equal(extras_before, _memo_extras(final_paths, descriptor['budget'])):
+                raise ValueError('validation evidence changed before complete consumer return')
+        except (OSError, ValueError, KeyError, TypeError, RecursionError) as error:
+            session.entries.pop(key, None)
+            if kind == 'historical_qualification':
+                capability.pending = None
+            raise _ValidationReuseChanged(str(error), result) from error
+        return result
+    finally:
+        session.inflight.discard(key)
+
+
+def _commit_historical_validation(capability, *, complete):
+    caller = sys._getframe(1)
+    if (Path(caller.f_code.co_filename).resolve() != ROOT / 'scripts/h_analysis_trial.py' or
+            caller.f_code.co_name != '_finish_historical_replay'):
+        return
+    session = _H_VALIDATION_SESSION.get()
+    if session is None or not _live_capability(capability, session, capability.root):
+        return
+    pending, capability.pending = capability.pending, None
+    if not complete or pending is None:
+        return
+    key, descriptor, before, extras, result = pending
+    after, paths = _memo_base(descriptor)
+    if not typed_equal(before, after) or not typed_equal(extras, _memo_extras(paths, descriptor['budget'])):
+        raise ValueError('historical qualification proof changed before complete receipt publication')
+    _publish_validation(session, key, after, extras, result, working=(pending, descriptor, paths._documents, paths._edges))
+
+
+def _memoized_h_validation(kind, role):
+    """Finite public H source/receipt whitelist; supplied reports are comparisons."""
+    def decorate(function):
+        owners = {'study_source': ('validate_h_analysis_study', 'validate_h_analysis_study', 'h_study_contract'),
+                  'study_receipt': ('validate_h_analysis_study_receipt', 'validate_h_analysis_study_receipt', 'h_study_receipt'),
+                  'h2_source': ('validate_model_verification', 'validate_model_verification', 'h2_contract'),
+                  'h2_receipt': ('validate_model_verification_receipt', 'validate_model_verification_receipt', 'h2_receipt')}
+        owner = owners.get(kind)
+        if (owner is None or function.__name__ != owner[1] or role != owner[2] or
+                Path(function.__code__.co_filename).resolve() != ROOT / ('scripts/' + owner[0] + '.py')):
+            raise ValueError('validation reuse is restricted to actual H-owned source/receipt validators')
+        @wraps(function)
+        def wrapped(path, *, project_root=None, **kwargs):
+            with validation_session():
+                def compute():
+                    return function(path, project_root=project_root, **kwargs)
+                try:
+                    actual = Path(path).resolve()
+                    value = limited_document(actual)
+                    root = Path(project_root or (value['project_root'] if kind == 'study_receipt' else actual.parent)).resolve()
+                    if kind == 'h2_receipt':
+                        request_value = limited_document(actual.parent / 'model-verification-inputs.json')
+                        root = Path(project_root or request_value['project_root']).resolve()
+                        contract = contained_path(root, request_value['contract']['path'])
+                    elif kind == 'study_receipt':
+                        contract = contained_path(root, value['study']['path'])
+                    else:
+                        contract = actual
+                    source = limited_document(contract)
+                    budget = source.get('budget') or HARD_BUDGET
+                    supplied = kwargs.get('study_report') if kind == 'study_receipt' else kwargs.get('contract_report')
+                    if supplied is not None:
+                        # The complete enclosing receipt graph is budgeted before
+                        # any supplied-report comparison invokes a child consumer.
+                        _memo_base({'root': str(root), 'root_lexical': str(project_root or root),
+                            'budget': budget, 'roots': (str(path),), 'contexts': {str(actual): role},
+                            'request': None, 'request_role': None})
+                        if kind == 'study_receipt':
+                            from validate_h_analysis_study import validate_h_analysis_study
+                            current = validate_h_analysis_study(contract, project_root=root, require_reviewed=True)
+                            fields = ('project_id', 'contract_path', 'contract_sha256', 'semantic_sha256', 'input_manifest')
+                        else:
+                            from validate_model_verification import validate_model_verification
+                            current = validate_model_verification(contract, project_root=root, require_reviewed=True)
+                            fields = ('contract_path', 'contract_sha256', 'project_id', 'semantic_sha256', 'input_manifest')
+                        if any(not typed_equal(supplied.get(key), current.get(key)) for key in fields):
+                            return compute()
+                    options = {'explicit_root': project_root is not None,
+                               'root_lexical': str(project_root) if project_root is not None else None,
+                               'require_reviewed': kwargs.get('require_reviewed', False)}
+                    def eligible(report):
+                        if not report.get('valid'):
+                            return False
+                        return {'study_source': report.get('reviewed') and report.get('study_ready'),
+                                'h2_source': report.get('reviewed') and report.get('assessment_ready'),
+                                'study_receipt': report.get('study_complete'),
+                                'h2_receipt': report.get('model_verification_decided')}[kind] is True
+                    return _reuse_validation(kind, project_root=root, budget=budget, compute=compute, eligible=eligible,
+                        options=options, roots=[path], root_contexts={actual: role})
+                except _ValidationReuseChanged as error:
+                    report = deepcopy(error.report) if isinstance(error.report, dict) else compute()
+                    for field in ('valid', 'reviewed', 'study_ready', 'assessment_ready', 'execution_ready',
+                                  'study_complete', 'study_accepted', 'defined', 'model_verification_decided',
+                                  'model_verified', 'claim_supported'):
+                        if field in report:
+                            report[field] = False
+                    report.setdefault('errors', []).append(str(error))
+                    return report
+                except (OSError, ValueError, KeyError, TypeError, RecursionError):
+                    return compute()
+        return wrapped
+    return decorate
+
+
+def _validated_h_baseline(kind, path, *, project_root, budget, compute, options=()):
+    caller = sys._getframe(1)
+    if (Path(caller.f_code.co_filename).resolve() != ROOT / 'scripts/validate_h_analysis_study.py' or
+            caller.f_code.co_name != 'validate_h_analysis_study'):
+        return compute()
+    roles = {'baseline_protocol': 'simulation_protocol', 'baseline_simulation': 'simulation_receipt',
+             'baseline_h1': 'h1_receipt'}
+    def eligible(report):
+        return report.get('valid') is True and bool({'baseline_protocol': report.get('frozen'),
+            'baseline_simulation': report.get('primary_run_complete'),
+            'baseline_h1': report.get('numerically_verified')}[kind])
+    return _reuse_validation(kind, project_root=project_root, budget=budget, compute=compute, eligible=eligible,
+        options=options, roots=[path], root_contexts={Path(path).resolve(): roles[kind]})

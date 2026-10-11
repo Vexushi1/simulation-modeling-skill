@@ -6,7 +6,8 @@ from copy import deepcopy
 from pathlib import Path
 
 from h_analysis_trial import (artifact_manifest, assert_case, assert_case_functions, contract, materialize_trial_manifest, observed_runtime,
-                             physical_snapshot, preflight_request, source_identities, validate_case_qualifications)
+                             physical_snapshot, preflight_request, source_identities, validate_case_qualifications,
+                             _HistoricalReplay, _mint_historical_replay, _finish_historical_replay)
 from runtime_common import canonical_digest, emit, load_document, sha256_file
 from validate_environment import _path, _time
 from validate_implementation_receipt import same_runtime
@@ -65,10 +66,12 @@ def verify_study_bindings(request, report):
     return report
 
 
-def assess_trial_request(request, raw, directory, report, *, process=None):
+def assess_trial_request(request, raw, directory, report, *, process=None, _historical_replay=None):
     """One immutable qualification/read set for the batch, with per-case gates."""
     verify_study_bindings(request, report)
     before = preflight_request(request, role='h_trial_request')
+    replay = _historical_replay if isinstance(_historical_replay, _HistoricalReplay) and \
+        _historical_replay.matches(request, raw=raw, directory=directory) else None
     records = raw.get('cases')
     if not isinstance(records, list) or len(records) != len(request['cases']):
         raise ValueError('complete native point/level ledger cardinality differs')
@@ -110,7 +113,8 @@ def assess_trial_request(request, raw, directory, report, *, process=None):
                 raise ValueError('actual per-case finished timestamp outside native batch')
             if runtime is None: raise ValueError('attempted native case lacks actual runtime identity')
             assert_case_functions(actual, raw['functions'], raw['runtime']['matlabroot'])
-            qualified = validate_case_qualifications(request, case, actual['started_at'], _cache=cache)
+            qualified = validate_case_qualifications(request, case, actual['started_at'], _cache=cache,
+                                                    _historical_replay=replay)
             if not same_runtime(runtime, qualified): raise ValueError('actual trial runtime differs from execution-time independent A/E/H')
             checked = assert_case(actual, case, Path(directory) / 'cases' / case['case_id'], request['run_id'], request['budget'])
             if not checked['complete']: raise ValueError('hypothetical study point is technically incomplete')
@@ -152,10 +156,19 @@ def assess_trial_request(request, raw, directory, report, *, process=None):
 
 
 def validate_h_analysis_trial_receipt(receipt_path, *, project_root=None, study_report=None):
+    # The session is confined to this read-only consumer. A producer's earlier
+    # source/profile gates cannot leave a qualification proof alive here.
+    from verification_common import validation_session
+    with validation_session():
+        return _validate_h_analysis_trial_receipt(receipt_path, project_root=project_root, study_report=study_report)
+
+
+def _validate_h_analysis_trial_receipt(receipt_path, *, project_root=None, study_report=None):
     result = {'valid': False, 'trial_complete': False, 'numerically_verified': False, 'project_id': None, 'study_path': None,
               'study_sha256': None, 'study_semantic_sha256': None, 'base_protocol_path': None, 'base_protocol_sha256': None,
               'base_simulation_receipt_path': None, 'primary_numerical_receipt_path': None, 'receipt_path': None,
               'receipt_sha256': None, 'raw_path': None, 'runtime': None, 'installation_identity_checked': False, 'numeric_results': [], 'groups': [], 'case_results': [], 'process': None, 'input_manifest': [], 'errors': []}
+    replay = None
     try:
         from validate_h_analysis_profile import evidence_chain
         from h_analysis_study import validate_h_analysis_study
@@ -168,12 +181,19 @@ def validate_h_analysis_trial_receipt(receipt_path, *, project_root=None, study_
         report = validate_h_analysis_study(b['study']['path'], project_root=root, require_reviewed=True)
         if study_report is not None and any(not typed_equal(study_report[k], report[k]) for k in ('project_id', 'contract_sha256', 'semantic_sha256', 'bound_files', 'design', 'native_budget')):
             raise ValueError('supplied current study report differs from independent baseline/source validation')
-        checked = assess_trial_request(request, raw, path.parent, report, process=receipt['process'])
+        verify_study_bindings(request, report)
+        replay = _mint_historical_replay(request, raw, path.parent)
+        checked = assess_trial_request(request, raw, path.parent, report, process=receipt['process'],
+                                       _historical_replay=replay)
         if receipt.get('project_id') != report['project_id'] or receipt.get('study_semantic_sha256') != report['semantic_sha256'] or not typed_equal(receipt.get('protected_files'), b['protected_files']):
             raise ValueError('H trial receipt project/study/protected identity differs')
         if not typed_equal(receipt.get('numeric_results'), checked['numeric_results']) or receipt.get('status') != ('completed' if checked['complete'] else 'incomplete') or not typed_equal(receipt.get('errors'), checked['errors']):
             raise ValueError('H trial receipt differs from independent per-point numerical recomputation')
         assert_unchanged(before)
+        # A new qualification fact is published only after the real complete
+        # historical receipt's original source/native/result and final guards.
+        _finish_historical_replay(replay, complete=checked['complete'])
+        replay = None
         result.update(valid=True, trial_complete=checked['complete'], numerically_verified=checked['numerically_verified'],
                       project_id=report['project_id'], study_path=report['contract_path'], study_sha256=report['contract_sha256'],
                       study_semantic_sha256=report['semantic_sha256'], base_protocol_path=b['base_protocol']['path'],
@@ -183,6 +203,8 @@ def validate_h_analysis_trial_receipt(receipt_path, *, project_root=None, study_
                       groups=checked['groups'], case_results=checked['case_results'], process=receipt['process'], input_manifest=before, errors=checked['errors'])
     except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError) as error:
         result['errors'].append(str(error))
+    finally:
+        _finish_historical_replay(replay, complete=False)
     return result
 
 

@@ -11,7 +11,7 @@ from validate_simulation_protocol import validate_simulation_protocol
 from model_verification_common import (KINDS, METHODS, constant_level, execution_configuration,
     metric_value, obligation_snapshot, output_port, settings_snapshot, structural_snapshot, variable_quantity)
 from verification_common import (HARD_BUDGET, assert_unchanged, bind_sources, evidence_paths, finite,
-    input_manifest, limited_document, checked_binding, semantic_digest, source_snapshot, typed_equal, validate_review)
+    input_manifest, limited_document, checked_binding, semantic_digest, source_snapshot, typed_equal, validate_review,_memoized_h_validation)
 
 
 def _member(binding, identity, root, result):
@@ -253,6 +253,7 @@ def _analysis(analysis, claim, members, sources, root, result):
                     result['errors'].append(label + ': ' + str(error))
 
 
+@_memoized_h_validation('h2_source', 'h2_contract')
 def validate_model_verification(path, *, project_root=None, require_reviewed=False):
     result = {'valid': False, 'schema_valid': False, 'reviewed': False, 'assessment_ready': False,
               'environment_checked': False, 'execution_allowed': False, 'contract_path': None,

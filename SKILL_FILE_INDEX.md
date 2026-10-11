@@ -174,6 +174,8 @@ Generated from actual source files by `python scripts/generate_indexes.py`.
 - [tests/test_h_analysis_integration.py](tests/test_h_analysis_integration.py)
 - [tests/test_h_analysis_study.py](tests/test_h_analysis_study.py)
 - [tests/test_h_analysis_trial.py](tests/test_h_analysis_trial.py)
+- [tests/test_h_historical_qualification_reuse.py](tests/test_h_historical_qualification_reuse.py)
+- [tests/test_h_validation_reuse.py](tests/test_h_validation_reuse.py)
 - [tests/test_implementation_profile.py](tests/test_implementation_profile.py)
 - [tests/test_implementation_receipt.py](tests/test_implementation_receipt.py)
 - [tests/test_lint.py](tests/test_lint.py)

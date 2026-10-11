@@ -15,7 +15,7 @@ from validate_simulation_receipt import validate_simulation_receipt
 from validate_numerical_verification_receipt import validate_numerical_verification_receipt
 from verification_common import (HARD_BUDGET, assert_unchanged, bind_sources, checked_binding, evidence_paths,
                                  input_manifest, limited_document, semantic_digest, source_snapshot,
-                                 typed_equal, validate_review)
+                                 typed_equal, validate_review, _memoized_h_validation, _validated_h_baseline)
 
 
 def _initial_value(value,parameters):
@@ -86,6 +86,7 @@ def _criterion(value,method,factors,metric):
     if c['quantity'] in ('event_probability','coverage_probability') and method not in UNCERTAINTY_METHODS:raise ValueError('population probability requires fixed-N iid uncertainty study')
 
 
+@_memoized_h_validation('study_source', 'h_study_contract')
 def validate_h_analysis_study(path,*,project_root=None,require_reviewed=False):
     path=Path(path).resolve();root=Path(project_root or path.parent).resolve()
     result={'valid':False,'schema_valid':False,'reviewed':False,'study_ready':False,'assessment_ready':False,'execution_ready':False,
@@ -126,7 +127,8 @@ def validate_h_analysis_study(path,*,project_root=None,require_reviewed=False):
             else:base_paths[label]=file
         protocol=None
         if 'base_protocol' in base_paths:
-            protocol=validate_simulation_protocol(base_paths['base_protocol'],project_root=root,require_frozen=True)
+            protocol=_validated_h_baseline('baseline_protocol',base_paths['base_protocol'],project_root=root,budget=budget,
+                options={'require_frozen':True},compute=lambda:validate_simulation_protocol(base_paths['base_protocol'],project_root=root,require_frozen=True))
             result['base_protocol_report']=protocol
             result['bound_files'].extend(protocol['bound_files'])
             if not protocol['valid'] or not protocol['frozen']:errors.extend('base_protocol: '+e for e in protocol['errors']);missing.append('current_frozen_baseline')
@@ -136,11 +138,14 @@ def validate_h_analysis_study(path,*,project_root=None,require_reviewed=False):
                 for suffix in ('path','sha256'):result[name+'_'+suffix]=protocol.get(name+'_'+suffix)
             result['model_identity']=protocol['model_identity']
         if 'base_receipt' in base_paths and protocol is not None:
-            base=validate_simulation_receipt(base_paths['base_receipt'],project_root=root,protocol_report=protocol)
+            base=_validated_h_baseline('baseline_simulation',base_paths['base_receipt'],project_root=root,budget=budget,
+                options={k:protocol.get(k) for k in ('project_id','contract_sha256','semantic_sha256','run_spec_sha256','bound_files','model_identity')},
+                compute=lambda:validate_simulation_receipt(base_paths['base_receipt'],project_root=root,protocol_report=protocol))
             result['base_simulation_report']=base
             if not base['valid'] or not base['primary_run_complete']:errors.extend('base_receipt: '+e for e in base['errors']);missing.append('actual_complete_baseline_simulation')
         if 'primary_numerical_receipt' in base_paths:
-            primary=validate_numerical_verification_receipt(base_paths['primary_numerical_receipt'],project_root=root)
+            primary=_validated_h_baseline('baseline_h1',base_paths['primary_numerical_receipt'],project_root=root,budget=budget,
+                compute=lambda:validate_numerical_verification_receipt(base_paths['primary_numerical_receipt'],project_root=root))
             result['primary_numerical_report']=primary
             result['bound_files'].extend(primary.get('bound_files',[]))
             if not primary['valid'] or not primary['numerically_verified']:errors.extend('primary_H1: '+e for e in primary['errors']);missing.append('accepted_current_primary_H1')

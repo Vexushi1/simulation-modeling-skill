@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 
 from runtime_common import contained_path, emit, load_contract, load_document, schema_errors, sha256_file
+from verification_common import _validation_operation
 from simulation_state import STAGES as E_STAGES, HISTORICAL_ROLES as E_HISTORICAL_ROLES, CURRENT_ROLES as E_CURRENT_ROLES
 
 from parameter_study_state import STAGES as F_STAGES, HISTORICAL_ROLES as F_HISTORICAL_ROLES, CURRENT_ROLES as F_CURRENT_ROLES
@@ -27,6 +28,7 @@ def affected_artefacts(artefacts: list[dict], changed_ids: set[str]) -> set[str]
         affected.update(added)
 
 
+@_validation_operation
 def validate_project_state(state_path: Path, *, profile_path: Path | None = None,
                            implementation_profile_path: Path | None = None,
                            simulation_profile_path: Path | None = None,

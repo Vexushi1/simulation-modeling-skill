@@ -11,7 +11,7 @@ from h_analysis_study import (INPUT_NAME, OPERATION, RECEIPT_NAME, RESULT_NAME, 
 from run_h_analysis_study import canonical_state_bindings, collect_batch_points
 from runtime_common import canonical_digest, contained_path, emit, load_contract, schema_errors
 from validate_h_analysis_study import validate_h_analysis_study
-from verification_common import (HARD_BUDGET,assert_unchanged,evidence_paths,input_manifest,limited_document,source_identities)
+from verification_common import (HARD_BUDGET,assert_unchanged,evidence_paths,input_manifest,limited_document,source_identities,_memoized_h_validation)
 
 
 def validate_execution_ledger(receipt,budget,children):
@@ -65,6 +65,7 @@ def validate_execution_ledger(receipt,budget,children):
     return infrastructure_complete
 
 
+@_memoized_h_validation('study_receipt', 'h_study_receipt')
 def validate_h_analysis_study_receipt(path,*,project_root=None,study_report=None):
     path=Path(path).resolve()
     result={'valid':False,'study_complete':False,'study_accepted':False,'defined':False,'result':None,'method':None,'metric':None,
