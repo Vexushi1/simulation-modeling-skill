@@ -2179,7 +2179,7 @@ study 输入写入前使用与实际输出完全相同的 UTF-8 LF serializer �
 
 ## 12.26 R2025b 原生状态枚举的明确序列化
 
-最终源码的首次实际 A/D/E/F/G 资格通过；H 的完整 20 案例收集实际得到 3 个受控负例通过、17 个正例及计时检查在同一 state_labels MAT 类型检查失败。逐一解码 18 份实际 state MAT（含受控 timeout）确认：原生 Label 是 `Simulink.SimulationData.StateType` 枚举，直接保存后为 MCOS opaque 对象；JSON 则编码为 `CSTATE`。合成夹具写入字符行，未覆盖此原生格式差别，不能据此宣称实际资格通过。
+最终源码的首次实际 A/D/E/F/G 资格通过；H 的完整 20 案例收集实际得到 3 个受控负例通过、17 个正例及计时检查在同一 state_labels MAT 类型检查失败。逐一解码 18 份实际 state MAT（含受控无输出案例）确认：原生 Label 是 `Simulink.SimulationData.StateType` 枚举，直接保存后为 MCOS opaque 对象；JSON 则编码为 `CSTATE`。合成夹具写入字符行，未覆盖此原生格式差别，不能据此宣称实际资格通过。
 
 先明确原生导出边界，再修正 MATLAB producer：验证 Label 的真实枚举类、标量形状及精确 `StateType.CSTATE` 值，随后将该已验证枚举的规范代码 `CSTATE` 导出为明确 char 行，供 JSON/MAT 对照。原始 returned SimulationOutput 中的原生枚举继续原样保留；不改状态值、BlockPath、单位、时间、CSV、数值阈值或 Python 严格 U1 字符行消费者，不接受 opaque 对象或宽松字符串强制转换。实际完整 20 案例重新验证导出、数值、受控失败及恢复，既有不受影响 Python 通过结果继续复用。
 
