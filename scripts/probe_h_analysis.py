@@ -29,8 +29,9 @@ def _numeric_policy(name, states):
     outputs = [{'port': 1, 'variable_id': 'y', 'unit': '1', **criteria}]
     outputs.extend({'kind': 'state', **state, **criteria} for state in states)
     return {'method': name + ('_step_refinement' if name == 'ode4' else '_tolerance_refinement'),
-            'scope': 'actual_points', 'solver_levels': [_solver(name, i) for i in range(3)],
-            'comparison_times': [i * 0.1 for i in range(21)] if name == 'ode4' else [0.0, 2.0],
+            'scope': 'pwl_trajectory' if name == 'ode15s' else 'actual_points',
+            'solver_levels': [_solver(name, i) for i in range(3)],
+            'comparison_times': None if name == 'ode15s' else ([i * 0.1 for i in range(21)] if name == 'ode4' else [0.0, 2.0]),
             'outputs': outputs,
             'obligations': {kind: {'status': 'not_applicable', 'reason': 'SYNTHETIC fixed qualification source scripts/probe_h_analysis.py::qualification_cases; analytic state oracle and no task obligation supplied.', 'source_ids': ['synthetic_qualification']}
                             for kind in ('residual', 'constraint', 'conservation', 'event_localization', 'numerical_drift')},

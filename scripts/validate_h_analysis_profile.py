@@ -81,13 +81,14 @@ def derive_profile(raw, request, process):
     numeric = []
     from numerical_obligations import evaluate_trial_numeric
     for group in request['groups']:
+        result = None
         try:
             result = evaluate_trial_numeric([levels[x] for x in group['case_ids']], group['numeric_policy'], group['context'],
                                             project_id=group['context']['project_id'], physical_sha256=group['physical_sha256'])
             if not result['numerically_verified']: raise ValueError('qualification numerical triplet failed prior policy')
             numeric.append({'group_id': group['group_id'], 'passed': True, 'result': result, 'errors': []})
         except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError) as error:
-            numeric.append({'group_id': group['group_id'], 'passed': False, 'result': None, 'errors': [str(error)]})
+            numeric.append({'group_id': group['group_id'], 'passed': False, 'result': result, 'errors': [str(error)]})
     inventory = raw.get('installed_products', [])
     products = {x['Name']: x for x in inventory}
     target = raw['runtime']['release'] == contract()['target']['matlab_release'] and products.get('Simulink', {}).get('Version') == contract()['target']['simulink_version'] and set(products) >= {'MATLAB', 'Simulink'} and len(products) == len(inventory)

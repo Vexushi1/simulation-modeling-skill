@@ -223,6 +223,47 @@ def test_standalone_profile_consumes_real_sibling_and_all_triplets(complete_h_pr
     assert set(report['qualified_solvers']) == {'ode4', 'ode45', 'ode15s'}
 
 
+def test_profile_retains_complete_noncontracting_numeric_rejection(complete_h_profile):
+    from probe_environment import write_json
+    from runtime_common import load_document
+    from validate_h_analysis_profile import validate_h_analysis_profile
+    names = trial.contract()['evidence']
+    with preserved_native_directory(complete_h_profile.parent):
+        request = load_document(complete_h_profile.parent / names['input'])
+        raw = load_document(complete_h_profile.parent / names['raw'])
+        group = request['groups'][0]
+        for identity, offset in zip(group['case_ids'], (0.0, 1e-5, 1e-4)):
+            actual = next(row for row in raw['cases'] if row['case_id'] == identity)
+            directory = complete_h_profile.parent / 'cases' / identity
+            for kind, prefix in (('states', 'state'), ('outputs', 'output')):
+                for record in actual[kind]:
+                    record['values'] = [value + offset * time / 2.0
+                                        for time, value in zip(record['time'], record['values'])]
+                    (directory / record['csv_file']).write_text(
+                        ''.join(f'{time:.17g},{value:.17g}\n'
+                                for time, value in zip(record['time'], record['values'])), encoding='utf-8')
+                data_key = 'state_data_file' if kind == 'states' else 'data_file'
+                mat_key = 'state_mat_file' if kind == 'states' else 'mat_file'
+                data = load_document(directory / actual[data_key])
+                data[kind] = deepcopy(actual[kind])
+                write_json(directory / actual[data_key], data)
+                mat = {key: value for key, value in loadmat(directory / actual[mat_key], mat_dtype=True).items()
+                       if not key.startswith('__')}
+                for index, record in enumerate(actual[kind]):
+                    mat[prefix + '_values'][index, 0] = np.asarray(record['values'], dtype=np.float64).reshape(-1, 1)
+                savemat(directory / actual[mat_key], mat, format='5')
+        rebind_synthetic_h_profile(complete_h_profile, raw)
+        profile = load_document(complete_h_profile)
+        assert all(row['passed'] for row in profile['operation']['case_results'])
+        rejected = next(row for row in profile['operation']['numeric_results'] if row['group_id'] == group['group_id'])
+        assert not rejected['passed'] and rejected['errors'] == ['qualification numerical triplet failed prior policy']
+        result = rejected['result']
+        assert result['complete'] and not result['criteria_satisfied'] and not result['numerically_verified']
+        assert all(not row['contraction_satisfied'] and row['D12'] > row['D01'] for row in result['outputs'])
+        report = validate_h_analysis_profile(complete_h_profile)
+        assert not report['valid'] and not report['h_analysis_assured'] and not report['qualified_solvers']
+
+
 @pytest.mark.parametrize('mutation,match', [
     (lambda x: x['effective_configuration'].update(StartTime=False), 'interval/mode'),
     (lambda x: x['observed_solver_info'].update(FixedStepSize=True), 'solver/type/step'),
