@@ -2173,6 +2173,8 @@ study 输入写入前使用与实际输出完全相同的 UTF-8 LF serializer �
 
 统一应用全部已确认修正后，最小回测覆盖 21 个失败节点、1 个调整调用组合的 supplied-report 负例和 2 个直接 E 正例，共 24 个节点；未变且未受影响的 14 项正式通过结果及此前通过进度无需重跑。若回测暴露此前被探针遮挡的问题，先一次收齐并记录，再修正及复检其依赖范围。scratch 编排 helper 的固定 76 项要求不构成重新执行全部 76 项的理由，也不能据此伪造合并后的正式通过结果。测试结果复用与保守源码绑定的运行资格分别判断；最终源码变化或当前 TTL 要求的实际 A/D/E/F/G/H 资格仍须独立取得。
 
+上述 24 项完整回测实际为 23 PASS、1 FAIL、0 error、0 skip。唯一剩余项是 qualification-owned lexical alias 的拒绝原因可见性：原生 qualification 消费者按精确完整 artifact 集拒绝新增 alias，trial assessment 将实际拒绝写入逐 case 错误，外层 receipt 消费者因原成功回执与重算不一致而拒绝。测试应同时核验实际内部 inventory 拒绝及精确外层重算不一致，再完成 alias 删除、原始字节恢复和真实完整回执重新接受；不能要求内部消息未经外层契约转换直接出现在公开 errors，也不能只接受任意失败。只调整该节点的局部只读观察，复用 23 项通过结果，单独回测该拒绝及恢复过程；生产消费者和共享探针保持不变。
+
 23 个保护源、1160 份旧证据、原始先验和 active V5 先验继续逐字节保留。定向关闭后完成原定完整 H、必要 F/G、独立 oracle 和 caller 回读，再执行一次最终本地全量、最终提交独立审查、PR 与 main 双平台 CI、合并及 main 只读回读。全部材料继续明确 SYNTHETIC INFRASTRUCTURE TEST，不产生真实模型批准、采纳或状态升级。
 
 # 13. Phase I — Verification & Validation、测试与安全分析

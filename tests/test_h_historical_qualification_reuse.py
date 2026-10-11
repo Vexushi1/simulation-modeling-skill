@@ -384,11 +384,27 @@ def test_new_qualification_owned_lexical_alias_is_rejected_after_committed_proof
     alias = profile.parent / 'SYNTHETIC-unlisted-owned-alias.json'
     assert target.is_file() and not alias.exists()
     calls = spy_actual_consumers(monkeypatch)
+    second_request = task(second)[0]
+    expected_rejections = {(second_request['run_id'], case['case_id']) for case in second_request['cases']}
+    del second_request
+    qualification_errors = []
+    original_collect = native._collect_qualification_facts
+
+    def collect(request, case, started_at, *, include_h):
+        try:
+            return original_collect(request, case, started_at, include_h=include_h)
+        except ValueError as error:
+            if request['mode'] == 'trial' and include_h:
+                qualification_errors.append((request['run_id'], case['case_id'], str(error)))
+            raise
+
+    monkeypatch.setattr(native, '_collect_qualification_facts', collect)
     with preserve(profile.parent), shared.validation_session() as session:
         accepted = reader.validate_h_analysis_trial_receipt(first, project_root=root)
         assert accepted['valid'] and accepted['trial_complete'], accepted['errors']
         assert len(calls['full']) == 1
-        assert any(key[0] == 'historical_qualification' for key in session.entries)
+        proof_keys = {key for key in session.entries if key[0] == 'historical_qualification'}
+        assert proof_keys
         declared = native.artifact_manifest(profile.parent)
         target_bytes = target.read_bytes()
         try:
@@ -398,8 +414,15 @@ def test_new_qualification_owned_lexical_alias_is_rejected_after_committed_proof
         assert alias.is_symlink() and alias.read_bytes() == target_bytes
         assert native.artifact_manifest(profile.parent) != declared
         rejected = reader.validate_h_analysis_trial_receipt(second, project_root=root)
-        assert not rejected['valid'], rejected
-        assert any('exact complete native artifact set' in error for error in rejected['errors']), rejected['errors']
+        assert not rejected['valid'] and not rejected['trial_complete'] and not rejected['numerically_verified'], rejected
+        # The actual per-case gate fails before the formerly successful receipt
+        # can match independent numeric/status/error recomputation.
+        assert rejected['errors'] == ['H trial receipt differs from independent per-point numerical recomputation']
+        assert {(run_id, case_id) for run_id, case_id, _ in qualification_errors} == expected_rejections
+        assert len(qualification_errors) == len(expected_rejections)
+        assert all(error == 'actual per-case independent H qualification failed: H exact complete native artifact set differs'
+                   for _, _, error in qualification_errors), qualification_errors
+        assert {key for key in session.entries if key[0] == 'historical_qualification'} <= proof_keys
         assert target.read_bytes() == target_bytes
         alias.unlink()
         assert native.artifact_manifest(profile.parent) == declared
