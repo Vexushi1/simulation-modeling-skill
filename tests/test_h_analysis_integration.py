@@ -448,3 +448,93 @@ def test_actual_trial_route_preserves_extra_A_and_blocks_missing_comparator_solv
         'study_validation': missing_solver.get('h_analysis_study_validation')}
     assert missing_solver['required_solvers'] == ['ode4', 'ode45']
     assert any('E lacks actual required solver qualification: ode45' in error for error in missing_solver['errors'])
+
+
+def test_zero_factor_runtime_manifest_preserves_baseline_repeats_policies_and_bounds(tmp_path):
+    from copy import deepcopy
+    from h_analysis_study import generate_design
+    from h_analysis_study_factory import make_study_for_primary, review_h_analysis_study
+    from h_analysis_trial import materialize_trial_manifest, resolve_initial_value
+    from problem_factory import write_contract
+    from runtime_common import canonical_digest, load_document
+    from test_verification_routing_state import synthetic_h1_state
+    from validate_h_analysis_study import validate_h_analysis_study
+    from verification_common import typed_equal
+
+    root = tmp_path
+    state_path, _, _, primary_receipt = synthetic_h1_state(root)
+    original_study = make_study_for_primary(primary_receipt, project_root=root)
+    protected = {path: path.read_bytes() for path in (original_study, state_path)}
+    original = load_document(original_study)
+    value = deepcopy(original)
+    adaptive = deepcopy(value['numerical_policy'])
+    adaptive.update(method='ode45_tolerance_refinement',
+                    comparison_times=[value['numerical_policy']['comparison_times'][0],
+                                      value['numerical_policy']['comparison_times'][-1]])
+    adaptive['solver_levels'] = [{'name': 'ode45', 'type': 'variable-step', 'fixed_step': None,
+        'max_step': 0.1, 'min_step': 1e-9, 'initial_step': 0.01, 'rel_tol': 1e-4 / 10**index,
+        'abs_tol': 1e-6 / 10**index, 'zero_crossing': 'EnableAll'} for index in range(3)]
+    value.update(method='runtime_comparison', factors=[])
+    value['settings'] = {
+        'configurations': [{'id': 'fixed', 'numerical_policy': deepcopy(value['numerical_policy'])},
+                           {'id': 'adaptive', 'numerical_policy': adaptive}],
+        'repetitions': 2, 'order': ['fixed', 'adaptive', 'adaptive', 'fixed'],
+        'comparison': {'reference': 'fixed', 'alternatives': ['adaptive'],
+                       'timing_field': 'TotalElapsedWallTime', 'statistic': 'median',
+                       'zero_denominator': 'undefined', 'level_index': 2},
+        'metric_comparison': {'absolute_tolerance': 1e-4, 'relative_tolerance': 0.}}
+    value['design'] = generate_design(value['method'], value['factors'], value['settings'], budget=value['budget'])
+    path = write_contract(root / 'zero-factor-runtime-manifest-study.json', value)
+    review_h_analysis_study(path, project_root=root)
+    report = validate_h_analysis_study(path, project_root=root, require_reviewed=True)
+    assert report['valid'] and report['reviewed'] and report['execution_ready'], report['errors']
+    groups = materialize_trial_manifest(report)
+    assert len(groups) == len(value['settings']['order']) == 4
+    case_ids = [case_id for group in groups for case_id in group['case_ids']]
+    assert len(case_ids) == len(set(case_ids)) == 12
+    policies = {config['id']: config['numerical_policy'] for config in value['settings']['configurations']}
+    spec = report['base_protocol_report']['run_spec']
+    integrators = [block for block in report['base_protocol_report']['mapping_validation']['build_spec']['blocks']
+                   if block['type'] == 'Integrator']
+    repeats = {}
+    for occurrence, (row, group, configuration) in enumerate(zip(value['design']['rows'], groups, value['settings']['order']), 1):
+        repeats[configuration] = repeats.get(configuration, 0) + 1
+        assert group['occurrence'] == occurrence and group['point_id'] == group['group_id'] == row['id']
+        assert group['factor_values'] == row['values'] == []
+        assert group['roles'] == [{'kind': 'runtime_repeat', 'configuration_id': configuration,
+                                   'repeat': repeats[configuration], 'order': occurrence}]
+        assert len(group['case_ids']) == 3 and len(group['numeric_policy']['solver_levels']) == 3
+        assert typed_equal(group['numeric_policy'], policies[configuration])
+        snapshot = group['physical_snapshot']
+        assert typed_equal(snapshot['parameters'], spec['parameters']) and typed_equal(snapshot['inputs'], spec['inputs'])
+        assert [state['block_path'] for state in snapshot['initial_conditions']] == [block['path'] for block in integrators]
+        assert all(state['value'] == resolve_initial_value(block['parameters']['InitialCondition'], spec['parameters'])
+                   for state, block in zip(snapshot['initial_conditions'], integrators))
+        assert group['physical_sha256'] == canonical_digest(snapshot)
+        assert typed_equal(snapshot, groups[0]['physical_snapshot'])
+    assert len({group['physical_sha256'] for group in groups}) == 1
+
+    for values, expected in [([1.0], 'complete ordered factor row required'),
+                             (['1.0'], 'design.factor_values: finite native-representable numeric array required'),
+                             ([True], 'design.factor_values: finite native-representable numeric array required'),
+                             ([float('nan')], 'design.factor_values: finite native-representable numeric array required'),
+                             ([2**53 + 1], 'design.factor_values: finite native-representable numeric array required')]:
+        changed = deepcopy(report['design'])
+        changed['rows'][0]['values'] = values
+        with pytest.raises(ValueError, match=expected):
+            materialize_trial_manifest(report, design=changed)
+    missing = deepcopy(report)
+    missing['factors'] = deepcopy(original['factors'])
+    missing['design']['factor_ids'] = [factor['id'] for factor in missing['factors']]
+    with pytest.raises(ValueError, match='design.factor_values: finite native-representable numeric array required'):
+        materialize_trial_manifest(missing)
+    other_method = deepcopy(report)
+    other_method['method'] = 'scenario_response'
+    with pytest.raises(ValueError, match='design.factor_values: finite native-representable numeric array required'):
+        materialize_trial_manifest(other_method)
+    for field, cap in [('max_groups', len(groups) - 1), ('max_cases', len(case_ids) - 1)]:
+        limited = deepcopy(report)
+        limited['native_budget'][field] = cap
+        with pytest.raises(ValueError, match='complete point/three-level count exceeds reviewed native budget'):
+            materialize_trial_manifest(limited)
+    assert all(path.read_bytes() == content for path, content in protected.items())

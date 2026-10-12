@@ -235,8 +235,8 @@ def _offset_display(anchor, offset, scale):
     if not math.isfinite(displayed):
         return None, None, None, False
     error = (displayed-anchor)-offset
-    guard = 32*np.finfo(float).eps*max(abs(offset), scale)
-    return displayed, error, guard, abs(error) <= guard
+    guard = float(32*np.finfo(float).eps*max(abs(offset), scale))
+    return displayed, error, guard, bool(abs(error) <= guard)
 
 
 def sample_statistics(values):

@@ -873,7 +873,8 @@ def materialize_trial_manifest(report, design=None):
         numeric = deepcopy(next(x['numerical_policy'] for x in report['settings']['configurations'] if x['id'] == runtime_role['configuration_id']) if runtime_role else report['numerical_policy'])
         if not isinstance(numeric.get('solver_levels'), list) or len(numeric['solver_levels']) != 3:
             raise ValueError('trial numerical policy requires three complete solver levels')
-        values = numeric_vector(row['values'], 'design.factor_values')
+        values = numeric_vector(row['values'], 'design.factor_values',
+                                nonempty=not (report['method'] == 'runtime_comparison' and not factors))
         if len(values) != len(factors): raise ValueError('complete ordered factor row required')
         snapshot = physical_snapshot(spec, states)
         touched = set()

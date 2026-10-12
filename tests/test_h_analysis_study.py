@@ -445,6 +445,23 @@ def _uncertainty_response_prior(values, *, mean_method='none'):
     return f,s,d,i,analysis
 
 
+@pytest.mark.parametrize('mean_method', ['none', 'student_t'])
+@pytest.mark.parametrize('values,resolved', [([.2,.7,1.3,2.6], True),
+                                           ([1e16+x for x in (0.,2.,4.,6.)], False),
+                                           ([1e16]*4, True)])
+def test_uncertainty_mean_resolution_is_strict_json_evidence(values, resolved, mean_method):
+    _,_,_,_,analysis = _uncertainty_response_prior(values, mean_method=mean_method)
+    mean = analysis['mean']
+    assert type(mean['estimate_defined']) is bool
+    assert mean['estimate_defined'] is resolved
+    assert type(mean['centering']['display_resolution_guard']) is float
+    if mean['confidence_interval'] is not None:
+        assert type(mean['confidence_interval']['defined']) is bool
+    # The producer persists this complete analysis with the standard strict
+    # JSON encoder. No special encoder may hide a library scalar at the wire.
+    assert json.loads(json.dumps(analysis, allow_nan=False)) == analysis
+
+
 @pytest.mark.parametrize('anchor,reverse',[(0.,False),(0.,True),(1e16,False),(1e16,True)])
 def test_uncertainty_offset_variance_has_independent_20_over_3_prior(anchor,reverse):
     values=[anchor+x for x in (0.,2.,4.,6.)]
