@@ -2203,6 +2203,16 @@ study 输入写入前使用与实际输出完全相同的 UTF-8 LF serializer �
 
 当前历史消费者严格绑定共同 120 项源码，包含这两个修正文件；旧原生请求、E/H 资格、H1 和 study 结果不能在修正后自动成为新源码接受链。保留旧源码真实 PASS 与失败事实，不改写旧 raw/receipt、不重新散列旧文件冒充新执行，不为节省执行而删减安全闭包或引入临时兼容绕过。最终修正源码只取得一轮新的 E/F/G/H 资格及其所需当前业务证据，使用新命令、目录和尝试身份；A/D 23 个保护源及其未过期资格继续复用。此源码绑定所必需的原生证据补取与 Python 全量回归分别记录，不能把复用的旧事实称为新源码 PASS。全部材料仍为 SYNTHETIC INFRASTRUCTURE TEST，不批准、采纳或升级真实模型。
 
+## 12.29 独立核对的内部标量与受控错误元数据边界
+
+当前源码的原始 H 研究已完成 22 项、209 组三层证据、627 次案例及 27 批次；H2 support、modify、reject 均技术有效且决定完整，后两项不升级为验证支持。三个独立 oracle 的首次结果统一收齐后，baseline 的 23 项检查通过；native oracle 完整读取 28 个目录、647 个案例，但其严格原始 JSON 标量检查错误地拒绝了内部 NumPy 浮点时间，另有一项受控错误的 ProfilerData 形态检查失败。统计 oracle 的独立不确定性计算把 NumPy guard 和布尔判定送入严格比较及 JSON 出口，记录两条自身类型问题并导致报告截断。所有首次报告、部分报告和命令保持原样；部分写出的七项通过不能代替完整 22 项统计接受。
+
+原始 JSON 数值入口继续只接受有限 builtin int/float 并拒绝 bool。仅在 native oracle 已严格校验并构造的 float64 时间向量送入其独立解析函数之前，将该内部时间标量转换为 builtin float；不泛化输入转换或接受布尔数值。独立统计 oracle 仅将原计算所得 display guard 和判定分别明确输出为 builtin float/bool，保留 factor 32、计算顺序、随机设计、估计量、阈值及原始先验，不引入通用 JSON 强制转换。
+
+实际 R2025b 资格的 controlled_error 在执行前返回 DiagnosticError：error_count=1、tout_count=0、ExecutionElapsedWallTime=0，原公开 TimingInfo.ProfilerData 为 []。独立 native oracle 只对该预先声明的受控错误及上述一致事实允许原空数组；正常执行仍要求原非 profiling 字符消息，其他数组、空消息或 profiling 结构不据此获得许可。七项 TimingInfo 元数据、六项实际 MAT 原语的类别/形状/逐值身份、真实调用时刻、秒级原生时间与微秒级 duration 区间、duration 加和及恢复核对继续保持，不把受控错误记为成功仿真或数值完整。
+
+先保存集中发现和此计划修正，再生成新版本的两份独立 helper 及必要的明确程序 SHA/报告身份元数据，保留旧 helper 和失败输出。它们不属于共同 120 项生产安全闭包；不修改生产源码、原始 MAT/JSON/CSV、原先验、真实数值准则、十九个 gate、二十一个 acquisition 或六个 main 输出角色。已通过的 baseline 与未受影响测试继续复用，仅关闭内部标量和受控错误边界并重新读取受影响的两个 oracle；不重跑 MATLAB、资格或此前全量。剩余 caller、必要 F/G 和独立出口闭合后才执行原定的一次正式最终候选全量。
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
