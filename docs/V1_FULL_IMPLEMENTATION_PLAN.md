@@ -2261,7 +2261,7 @@ modify/reject 的决定准备与 model_verification 只读回读均实际退出 
 
 完整本地清单确认两项隔离 synthetic fixture 结构过时：`test_per_case_gate_cache_still_rejects_expiry_and_solver` 的手填缓存缺当前 collector 的 required/qualified A 操作、host/executable、include_h 和完整 process/raw 时间窗口；`test_accepted_h2_disposition_does_not_require_support` 的直接 state 输入缺 schema 必需的 artefacts。一次补齐前者的全部必读字段及一致 deadline，后者明确提供空 artefacts；保留原成功、过期拒绝、solver 拒绝和已决定 reject 不要求 support 的全部断言。当前证据没有要求改变生产资格、研究祖先、数字准则或批准/状态边界。
 
-先收齐同一候选的 Ubuntu/Windows CI 完整结果，将平台问题并入本地清单，再集中应用最小修复。只补验受影响节点；全部已发现问题关闭、精确候选复核及静态出口完成后，按 §12.21 的必要补验规则执行新的 `final-full-regression-v2`。保留失败 v1；新 command/log/result/JUnit 使用独立身份和文件路径，不覆盖旧材料。测试和计划文字修订不属于共同 120 项生产安全闭包；确认该闭包字节未变后，复用已通过的 627 次 H 原生研究、H2、资格、独立 oracle、caller 和既有 F/G 材料。
+本地完整清单中的两项已确认 fixture 问题在同一批应用最小修复，只补验对应两个节点，这次定向补验不重跑原 1936 项通过检查；同时继续收齐原候选 Ubuntu/Windows CI 完整结果，将额外平台问题记录并统一修复，原候选 CI 完成前不推送新的分支提交以免取消该运行。原候选双平台 CI 完整结果收齐、全部本地及平台已发现问题关闭、精确候选复核及静态出口完成后，才按 §12.21 的必要补验规则执行新的 `final-full-regression-v2`，不提前启动第二次全量。保留失败 v1；新 command/log/result/JUnit 使用独立身份和文件路径，不覆盖旧材料。测试和计划文字修订不属于共同 120 项生产安全闭包；确认该闭包字节未变后，复用已通过的 627 次 H 原生研究、H2、资格、独立 oracle、caller 和既有 F/G 材料。
 
 实际 JUnit 耗时集中在七个明确的 H 相关测试文件，占 testcase 累计时间的 91.54%；该时间含 fixture 建立和清理，不等于单一函数的 CPU 归因。本次修正保持原性能机制、预算和完整回归范围。最终冻结的同一 final_local_full 角色改绑真实 v2 配置及 JUnit，薄后继 FreezerV12 只更新这两处元数据；19 gates、21 acquisitions、13 producer authorities 和 6 main 输出角色保持。PR 双平台 CI、合并、main 只读回读及 main 双平台 CI 继续分别验收；全部材料仍为 SYNTHETIC INFRASTRUCTURE TEST。
 
