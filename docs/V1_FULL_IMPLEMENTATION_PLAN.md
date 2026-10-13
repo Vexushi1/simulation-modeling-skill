@@ -2221,6 +2221,16 @@ study 输入写入前使用与实际输出完全相同的 UTF-8 LF serializer �
 
 先保存全部同类发现并修正此计划，再创建新版本的独立统计 helper 及其实际程序 SHA/报告身份元数据。新 helper 重新消费已有完整证据，保留旧 12 项通过、10 项拒绝及部分报告事实；已通过且未改变的 native/baseline oracle、生产 120 源、资格、MATLAB 执行和 Python 检测均不重跑。仅对新增恒定输入边界关闭必要拒绝例，并收齐完整统计/H2 独立结果；caller、必要 F/G 及最终一次正式全量仍按原顺序完成。
 
+## 12.31 首次原始回读的时点资格失效与透明补验
+
+原始合成 support caller 的首次只读回读已收齐全部 17 项：16 项通过，只有 h_analysis_trials 当前新执行资格因未改变的 A profile 在长回读期间过期而拒绝；当次 E/H 仍有效。全部原输入、源码、state、sidecar 及 5984 项事前 snapshot 字节身份保持，所有事前事后守卫通过。原 FIRST snapshot、helper、配置、命令、非零退出码、全部检查和失败 summary 逐字节保留，不能覆写或把首次尝试记为成功。
+
+带原 state_path 的请求仍必须匹配原 state 中的 profile 路径及 profile/receipt SHA；其过期资格请求继续 blocked，不能用新资格重绑原 state 来取得许可。仅补验现有 root-only h_analysis_trials：同一原项目根、原失败请求的同一 reviewed/source-bound study、原 physical baseline 及 primary H1，显式当前独立 A/E/H profile，不传 state_path，不写 state。仅对真正过期且新检查所需的资格取得新身份；补验必须完整满足原 source、runtime/host、solver/operation union 和当前许可规则。这是新时点同 study 的当前 eligibility，不是原 state 刷新、模型批准或参数采纳。
+
+后继 support schema2 接受记录透明绑定首次尝试失败、原 snapshot SHA、原 16 项自己的真实通过及新 root-only 单项补验通过。它不称 successful FIRST，不声明 state-conditioned trial 正向比较分支获得新的 actual PASS，不把旧 current PASS 解释为今天的执行许可。此前实际 state scope-all-current-runtime 通过、已通过的 targeted 当前 state 及历史边界检查、精确 source 审查继续作为各自范围证据；保持原字节的 state-conditioned 分支继续约束状态绑定，本次独立 root-only 调用不替它声称执行。numeric 原 schema1 FIRST 接受保持。
+
+此修订仅是 developmental acceptance 的透明时点补充：既有 support_readback gate 和 21 acquisition 中的 readback_support 角色改绑新的实际单项补验 capture 与准确 reviewed 配置，原首次配置与非零 capture 在 support 的 original_first 证据中严格绑定。新 schema2 只增加必要原始/补验 provenance 字段，最终 summary 明确按哪些实际检查完成；不是造一份 all-success FIRST。19 gates、21 acquisitions、13 producer authorities、6 main 输出不增加，不改 production120、protected23、原先验、source binding、TTL 或历史 native/study/H2 证据，不新增 producer、resolver wrapper、workflow 或性能机制。任何其它失败、guard 变化或 physical identity 不符先统一记录，不适用此单项恢复。完整 17 项及可实施性报告收齐、此计划先提交之后，才更新必要资格和进行补验；最终进度段移为 §12.32。
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
