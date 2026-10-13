@@ -56,8 +56,93 @@ def spy_original(monkeypatch, module, name, calls, label):
 
 
 def test_actual_four_roles_and_three_baselines_reuse_with_fresh_whole_graph_and_independent_copies(full_wire_history, monkeypatch):
+    from json import dumps
     item = full_wire_history
-    calls, guards, phases, active_phases = [], [], [], []
+    calls, guards, phases, active_phases, issues = [], [], [], [], []
+    proof_events, role_in_progress, read_ordinal = [], None, 0
+    capacity_samples = []
+    original_capacity, original_builder_check = shared._memo_capacity, shared._memo_builder_check
+    common_file = str(Path(shared.__file__).resolve())
+    def own_role_frame(frame):
+        try:
+            while frame is not None:
+                if (str(Path(frame.f_code.co_filename).resolve()) == common_file and
+                        frame.f_code.co_name == '_attempt_h_validation_reuse'):
+                    return frame.f_locals.get('kind') == role_in_progress
+                frame = frame.f_back
+            return False
+        finally:
+            del frame
+    def capacity(*args, **kwargs):
+        sample = {'live_measured': False, 'reserve_measured': False, 'live_bytes': None, 'reserve_bytes': None}
+        capacity_samples.append(sample)
+        try:
+            return original_capacity(*args, **kwargs)
+        except shared._MemoCapacityUnavailable as error:
+            caller = sys._getframe(1)
+            try:
+                if role_in_progress is not None and own_role_frame(caller):
+                    proof_events.append({'role': role_in_progress, 'read': read_ordinal,
+                        'event': 'own_guard_capacity_refusal', 'phase': caller.f_code.co_name,
+                        'line': caller.f_lineno, 'message': str(error),
+                        'byte_limit': min(shared._MEMO_BYTES, 64 * 1024 * 1024), **sample})
+            finally:
+                del caller
+            raise
+        finally:
+            capacity_samples.pop()
+    def capacity_size(value, actual):
+        caller = sys._getframe(2)
+        try:
+            if (capacity_samples and caller.f_code.co_name == '_memo_capacity' and
+                    str(Path(caller.f_code.co_filename).resolve()) == common_file):
+                sample = capacity_samples[-1]
+                if value is caller.f_locals.get('reserve'):
+                    sample['reserve_measured'], sample['reserve_bytes'] = True, actual
+                else:
+                    sample['live_measured'], sample['live_bytes'] = True, actual
+        finally:
+            del caller
+    def builder_check(ledger, extra=0):
+        try:
+            return original_builder_check(ledger, extra)
+        except shared._MemoCapacityUnavailable as error:
+            caller = sys._getframe(1)
+            try:
+                if role_in_progress is not None and own_role_frame(caller):
+                    proof_events.append({'role': role_in_progress, 'read': read_ordinal,
+                        'event': 'own_builder_capacity_refusal', 'phase': caller.f_code.co_name,
+                        'line': caller.f_lineno, 'base': ledger['base'],
+                        'charged': ledger['charged'], 'extra': extra, 'message': str(error),
+                        'byte_limit': min(shared._MEMO_BYTES, 64 * 1024 * 1024)})
+            finally:
+                del caller
+            raise
+    def attempt_size(actual):
+        caller = sys._getframe(2)
+        try:
+            if (role_in_progress is not None and caller.f_code.co_name == '_attempt_h_validation_reuse' and
+                    str(Path(caller.f_code.co_filename).resolve()) == common_file and
+                    caller.f_locals.get('kind') == role_in_progress):
+                proof_events.append({'role': role_in_progress, 'read': read_ordinal,
+                    'event': 'own_attempt_admission_size', 'line': caller.f_lineno,
+                    'bytes': actual, 'byte_limit': min(shared._MEMO_BYTES, 64 * 1024 * 1024)})
+        finally:
+            del caller
+    def publication_size(value, actual):
+        caller = sys._getframe(2)
+        try:
+            if (role_in_progress is not None and caller.f_code.co_name == '_publish_validation' and
+                    str(Path(caller.f_code.co_filename).resolve()) == common_file):
+                key = caller.f_locals.get('key')
+                if type(key) is tuple and key[0] == role_in_progress and type(value) is tuple and len(value) in (2, 4):
+                    proof_events.append({'role': role_in_progress, 'read': read_ordinal,
+                        'event': 'own_publication_size', 'part': 'live' if len(value) == 4 else 'copy',
+                        'bytes': actual, 'byte_limit': min(shared._MEMO_BYTES, 64 * 1024 * 1024)})
+        finally:
+            del caller
+    monkeypatch.setattr(shared, '_memo_capacity', capacity)
+    monkeypatch.setattr(shared, '_memo_builder_check', builder_check)
     original_size = shared._retained_size
     def size(value):
         if active_phases:
@@ -70,7 +155,11 @@ def test_actual_four_roles_and_three_baselines_reuse_with_fresh_whole_graph_and_
                     for key in ('cases', 'operations'):
                         records = value.get(key)
                         phase['records'] += len(records) if type(records) is list else int(type(records) is dict)
-        return original_size(value)
+        actual = original_size(value)
+        capacity_size(value, actual)
+        attempt_size(actual)
+        publication_size(value, actual)
+        return actual
     def phase_observer(name, original):
         def observe(*args, **kwargs):
             phase = {'name': name, 'full': 0, 'local': 0, 'records': 0, 'complete': False}
@@ -83,44 +172,83 @@ def test_actual_four_roles_and_three_baselines_reuse_with_fresh_whole_graph_and_
             finally:
                 active_phases.pop()
         return observe
+    def check(condition, obligation, **evidence):
+        if not condition:
+            issues.append({'role': role_in_progress, 'obligation': obligation, **evidence})
     monkeypatch.setattr(shared, '_retained_size', size)
     for name in ('_memo_extra_preflight', '_memo_extras'):
         monkeypatch.setattr(shared, name, phase_observer(name, getattr(shared, name)))
-    for name in ('validate_simulation_protocol', 'validate_simulation_receipt', 'validate_numerical_verification_receipt'):
+    baseline_labels = ('validate_simulation_protocol', 'validate_simulation_receipt', 'validate_numerical_verification_receipt')
+    for name in baseline_labels:
         spy_original(monkeypatch, source_reader, name, calls, name)
+    spy_original(monkeypatch, source_reader, 'schema_errors', calls, 'study_source')
+    spy_original(monkeypatch, h2_source_reader, 'schema_errors', calls, 'h2_source')
     spy_original(monkeypatch, study_reader, 'assess_study', calls, 'study_metric')
     spy_original(monkeypatch, h2_reader, 'compute_assessment', calls, 'h2_metric')
     spy_original(monkeypatch, shared, 'input_manifest', guards, 'fresh_manifest')
-    invoke = readers(item)
-    with shared.validation_session() as session:
-        first = [call() for call in invoke]
-        assert all(report['valid'] for report in first), [r['errors'] for r in first]
-        assert first[0]['study_ready'] and first[1]['study_complete'] and first[1]['defined']
-        assert first[2]['assessment_ready'] and first[3]['model_verified']
-        before = len(guards)
-        second = [call() for call in invoke]
-        assert all(shared.typed_equal(a, b) for a, b in zip(first, second))
-        assert len(guards) >= before + 8  # Complete fresh pre/final manifests for every hit.
-        assert {key[0] for key in session.entries} >= {
-            'study_source', 'study_receipt', 'h2_source', 'h2_receipt',
-            'baseline_protocol', 'baseline_simulation', 'baseline_h1'}
-        assert all(calls.count(name) == 1 for name in ('validate_simulation_protocol',
-            'validate_simulation_receipt', 'validate_numerical_verification_receipt', 'study_metric', 'h2_metric')), calls
-        original_metric = second[0]['metric']['unit']
-        second[0]['metric']['unit'] = 'SYNTHETIC caller mutation'
-        second[1]['study_complete'] = False
-        third = invoke[0]()
-        assert third['valid'] and third['metric']['unit'] == original_metric
-        assert not any('memo' in key or 'session' in key for report in first for key in report)
-        assert shared._retained_size(session) is not None
-        completed = [phase for phase in phases if phase['complete']]
-        assert {phase['name'] for phase in completed} == {'_memo_extra_preflight', '_memo_extras'}
-        # Forwarding real accounting sees a fixed number of complete owner/
-        # ancestor walks per closed phase, even on many actual native records.
-        assert all(0 < phase['full'] <= 4 for phase in completed), completed
-        assert any(phase['records'] > 10 and phase['local'] > phase['full'] for phase in completed), completed
-    assert not session.active and not session.entries and not session.capabilities
-    assert shared._H_VALIDATION_SESSION.get() is None
+    roles = ('study_source', 'study_receipt', 'h2_source', 'h2_receipt')
+    labels = ('study_source', 'study_metric', 'h2_source', 'h2_metric')
+    ready_fields = ('study_ready', 'study_complete', 'assessment_ready', 'model_verified')
+    for kind, label, ready, call in zip(roles, labels, ready_fields, readers(item)):
+        role_in_progress = kind
+        initial_calls = calls.count(label)
+        baseline_before = {name: calls.count(name) for name in baseline_labels}
+        with shared.validation_session() as session:
+            read_ordinal = 1
+            cold_before = len(guards)
+            first = call()
+            check(len(guards) >= cold_before + 3, 'complete cold pre/after/final manifests')
+            before = len(guards)
+            cached_before = any(key[0] == kind for key in session.entries)
+            read_ordinal = 2
+            second = call()
+            check(first['valid'] and second['valid'], 'actual cold and adjacent reread valid',
+                  errors=[first['errors'], second['errors']])
+            check(first.get(ready) is True, 'actual role readiness')
+            if kind == 'study_receipt':
+                check(first.get('defined') is True, 'actual study defined')
+            check(shared.typed_equal(first, second), 'cold and adjacent reread typed equal')
+            check(len(guards) >= before + 2, 'complete fresh pre/final manifests on adjacent reread')
+            check(cached_before and any(key[0] == kind for key in session.entries),
+                  'own actual role proof retained for demonstrated hit')
+            check(calls.count(label) - initial_calls == 1, 'strict one actual own computation through reread',
+                  actual=calls.count(label) - initial_calls)
+            # Mutate each returned role without retaining all four private proofs.
+            if kind == 'study_source':
+                second['metric']['unit'] = 'SYNTHETIC caller mutation'
+            else:
+                second[ready] = False
+            read_ordinal = 3
+            third_before = len(guards)
+            third = call()
+            check(len(guards) >= third_before + 2, 'complete fresh pre/final manifests after caller mutation')
+            check(third['valid'] and shared.typed_equal(first, third), 'actual returned-copy isolation')
+            check(calls.count(label) - initial_calls == 1, 'strict one actual own computation after caller mutation',
+                  actual=calls.count(label) - initial_calls)
+            if kind == 'study_source':
+                check({key[0] for key in session.entries} >=
+                      {'study_source', 'baseline_protocol', 'baseline_simulation', 'baseline_h1'},
+                      'source and its actual baseline triplet retained')
+                check(all(calls.count(name) - baseline_before[name] == 1 for name in baseline_labels),
+                      'strict one actual computation per baseline',
+                      actual={name: calls.count(name) - baseline_before[name] for name in baseline_labels})
+            check(not any('memo' in key or 'session' in key for report in (first, second, third) for key in report),
+                  'private proof metadata absent from all public reports')
+            check(shared._retained_size(session) is not None, 'actual session bounded and measurable')
+        check(not session.active and not session.entries and not session.capabilities,
+              'each role session releases all proof and capabilities')
+        check(shared._H_VALIDATION_SESSION.get() is None, 'each role releases ambient session')
+    role_in_progress = None
+    completed = [phase for phase in phases if phase['complete']]
+    check({phase['name'] for phase in completed} == {'_memo_extra_preflight', '_memo_extras'},
+          'both closed accounting phases complete', completed=completed)
+    check(all(0 < phase['full'] <= 4 for phase in completed),
+          'fixed number of full owner/ancestor walks per closed phase', completed=completed)
+    check(any(phase['records'] > 10 and phase['local'] > phase['full'] for phase in completed),
+          'complete many-record native accounting uses local additions', completed=completed)
+    assert not issues, 'H_CACHE_PROOF_DIAGNOSTIC=' + dumps(
+        {'issues': issues, 'own_proof_events': proof_events, 'calls': calls},
+        sort_keys=True, separators=(',', ':'))
 
 
 def test_distinct_actual_study_sources_share_only_current_baseline_triplet(full_wire_history, monkeypatch):
@@ -780,11 +908,107 @@ def failed_reuse_history(full_wire_history):
 
 @pytest.mark.parametrize('disposition', ['modify', 'reject'])
 def test_lawful_failed_study_and_H2_dispositions_hit_without_promotion(failed_reuse_history, monkeypatch, disposition):
+    from json import dumps
     from model_factory import file_ref
     from model_verification_factory import review_model_verification
     from problem_factory import write_contract
     from run_model_verification import run_model_verification
-    item, calls = failed_reuse_history, []
+    item, calls, guards, issues = failed_reuse_history, [], [], []
+    proof_events, role_in_progress, read_ordinal = [], None, 0
+    capacity_samples = []
+    original_capacity, original_builder_check = shared._memo_capacity, shared._memo_builder_check
+    common_file = str(Path(shared.__file__).resolve())
+    def own_role_frame(frame):
+        try:
+            while frame is not None:
+                if (str(Path(frame.f_code.co_filename).resolve()) == common_file and
+                        frame.f_code.co_name == '_attempt_h_validation_reuse'):
+                    return frame.f_locals.get('kind') == role_in_progress
+                frame = frame.f_back
+            return False
+        finally:
+            del frame
+    def capacity(*args, **kwargs):
+        sample = {'live_measured': False, 'reserve_measured': False, 'live_bytes': None, 'reserve_bytes': None}
+        capacity_samples.append(sample)
+        try:
+            return original_capacity(*args, **kwargs)
+        except shared._MemoCapacityUnavailable as error:
+            caller = sys._getframe(1)
+            try:
+                if role_in_progress is not None and own_role_frame(caller):
+                    proof_events.append({'role': role_in_progress, 'read': read_ordinal,
+                        'event': 'own_guard_capacity_refusal', 'phase': caller.f_code.co_name,
+                        'line': caller.f_lineno, 'message': str(error),
+                        'byte_limit': min(shared._MEMO_BYTES, 64 * 1024 * 1024), **sample})
+            finally:
+                del caller
+            raise
+        finally:
+            capacity_samples.pop()
+    def capacity_size(value, actual):
+        caller = sys._getframe(2)
+        try:
+            if (capacity_samples and caller.f_code.co_name == '_memo_capacity' and
+                    str(Path(caller.f_code.co_filename).resolve()) == common_file):
+                sample = capacity_samples[-1]
+                if value is caller.f_locals.get('reserve'):
+                    sample['reserve_measured'], sample['reserve_bytes'] = True, actual
+                else:
+                    sample['live_measured'], sample['live_bytes'] = True, actual
+        finally:
+            del caller
+    def builder_check(ledger, extra=0):
+        try:
+            return original_builder_check(ledger, extra)
+        except shared._MemoCapacityUnavailable as error:
+            caller = sys._getframe(1)
+            try:
+                if role_in_progress is not None and own_role_frame(caller):
+                    proof_events.append({'role': role_in_progress, 'read': read_ordinal,
+                        'event': 'own_builder_capacity_refusal', 'phase': caller.f_code.co_name,
+                        'line': caller.f_lineno, 'base': ledger['base'],
+                        'charged': ledger['charged'], 'extra': extra, 'message': str(error),
+                        'byte_limit': min(shared._MEMO_BYTES, 64 * 1024 * 1024)})
+            finally:
+                del caller
+            raise
+    def attempt_size(actual):
+        caller = sys._getframe(2)
+        try:
+            if (role_in_progress is not None and caller.f_code.co_name == '_attempt_h_validation_reuse' and
+                    str(Path(caller.f_code.co_filename).resolve()) == common_file and
+                    caller.f_locals.get('kind') == role_in_progress):
+                proof_events.append({'role': role_in_progress, 'read': read_ordinal,
+                    'event': 'own_attempt_admission_size', 'line': caller.f_lineno,
+                    'bytes': actual, 'byte_limit': min(shared._MEMO_BYTES, 64 * 1024 * 1024)})
+        finally:
+            del caller
+    def publication_size(value, actual):
+        caller = sys._getframe(2)
+        try:
+            if (role_in_progress is not None and caller.f_code.co_name == '_publish_validation' and
+                    str(Path(caller.f_code.co_filename).resolve()) == common_file):
+                key = caller.f_locals.get('key')
+                if type(key) is tuple and key[0] == role_in_progress and type(value) is tuple and len(value) in (2, 4):
+                    proof_events.append({'role': role_in_progress, 'read': read_ordinal,
+                        'event': 'own_publication_size', 'part': 'live' if len(value) == 4 else 'copy',
+                        'bytes': actual, 'byte_limit': min(shared._MEMO_BYTES, 64 * 1024 * 1024)})
+        finally:
+            del caller
+    monkeypatch.setattr(shared, '_memo_capacity', capacity)
+    monkeypatch.setattr(shared, '_memo_builder_check', builder_check)
+    original_size = shared._retained_size
+    def size(value):
+        actual = original_size(value)
+        capacity_size(value, actual)
+        attempt_size(actual)
+        publication_size(value, actual)
+        return actual
+    def check(condition, obligation, **evidence):
+        if not condition:
+            issues.append({'role': role_in_progress, 'obligation': obligation, **evidence})
+    monkeypatch.setattr(shared, '_retained_size', size)
     with preserved(item['root']):
         value = load_document(item['h2'])
         value['claims'][0]['failure_disposition'] = disposition
@@ -797,36 +1021,85 @@ def test_lawful_failed_study_and_H2_dispositions_hit_without_promotion(failed_re
         path = Path(produced['receipt_path'])
         spy_original(monkeypatch, study_reader, 'assess_study', calls, 'study_metric')
         spy_original(monkeypatch, h2_reader, 'compute_assessment', calls, 'claim_metric')
-        with shared.validation_session():
+        spy_original(monkeypatch, shared, 'input_manifest', guards, 'fresh_manifest')
+        role_in_progress = 'study_receipt'
+        with shared.validation_session() as session:
+            read_ordinal = 1
+            cold_before = len(guards)
             first = study_reader.validate_h_analysis_study_receipt(item['failed_receipt'], project_root=item['root'])
+            check(len(guards) >= cold_before + 3, 'failed-study cold pre/after/final manifests')
+            before = len(guards)
+            cached_before = any(key[0] == 'study_receipt' for key in session.entries)
+            read_ordinal = 2
             second = study_reader.validate_h_analysis_study_receipt(item['failed_receipt'], project_root=item['root'])
-            assert first['valid'] and first['study_complete'] and first['defined'] and not first['study_accepted'], first
-            assert shared.typed_equal(first, second)
-            assert calls.count('study_metric') == 1, calls
+            check(first['valid'] and first['study_complete'] and first['defined'] and not first['study_accepted'],
+                  'actual complete defined lawful failed study')
+            check(shared.typed_equal(first, second), 'failed study cold and adjacent reread typed equal')
+            check(cached_before and any(key[0] == 'study_receipt' for key in session.entries),
+                  'actual failed-study proof retained for demonstrated hit')
+            check(len(guards) >= before + 2, 'failed-study fresh whole-graph pre/final manifests')
+            check(calls.count('study_metric') == 1, 'strict one actual failed-study computation through reread',
+                  actual=calls.count('study_metric'))
             second['study_accepted'] = True
+            read_ordinal = 3
+            third_before = len(guards)
             third = study_reader.validate_h_analysis_study_receipt(item['failed_receipt'], project_root=item['root'])
-            assert not third['study_accepted'] and shared.typed_equal(first, third)
-            assert calls.count('study_metric') == 1, calls
-            # H2's larger live parent graph may lawfully discard the study proof.
+            check(len(guards) >= third_before + 2, 'failed-study fresh pre/final manifests after caller mutation')
+            check(not third['study_accepted'] and shared.typed_equal(first, third), 'failed-study returned-copy isolation without promotion')
+            check(calls.count('study_metric') == 1, 'strict one actual failed-study computation after caller mutation',
+                  actual=calls.count('study_metric'))
+        check(not session.active and not session.entries and not session.capabilities,
+              'failed-study session releases all proof and capabilities')
+        check(shared._H_VALIDATION_SESSION.get() is None, 'failed-study releases ambient session')
+        # The larger H2 graph starts without retained study proof from another role.
+        role_in_progress = 'h2_receipt'
+        with shared.validation_session() as session:
+            read_ordinal = 1
+            cold_before = len(guards)
             decision = h2_reader.validate_model_verification_receipt(path, project_root=item['root'])
+            check(len(guards) >= cold_before + 3, 'lawful H2 cold pre/after/final manifests')
+            before = len(guards)
+            cached_before = any(key[0] == 'h2_receipt' for key in session.entries)
+            read_ordinal = 2
             again = h2_reader.validate_model_verification_receipt(path, project_root=item['root'])
-            assert shared.typed_equal(decision, again)
-            assert decision['valid'] and decision['model_verification_decided'] and not decision['model_verified'] and not decision['claim_supported']
-            assert decision['claims'][0]['disposition'] == disposition
-            assert decision['claims'][0]['required_action'] == value['claims'][0]['required_action']
-            assert decision['claims'][0]['impact_scope'] == value['claims'][0]['impact_scope']
-            assert calls.count('claim_metric') == 1, calls
+            check(shared.typed_equal(decision, again), 'lawful H2 cold and adjacent reread typed equal')
+            check(decision['valid'] and decision['model_verification_decided'] and not decision['model_verified'] and not decision['claim_supported'],
+                  'actual lawful H2 decision remains unverified and unsupported')
+            check(decision['claims'][0]['disposition'] == disposition, 'exact declared H2 disposition')
+            check(decision['claims'][0]['required_action'] == value['claims'][0]['required_action'], 'exact declared required action')
+            check(decision['claims'][0]['impact_scope'] == value['claims'][0]['impact_scope'], 'exact declared impact scope')
+            check(cached_before and any(key[0] == 'h2_receipt' for key in session.entries),
+                  'actual lawful H2 proof retained for demonstrated hit')
+            check(len(guards) >= before + 2, 'lawful H2 fresh whole-graph pre/final manifests')
+            check(calls.count('claim_metric') == 1, 'strict one actual lawful H2 computation through reread',
+                  actual=calls.count('claim_metric'))
             again['model_verified'] = True
+            read_ordinal = 3
+            third_before = len(guards)
             third_decision = h2_reader.validate_model_verification_receipt(path, project_root=item['root'])
-            assert not third_decision['model_verified'] and shared.typed_equal(decision, third_decision)
-            assert calls.count('claim_metric') == 1, calls
+            check(len(guards) >= third_before + 2, 'lawful H2 fresh pre/final manifests after caller mutation')
+            check(not third_decision['model_verified'] and shared.typed_equal(decision, third_decision),
+                  'lawful H2 returned-copy isolation without promotion')
+            check(calls.count('claim_metric') == 1, 'strict one actual lawful H2 computation after caller mutation',
+                  actual=calls.count('claim_metric'))
+        check(not session.active and not session.entries and not session.capabilities,
+              'lawful H2 session releases all proof and capabilities')
+        check(shared._H_VALIDATION_SESSION.get() is None, 'lawful H2 releases ambient session')
+        role_in_progress = None
         with monkeypatch.context() as patch:
             patch.setattr(shared, '_MEMO_ENTRIES', 0)
             with shared.validation_session() as session:
                 plain = study_reader.validate_h_analysis_study_receipt(item['failed_receipt'], project_root=item['root'])
                 plain_decision = h2_reader.validate_model_verification_receipt(path, project_root=item['root'])
-                assert shared.typed_equal(first, plain) and shared.typed_equal(decision, plain_decision)
-                assert not session.entries
+                check(shared.typed_equal(first, plain) and shared.typed_equal(decision, plain_decision),
+                      'actual zero-entry original paths exactly preserve both reports')
+                check(not session.entries, 'zero-entry retains no optional proof')
+        check(not session.active and not session.entries and not session.capabilities,
+              'zero-entry session releases all proof and capabilities')
+        check(shared._H_VALIDATION_SESSION.get() is None, 'zero-entry releases ambient session')
+    assert not issues, 'H_CACHE_PROOF_DIAGNOSTIC=' + dumps(
+        {'issues': issues, 'own_proof_events': proof_events, 'calls': calls},
+        sort_keys=True, separators=(',', ':'))
 
 
 def test_original_discovery_never_retains_optional_metadata_under_ambient_session(full_wire_history, monkeypatch):

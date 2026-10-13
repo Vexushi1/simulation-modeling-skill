@@ -1,4 +1,4 @@
-name: Simulation Skill repository checks
+name: H cache three-node diagnostic
 
 'on':
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   contracts-and-fixtures:
-    name: Contracts and fixtures (${{ matrix.os }})
+    name: H cache diagnostic (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -24,6 +24,13 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python scripts/lint_skill.py
       - run: python scripts/generate_indexes.py --check
-      - run: python -m pytest -q
+      - name: Diagnose only the three affected cache nodes
+        run: >-
+          python -m pytest -q --tb=short
+          "tests/test_h_validation_reuse.py::test_actual_four_roles_and_three_baselines_reuse_with_fresh_whole_graph_and_independent_copies"
+          "tests/test_h_validation_reuse.py::test_lawful_failed_study_and_H2_dispositions_hit_without_promotion[modify]"
+          "tests/test_h_validation_reuse.py::test_lawful_failed_study_and_H2_dispositions_hit_without_promotion[reject]"
+    # Temporary diagnostic under plan section 12.34; restore the original full
+    # workflow before the final candidate. This is not a formal PR CI exit.
     # This job validates contracts and simulated evidence. Native MATLAB
     # qualification requires a separate fresh R2025b probe on the target host.
