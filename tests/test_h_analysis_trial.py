@@ -150,12 +150,26 @@ def test_matlab_trial_surface_keeps_primary_files_unmodified():
     assert 'save_system(' not in runtime and 'assignin(' not in runtime and 'setPreSimFcn' not in runtime
 
 
-def test_per_case_gate_cache_still_rejects_expiry_and_solver():
+def test_per_case_gate_cache_still_rejects_expiry_and_solver(tmp_path):
     now = datetime.now(timezone.utc)
-    request = {'input_identity': 'synthetic', 'bindings': {'required_A_operations': trial.contract()['required_A_operations']}}
-    case = {'qualification_not_after': (now + timedelta(seconds=10)).isoformat(), 'run_spec': {'solver': {'name': 'ode4'}}}
-    cache = {('synthetic', True): {'windows': [(now - timedelta(seconds=10), now + timedelta(seconds=10))],
-             'deadline': now + timedelta(seconds=10), 'solvers': {'ode4'}, 'runtime': {'SYNTHETIC': 'not qualification'}}}
+    required = trial.contract()['required_A_operations']
+    executable = str(tmp_path / 'SYNTHETIC-NO-MATLAB')
+    expiry = (now + timedelta(seconds=10)).isoformat()
+    captured = (now - timedelta(seconds=3)).isoformat()
+    request = {'input_identity': 'synthetic', 'bindings': {'required_A_operations': required},
+               'host_fingerprint': 'SYNTHETIC-HOST', 'matlab_executable': executable}
+    case = {'qualification_not_after': expiry, 'run_spec': {'solver': {'name': 'ode4'}}}
+    cache = {('synthetic', True): {
+        'windows': [{'process_started_at': (now - timedelta(seconds=5)).isoformat(),
+                     'raw_started_at': (now - timedelta(seconds=4)).isoformat(),
+                     'raw_finished_at': captured, 'captured_at': captured,
+                     'process_finished_at': (now - timedelta(seconds=2)).isoformat(),
+                     'valid_until': expiry}],
+        'deadline': expiry, 'solvers': ['ode4'],
+        'runtime': {'SYNTHETIC': 'not qualification', 'executable': executable},
+        'required_A_operations': deepcopy(required), 'qualified_A_operations': deepcopy(required),
+        'include_h': True, 'host_fingerprint': request['host_fingerprint'],
+        'matlab_executable': executable}}
     assert trial.validate_case_qualifications(request, case, now, _cache=cache)['SYNTHETIC'] == 'not qualification'
     with pytest.raises(ValueError, match='time windows'):
         trial.validate_case_qualifications(request, case, now + timedelta(seconds=11), _cache=cache)

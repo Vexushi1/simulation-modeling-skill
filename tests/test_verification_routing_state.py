@@ -174,7 +174,7 @@ def test_accepted_h2_disposition_does_not_require_support(tmp_path):
                 'model_verification', 'model_verification_receipt']}
     result = {'model_verification_receipt_path': str(path), 'model_verification_reviewed': True,
               'numerically_verified': True, 'model_verification_decided': True, 'model_verified': False}
-    missing = validate_artifact(item, state={'model_verification_receipt': binding}, result=result,
+    missing = validate_artifact(item, state={'model_verification_receipt': binding, 'artefacts': []}, result=result,
         root=tmp_path, environment_dependents=set(), ancestor_roles=lambda item:
             {'simulation_protocol', 'simulation_run', 'numerical_verification_evidence', 'model_verification_contract'})
     assert missing == []
