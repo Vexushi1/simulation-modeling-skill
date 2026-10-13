@@ -2261,9 +2261,25 @@ modify/reject 的决定准备与 model_verification 只读回读均实际退出 
 
 完整本地清单确认两项隔离 synthetic fixture 结构过时：`test_per_case_gate_cache_still_rejects_expiry_and_solver` 的手填缓存缺当前 collector 的 required/qualified A 操作、host/executable、include_h 和完整 process/raw 时间窗口；`test_accepted_h2_disposition_does_not_require_support` 的直接 state 输入缺 schema 必需的 artefacts。一次补齐前者的全部必读字段及一致 deadline，后者明确提供空 artefacts；保留原成功、过期拒绝、solver 拒绝和已决定 reject 不要求 support 的全部断言。当前证据没有要求改变生产资格、研究祖先、数字准则或批准/状态边界。
 
-本地完整清单中的两项已确认 fixture 问题在同一批应用最小修复，只补验对应两个节点，这次定向补验不重跑原 1936 项通过检查；同时继续收齐原候选 Ubuntu/Windows CI 完整结果，将额外平台问题记录并统一修复，原候选 CI 完成前不推送新的分支提交以免取消该运行。原候选双平台 CI 完整结果收齐、全部本地及平台已发现问题关闭、精确候选复核及静态出口完成后，才按 §12.21 的必要补验规则执行新的 `final-full-regression-v2`，不提前启动第二次全量。保留失败 v1；新 command/log/result/JUnit 使用独立身份和文件路径，不覆盖旧材料。测试和计划文字修订不属于共同 120 项生产安全闭包；确认该闭包字节未变后，复用已通过的 627 次 H 原生研究、H2、资格、独立 oracle、caller 和既有 F/G 材料。
+本地完整清单中的两项已确认 fixture 问题在同一批应用最小修复，只补验对应两个节点，这次定向补验不重跑原 1936 项通过检查；同时继续收齐原候选 Ubuntu/Windows CI 完整结果，将额外平台问题记录并统一修复，保留原候选 CI，诊断提交不主动取消其运行。原候选双平台 CI 完整结果收齐、全部本地及平台已发现问题关闭、精确候选复核及静态出口完成后，才按 §12.21 的必要补验规则执行新的 `final-full-regression-v2`，不提前启动第二次全量。保留失败 v1；新 command/log/result/JUnit 使用独立身份和文件路径，不覆盖旧材料。测试和计划文字修订不属于共同 120 项生产安全闭包；确认该闭包字节未变后，复用已通过的 627 次 H 原生研究、H2、资格、独立 oracle、caller 和既有 F/G 材料。
 
 实际 JUnit 耗时集中在七个明确的 H 相关测试文件，占 testcase 累计时间的 91.54%；该时间含 fixture 建立和清理，不等于单一函数的 CPU 归因。本次修正保持原性能机制、预算和完整回归范围。最终冻结的同一 final_local_full 角色改绑真实 v2 配置及 JUnit，薄后继 FreezerV12 只更新这两处元数据；19 gates、21 acquisitions、13 producer authorities 和 6 main 输出角色保持。PR 双平台 CI、合并、main 只读回读及 main 双平台 CI 继续分别验收；全部材料仍为 SYNTHETIC INFRASTRUCTURE TEST。
+
+## 12.34 Windows 可选历史复用断言与最小平台诊断
+
+原候选 `5c977fe02a64d5a667147a2563f7c767c3d3df7f` 的 Windows CI 已完整结束：1938 项中 1933 PASS、5 FAIL、0 error、0 skip，实际终端汇总耗时 17799.17 秒。两项与本地相同的缺字段 fixture 已同批修复并在两个本地定向节点实际通过；旧 Windows 结果绑定修复前候选，不能据此记为新 Windows 通过。额外三项均在 `tests/test_h_validation_reuse.py` 的两个函数：四 H 角色与三 baseline 同 session 的保留断言缺 `study_receipt`、`h2_source`、`h2_receipt`；合法 modify/reject 两个节点的 `claim_metric` 实际各计算 2 次，而断言要求 1 次。完整原始失败与调用计数保留。
+
+已确认的是这些断言之前实际有效结果、typed_equal、合法决定及不升级为支持均已通过；失败之后的副本隔离与零 entry 分支没有在该 Windows 尝试执行。64 项和 64 MiB 是可选复用上限，不保证七类 proof 同时常驻；合规容量回退仍须运行原消费者并保持原报告。当前日志没有自身 proof retained size、拒绝 phase 或 guard 命中信息，不能确证本次 miss 是预算、对象/路径成本、所有权还是某项初始 guard 差异，不能把未确定根因写为生产缺陷。
+
+先记录本节并完成精确源审查，再只修上述两个函数的三个新增受影响节点。候选组织采用每个 public role 邻接 cold/hot/返回副本隔离读、role 间 fresh session；study 与 H2 的合法失败检查分别使用 fresh session。保留真实 baseline 复用、完整 fresh whole-graph guards、typed report equality、合法 modify/reject/nonpromotion、零容量原算法控制和严格实际 recompute 计数。不能把 1 放宽为 1 or 2，不能伪造计数、屏蔽拒绝或把缓存永不命中当作 positive 控制。fresh session 只是待实测的组织候选，不承诺它已解决 Windows；自身 proof 若仍拒绝，仍严格失败并保留全部诊断材料，然后按实际原因继续源先行修订。
+
+仅为本轮诊断增加局部有界 scalar observer，原样 forwarding 真实 `_memo_capacity`、`_memo_builder_check` 与现有 `_retained_size` 观察，记录自身 role、cold/hot 序号、真实 size/None、guard/publication/refusal phase、源行号和原始计数。不得保存实际 graph、report、argument、frame 或 traceback；不得 wrapper 包装 `_attempt_h_validation_reuse` 或 `_publish_validation` 改变 immediate-caller authority。None 不单独证明超限，child role 拒绝不冒充 own role 拒绝；所有原资格、预算、guard 与返回语义保持。
+
+现有 `.github/workflows/ci.yml` 没有 concurrency 或 cancel-in-progress 配置，新 PR 分支提交不会由该工作流自动取消原候选 Ubuntu 运行。因此 §12.33 仅撤销“原候选 CI 完成前禁止推送以免取消”的错误因果限制，继续保留原运行与全部旧材料。必要时在同一现有工作流临时显式选择上述三个节点，以原 Ubuntu/Windows matrix、原 setup/lint/index 环境取一次集中平台诊断；不新增 workflow，不扩展到旧两个已通过节点、无关测试或 native，也不在首个失败处重启。该运行必须标为 diagnostic，其结论只能覆盖三个节点，不能作为 formal pr_ci、全量 PASS 或完整 H 开发出口。
+
+获得真实 Windows 诊断并收齐额外问题后，统一应用最小修正，必要受影响补验关闭，再恢复原工作流的完整 pytest 命令，形成最终候选并完成精确审查和静态出口。原候选 Ubuntu 于 2026-10-13 16:56:18 UTC 仍 in_progress；当前不宣告 timeout。若它之后实际 timeout，先保存完整终止日志、已执行/未执行范围与真实终止状态，不能把 incomplete 当作完整通过；只有发生真实 timeout 后才基于实际运行成本先修计划和必要 workflow 设置，不预猜 timeout 数值、不排除尚未确认的 fixture 或缩减正式全量。诊断发布通道若受权限限制，采用已有授权的最佳可用平台通道取实际材料；无法取得所需实测则保持问题未关闭，不用本地结果替代 Windows。
+
+必要 `final-full-regression-v2` 仍在原候选双平台结果收齐、全部已发现问题关闭、最终候选/静态审查完成后执行；其配置与薄后继 FreezerV12 不因本次诊断改绑或执行。最终正式 PR Ubuntu/Windows 全量 CI、合并、main 六项只读回读及 main 双平台 CI 仍须分别通过，19 gates、21 acquisitions、13 producer authorities 和 6 main 输出角色不变。生产 source120、64 项/64 MiB 预算、数字准则、source/guard、批准与状态边界不变；已有原生 H/F/G、资格、oracle、caller 及两项已通过缺字段定向结果复用，不重跑。保留所有旧失败，全部材料仍为 SYNTHETIC INFRASTRUCTURE TEST；不推进 I–K、release/tag/install 或真实模型批准。
 
 # 13. Phase I — Verification & Validation、测试与安全分析
 
