@@ -1,11 +1,11 @@
 # Simulation Modeling Skill v1.0.0 全流程实施计划
 
-> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-10 Phase H首版出口及剩余H全范围实施前审查）**
+> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，剩余H原生证据、numeric/support caller 接受、modify/reject 决定回读与必要当前资格已通过，最终开发出口待完成）**
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
 > 已完成阶段：A–G及H首版有限范围；H PR #9合并基线 `9a0cf191b451eb69153914a5562f91726d3091a3`
-> 当前实施阶段：剩余H全范围；实施分支 `phase-h/complete-analyses`，未通过全部出口前不登记为H全范围完成
+> 当前实施阶段：剩余H全范围出口；实施分支 `phase-h/complete-analyses`。当前实际材料与最终候选前进度见 §12.32；未通过全部出口前不登记为H全范围完成
 > 核心纪律：先冻结计划，再按阶段实施；任何阶段不得脱离本计划直接堆功能。
 
 ---
@@ -2133,6 +2133,8 @@ H2只有所有source-required advanced study完整且接受、原primary和所�
 
 精确最终源码独立审查、最少原材料独立行为测试、source-protected字节、lint/index、真实最终资格和回执、本地全量、PR Windows/Ubuntu CI、单主题PR合并、main字节/历史回读及main双平台CI是分别记录的必要出口。PR CI可与本机串行native队列并行，topic push不触发额外重复矩阵。全部完成才登记H原目标范围完成；开发数据和审查均标注SYNTHETIC INFRASTRUCTURE TEST，不提供真实用户模型批准、现实有效性或发布许可。
 
+本轮实际证据进度见 §12.32；该记录与最终候选本地全量、独立审查、PR/main 双平台 CI、合并及只读回读分别验收。
+
 ## 12.22 最终源审查中的数值和证据精度细化
 
 候选 `e3b3677` 的完整定向检测与精确源审查在原生运行前发现实现缺口：共同大偏移下重新减去舍入后的原始均值会改变 Sobol 与 UQ 方差；单位换算中间值下溢可能把非零残差变成零；真实 TimingInfo 尚缺独立可读 MAT 原始量和物理一致性核对；study 写入及 native 原始报告预估未完全执行已有序列化/全读集预算。完整发现及影响集中保存在本轮问题记录，先细化以下口径再统一修正消费者。
@@ -2230,6 +2232,28 @@ study 输入写入前使用与实际输出完全相同的 UTF-8 LF serializer �
 后继 support schema2 接受记录透明绑定首次尝试失败、原 snapshot SHA、原 16 项自己的真实通过及新 root-only 单项补验通过。它不称 successful FIRST，不声明 state-conditioned trial 正向比较分支获得新的 actual PASS，不把旧 current PASS 解释为今天的执行许可。此前实际 state scope-all-current-runtime 通过、已通过的 targeted 当前 state 及历史边界检查、精确 source 审查继续作为各自范围证据；保持原字节的 state-conditioned 分支继续约束状态绑定，本次独立 root-only 调用不替它声称执行。numeric 原 schema1 FIRST 接受保持。
 
 此修订仅是 developmental acceptance 的透明时点补充：既有 support_readback gate 和 21 acquisition 中的 readback_support 角色改绑新的实际单项补验 capture 与准确 reviewed 配置，原首次配置与非零 capture 在 support 的 original_first 证据中严格绑定。新 schema2 只增加必要原始/补验 provenance 字段，最终 summary 明确按哪些实际检查完成；不是造一份 all-success FIRST。19 gates、21 acquisitions、13 producer authorities、6 main 输出不增加，不改 production120、protected23、原先验、source binding、TTL 或历史 native/study/H2 证据，不新增 producer、resolver wrapper、workflow 或性能机制。任何其它失败、guard 变化或 physical identity 不符先统一记录，不适用此单项恢复。完整 17 项及可实施性报告收齐、此计划先提交之后，才更新必要资格和进行补验；最终进度段移为 §12.32。
+
+## 12.32 完整 H 原始证据进度与最终候选出口
+
+本节记录最终候选形成前的实际材料；全部开发出口通过前不登记完整 H 完成。
+
+§12.28 的两个最小生产修正后，新身份 E/F/G/H 执行时资格均通过：E 9、F 11、G 18 个预期案例检查，H 20 个原生预期案例检查与五个三层数值组；A/D 保护源码保持，基线消费其合法执行时资格。独立原始合成项目复用两份已批准 D 建设与原冻结协议，取得新源码下 15 次 E 基线运行及五项 H1 通过；没有重新建设 D 或重冻结协议。原始 V5 数学先验、输入、模型、阈值和批准绑定不改变。
+
+新源码原始 H 研究完成 22 项、209 组三层证据、627 次原生案例及 27 批次，全部 valid、complete、defined、accepted。H2 support、modify、reject 三项均技术有效、决定完整，各绑定 22 项必需研究；只有 support 支持其有限合成主张，modify/reject 不升级为验证支持，三者均不提供物理有效性。
+
+独立 native oracle V4 完整通过 H-v4 加全部研究批次的 28 个目录、647 个案例、1292 个输出/状态 streams 及 31938 个 samples，实际 MAT/JSON/CSV、状态、恢复、TimingInfo 与解析数值核对均完成。独立 baseline oracle V2 的 23 项通过继续复用。独立统计 oracle V6 的全部 22 项研究与三项 H2 必需接受链通过，read_set_unchanged=true、issues=[]。§12.29/30 的失败报告和截断输出保持原样；只修独立 helper 后读取现有证据，没有因此重跑 MATLAB、资格、生产源码或此前 Python 全量。
+
+原始 numeric caller 的事前 FIRST 快照、首次当前运行时只读回读及 schema1 接受身份已闭合。support 首次回读收齐 17 项，16 项通过，唯一 h_analysis_trials 当前执行资格因 A profile 在长回读期间过期而阻止；原 snapshot 的 5984 项、state、sidecar 和全部输入守卫保持，首次非零退出及失败报告原样保留。按已先提交的 §12.31，只更新实际过期的 A 资格，在同一原研究、physical baseline 和 primary H1 上进行不带 state 的 root-only 当前 eligibility 补验；新 A probe 和单项 resolver 调用均实际返回退出码 0。严格 support schema2 接受及 composite summary 已实际通过，透明保留原 FIRST 失败；不宣称原 state 的资格刷新或 state-conditioned 正向分支获得新的实际通过。
+
+modify/reject 的决定准备与 model_verification 只读回读均实际退出 0，summary passed=true、findings=[]；两份回读各有 5977 个输入身份，前后 changed=[]，未调用 MATLAB、未写 state。两者的历史决定保持有效，但 verified=false，不升级为 support。
+
+既有 E/F/G 资格实际过期后，为剩余 F/G 新执行仅补必要的 E/F/G-v5 当前资格；三项实际退出 0，9/11/18 个预期案例检查通过，120 文件 source、A2 绑定、同宿主/运行时、各自规范 fingerprint、函数文件 SHA、receipt artifact 和完成时 freshness 已核对。跨阶段 function-file scope 不同的整体 fingerprint 误比较报告保留；窄修仅按既有 same_runtime 七字段比较共同运行时身份，并经独立复核通过。没有修改生产源码、放宽资格或重跑资格；原始 H 执行时资格与已通过 native/H2 证据保持原身份。
+
+必要既有 F/G 实际出口已收齐并通过独立数值核对。legacy own attempt 保持 native-v1，G 准备绑定当前 forward native-v2。F 的 identification.arx_111、calibration.simulink_gain、optimization.quadratic_sqp 三个有界方法实际退出 0，candidate_complete、声明候选 oracle 与独立数字格式核对均通过，42 份原输入字节保持。G 的 scenario_matrix、full_factorial、monte_carlo_catalog 三个 campaign 各完整执行两次 draw，实际/历史消费者和独立解析及三格式核对通过；独立 controlled_failure 保留三条声明行、两次实际尝试和一条未尝试，campaign_complete=false、valid=false 与所需失败记录均符合预声明 oracle，不把它记为正常完整 campaign。执行期后的 F/G 当前 source 与全部输入守卫保持；没有因此重跑已通过且未变的 H 原生研究、资格或 oracle。
+
+本节记录时，最终正式本地全量执行次数为 0；最终 candidate/tree、独立候选审查、lint/index、PR 双平台 CI、合并及 main 六项只读回读和 main 双平台 CI 均分别待定。未改变且已通过的检查继续复用；收齐其余问题后统一修改，只对受影响范围补验，再进行原定的一次最终全量。最终证据冻结选用经独立窄审查通过的 FreezerV11，尚未执行冻结。
+
+全部材料均为 SYNTHETIC INFRASTRUCTURE TEST。23 个保护源、1160 份旧证据、原七份及 active V5 先验保持；当前执行不凭历史旧源码证据取得新源码许可。19 gates、21 acquisitions、13 producer authorities 和 6 main 输出角色不增加；完整 H 开发出口仍按 §12.21 分别验收。I–K、release/tag/install 和真实模型批准不推进。
 
 # 13. Phase I — Verification & Validation、测试与安全分析
 
