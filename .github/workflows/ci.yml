@@ -1,4 +1,4 @@
-name: H cache three-node diagnostic
+name: Simulation Skill repository checks
 
 'on':
   push:
@@ -10,11 +10,55 @@ permissions:
 
 jobs:
   contracts-and-fixtures:
-    name: H cache diagnostic (${{ matrix.os }})
+    name: Contracts and fixtures (${{ matrix.os }}, shard ${{ matrix.shard.id }} of 2)
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        shard:
+          - id: 1
+            files: >-
+              tests/test_domain_mapping.py
+              tests/test_experiment_routing.py
+              tests/test_experiment_runtime.py
+              tests/test_h_analysis_study.py
+              tests/test_h_analysis_trial.py
+              tests/test_h_validation_reuse.py
+              tests/test_model_contract.py
+              tests/test_model_state.py
+              tests/test_parameter_provenance.py
+              tests/test_parameter_study.py
+              tests/test_parameter_study_assurance.py
+              tests/test_problem_contract.py
+              tests/test_problem_state.py
+              tests/test_router.py
+              tests/test_simulation_assurance.py
+              tests/test_simulation_protocol.py
+              tests/test_statistics_requirements.py
+          - id: 2
+            files: >-
+              tests/test_experiment_design.py
+              tests/test_experiment_failures.py
+              tests/test_experiment_sampling.py
+              tests/test_h_analysis_integration.py
+              tests/test_h_historical_qualification_reuse.py
+              tests/test_implementation_profile.py
+              tests/test_implementation_receipt.py
+              tests/test_lint.py
+              tests/test_mapping_router.py
+              tests/test_mapping_state.py
+              tests/test_model_router.py
+              tests/test_model_verification.py
+              tests/test_numerical_full.py
+              tests/test_numerical_verification.py
+              tests/test_parameter_study_routing_state.py
+              tests/test_problem_router.py
+              tests/test_project_state.py
+              tests/test_runtime.py
+              tests/test_sensitivity_algorithms.py
+              tests/test_simulation_routing_state.py
+              tests/test_upstream_mapping.py
+              tests/test_verification_routing_state.py
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -22,15 +66,39 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt
+      - name: Verify complete and disjoint full-suite partitions
+        shell: python
+        run: |
+          from pathlib import Path
+          import tomllib
+          import yaml
+          settings = tomllib.loads(Path("pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
+          assert settings["testpaths"] == ["tests"], "Update partitions for changed test roots"
+          assert "python_files" not in settings, "Update partitions for custom collection patterns"
+          workflow = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
+          partitions = workflow["jobs"]["contracts-and-fixtures"]["strategy"]["matrix"]["shard"]
+          assert [part["id"] for part in partitions] == [1, 2]
+          files = [part["files"].split() for part in partitions]
+          assert all(files), "Each partition must contain actual test files"
+          flattened = [path for group in files for path in group]
+          actual = {path.as_posix() for pattern in ("test_*.py", "*_test.py")
+                    for path in Path("tests").rglob(pattern) if path.is_file()}
+          assert len(flattened) == len(set(flattened)), "Duplicate test file in partitions"
+          assert set(flattened) == actual, f"Incomplete partitions: {set(flattened) ^ actual}"
+          print(f"Full coverage: {len(actual)} files in two disjoint partitions")
       - run: python scripts/lint_skill.py
       - run: python scripts/generate_indexes.py --check
-      - name: Diagnose only the three affected cache nodes
+      - name: Run the complete selected test-file partition
         run: >-
-          python -m pytest -q --tb=short
-          "tests/test_h_validation_reuse.py::test_actual_four_roles_and_three_baselines_reuse_with_fresh_whole_graph_and_independent_copies"
-          "tests/test_h_validation_reuse.py::test_lawful_failed_study_and_H2_dispositions_hit_without_promotion[modify]"
-          "tests/test_h_validation_reuse.py::test_lawful_failed_study_and_H2_dispositions_hit_without_promotion[reject]"
-    # Temporary diagnostic under plan section 12.34; restore the original full
-    # workflow before the final candidate. This is not a formal PR CI exit.
-    # This job validates contracts and simulated evidence. Native MATLAB
-    # qualification requires a separate fresh R2025b probe on the target host.
+          python -m pytest -q --tb=short --continue-on-collection-errors
+          --junitxml=ci-results/full-${{ matrix.os }}-shard-${{ matrix.shard.id }}.xml
+          ${{ matrix.shard.files }}
+      - name: Preserve the actual full-partition JUnit result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: full-ci-${{ matrix.os }}-shard-${{ matrix.shard.id }}
+          path: ci-results/full-${{ matrix.os }}-shard-${{ matrix.shard.id }}.xml
+          if-no-files-found: error
+    # Together the two partitions cover every default test target on each OS.
+    # Native MATLAB qualification remains separate actual evidence.
