@@ -160,7 +160,9 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
                     parameter_study_profile_path=None, parameter_trial_receipt_path=None,
                     design_path=None, experiment_profile_path=None, campaign_receipt_path=None,
                     numerical_verification_path=None, numerical_verification_receipt_path=None,
-                    model_verification_path=None, model_verification_receipt_path=None) -> dict:
+                    model_verification_path=None, model_verification_receipt_path=None,
+                    h_analysis_study_path=None, h_analysis_trial_receipt_path=None,
+                    h_analysis_study_receipt_path=None, h_analysis_profile_path=None) -> dict:
     router = load_contract("core/workflow_router.yaml")
     taxonomy = load_contract(router["capability_taxonomy"])["capabilities"]
     manifest = load_contract(router["module_manifest"])["modules"]
@@ -174,6 +176,7 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         "implementation_execution_allowed": False,
         "parameter_study_execution_allowed": False,
         "experiment_execution_allowed": False,
+        "h_analysis_execution_allowed": False,
         "execution_scope": "none",
         "activated_modules": [],
         "activated_resources": [],
@@ -227,6 +230,8 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         from run_experiment import OPERATIONS
         known_operations.update(OPERATIONS)
         known_operations.add("simulink.core_simulation")
+    if intent == "h_analysis_trials":
+        known_operations.update({"simulink.core_simulation", "h.analysis_trials"})
     unknown_operations = [op for op in requested if op not in known_operations]
     if unknown_operations:
         result["errors"] = [f"unknown operation: {op}" for op in unknown_operations]
@@ -242,7 +247,8 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
                                               implementation_profile_path=implementation_profile_path,
                                               simulation_profile_path=simulation_profile_path,
                                               parameter_study_profile_path=parameter_study_profile_path,
-                                              experiment_profile_path=experiment_profile_path, scope=scope)
+                                              experiment_profile_path=experiment_profile_path,
+                                              h_analysis_profile_path=h_analysis_profile_path, scope=scope)
         result["state_validation"] = state_result
         if not state_result["valid"]:
             result.update(status="blocked", missing_gates=["project_state_valid"],
@@ -316,6 +322,20 @@ def resolve_runtime(intent, *, profile_path=None, state_path=None,
         result.update(status="inspected", activated_modules=[module_id],
                       activated_resources=list(resources))
         return result
+
+    if intent in {"h_analysis_study", "h_analysis_trials", "h_analysis_trial_review", "h_analysis_study_review"}:
+        from h_analysis_route import h_analysis_route
+        return h_analysis_route(result, router=router, resources=resources,
+            state_result=routing_context, state_path=state_path,
+            h_analysis_study_path=h_analysis_study_path,
+            h_analysis_trial_receipt_path=h_analysis_trial_receipt_path,
+            h_analysis_study_receipt_path=h_analysis_study_receipt_path,
+            h_analysis_profile_path=h_analysis_profile_path, profile_path=profile_path,
+            simulation_profile_path=simulation_profile_path, expected_root=expected_root,
+            problem_path=problem_path, model_path=model_path, approval_path=approval_path,
+            mapping_path=mapping_path, protocol_path=protocol_path, run_receipt_path=run_receipt_path,
+            numerical_verification_receipt_path=numerical_verification_receipt_path,
+            requested=requested)
 
     if intent in {"numerical_verification", "numerical_verification_review"}:
         from numerical_verification_route import numerical_verification_route
@@ -547,6 +567,10 @@ def main() -> int:
     parser.add_argument("--numerical-verification-receipt", type=Path)
     parser.add_argument("--model-verification", type=Path)
     parser.add_argument("--model-verification-receipt", type=Path)
+    parser.add_argument("--h-analysis-study", type=Path)
+    parser.add_argument("--h-analysis-trial-receipt", type=Path)
+    parser.add_argument("--h-analysis-study-receipt", type=Path)
+    parser.add_argument("--h-analysis-profile", type=Path)
     parser.add_argument("--require-operation", action="append", default=[])
     parser.add_argument("--matlab-root", type=Path)
     args = parser.parse_args()
@@ -565,7 +589,11 @@ def main() -> int:
                                  numerical_verification_path=args.numerical_verification,
                                  numerical_verification_receipt_path=args.numerical_verification_receipt,
                                  model_verification_path=args.model_verification,
-                                 model_verification_receipt_path=args.model_verification_receipt)
+                                 model_verification_receipt_path=args.model_verification_receipt,
+                                 h_analysis_study_path=args.h_analysis_study,
+                                 h_analysis_trial_receipt_path=args.h_analysis_trial_receipt,
+                                 h_analysis_study_receipt_path=args.h_analysis_study_receipt,
+                                 h_analysis_profile_path=args.h_analysis_profile)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         result = {"status": "blocked", "execution_allowed": False,
                   "business_execution_allowed": False, "simulation_execution_allowed": False,

@@ -6,6 +6,7 @@ import csv
 import math
 import re
 import uuid
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -389,7 +390,10 @@ def validate_evidence_chain(path, *, expected_root=None, now=None):
     root = raw["runtime"]["matlabroot"]
     if expected_root is not None and _path(root) != _path(expected_root):
         raise ValueError("simulation runtime root differs")
-    release, version = _version_info(root)
+    try:
+        release, version = _version_info(root)
+    except ET.ParseError as error:
+        raise ValueError("invalid simulation runtime VersionInfo.xml: " + str(error)) from error
     if release != policy["target"]["matlab_release"] or not str(raw["runtime"]["version"]).startswith(version):
         raise ValueError("simulation runtime version identity changed")
     for binding in receipt["artifacts"].values():

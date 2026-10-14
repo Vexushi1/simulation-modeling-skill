@@ -1,5 +1,5 @@
 schema_version: 1
-version: 0.8.0
+version: 0.9.0
 phase: H
 runtime_evidence:
   producer: scripts/probe_environment.py
@@ -11,8 +11,7 @@ route_decision:
   producer: scripts/resolve_runtime.py
   output: json_stdout
   mutates_project_state: false
-  business_execution_allowed: simulation_execution, parameter_trial or experiment_campaign only after
-    their distinct required gates; H routes are read-only
+  business_execution_allowed: simulation_execution, parameter_trial, experiment_campaign or hypothetical h_analysis_trials only after their independent current qualification gates
 project_state:
   schema: core/project_state.schema.yaml
   validator: scripts/validate_project_state.py
@@ -61,6 +60,11 @@ project_state:
     - sha256
     model_verification_receipt:
     - sha256
+    h_analysis_environment:
+    - profile_sha256
+    - receipt_sha256
+    h_analysis_studies:
+    - each exact study and optional receipt path plus sha256
   artefact_paths: inside_declared_project_root
   stale_propagation: transitive_dependents_of_changed_ids
   preserve_history: true
@@ -79,7 +83,8 @@ project_state:
     experiment: validate B/C/D and finite design/campaign historical evidence; current runtime unassessed;
       primary E run and F unassessed; H readiness unassessed
     numerical_verification: validate B/C/D/E and H1 historical evidence; current runtime, F/G and H2 unassessed
-    model_verification: validate B/C/D/E/H1/H2 historical evidence; current runtime and F/G unassessed
+    model_verification: validate B/C/D/E/H1/H2 and every bound historical H study; current runtime and F/G unassessed
+    h_analysis_study: validate B/C/D/E/H1 and every bound historical H study; current runtime and H2/F/G unassessed
 problem_contract:
   schema: core/problem_contract.schema.yaml
   consumer: scripts/validate_problem_contract.py
@@ -258,8 +263,7 @@ numerical_verification:
   execution_allowed: false
   freshness: current sources and artifacts, each E historical execution-time qualification; no current
     runtime TTL gate
-  claim_limit: declared three-level grid or endpoint consistency only; no true error bound or physical
-    validation
+  claim_limit: declared actual grid or recorded PWL reconstruction, typed numerical obligations and source-reviewed continuous bounds only; no physical validation
 model_verification:
   contract: core/model_verification_contract.yaml
   consumer: scripts/validate_model_verification.py
@@ -268,6 +272,43 @@ model_verification:
   directory_policy: new owned directory per invocation
   state_writes: explicit caller only
   execution_allowed: false
-  decision_complete: all required finite analyses decided with current H1 and actual approved E histories
+  decision_complete: all source-required finite analyses and full studies complete and defined with original primary H1 and every actual three-level participant
   verified: all required analyses support; explicit caller state only
-  claim_limit: finite declared conditions and sampled metrics; no I validation or J evidence acceptance
+  claim_limit: exact declared hypothetical domain, design, numerical scope and statistical assumptions; no I validation or J evidence acceptance
+h_analysis_study:
+  schema: core/h_analysis_study.schema.yaml
+  consumer: scripts/validate_h_analysis_study.py
+  producer: scripts/run_h_analysis_study.py
+  receipt_consumer: scripts/validate_h_analysis_study_receipt.py
+  template: templates/contracts/h_analysis_study.yaml
+  state_writes: explicit caller only
+  review_execution_allowed: false
+  study_complete: full frozen or replayed adaptive design and every occurrence independently consumed; technical failures and key undefined results block completion
+  study_accepted: complete defined numerical evidence meets the source-declared criterion; complete threshold failure remains valid evidence for H2 modify or reject
+  primary_bindings: original C approval, D mapping/parameters/SLX, frozen E/base receipt and primary H1 remain exact and immutable
+  freshness: current source and artifact identities plus actual execution-time A/E/H qualification; historical review leaves current runtime unassessed
+  stale_state_studies: any invalid bound study conservatively invalidates the h_analysis_studies bundle and its transitive dependents; each H2 source-required path and SHA is checked independently
+h_analysis_trials:
+  assurance: core/h_analysis_assurance_contract.yaml
+  producer: scripts/h_analysis_trial.py
+  qualification_producer: scripts/probe_h_analysis.py
+  qualification_consumer: scripts/validate_h_analysis_profile.py
+  receipt_consumer: scripts/validate_h_analysis_trial_receipt.py
+  operation: h.analysis_trials
+  directory_policy: new owned directory per invocation; preserve failures and unattempted rows
+  permission: reviewed safe hypothetical domain and current same-host/runtime independent A/E/H operation and every executed level/configuration solver qualification before every case
+  operation_union: retain all caller A requirements; simulink.core_simulation and h.analysis_trials use separate E and H gates and are never sent as A operation identifiers
+  numerical_acceptance: three independent native levels use the same H1 numerical evaluator and required typed obligations
+  state_writes: explicit caller only
+  primary_run_complete: false
+  adoption_allowed: false
+  model_approval_allowed: false
+  caller_state_protection: only an explicitly supplied current_state path and SHA; protected byte claims confer no new file or qualification authority
+h_verification_read_budget:
+  source_authority: known maintained E source list has a bounded one-MiB metadata bootstrap; the complete maintained source set is statted before source digests
+  new_h_read_set: owned artifacts plus typed transitive task and original A/D/E/H qualification evidence plus maintained repository safety sources share the exact declared aggregate byte budget
+  byte_claims: bound_files, protected_files and captured input manifests must match the independently authorized exact read set; they confer no new path or role
+  structured_inputs: unique shared YAML graph nodes and depth are bounded; cycles are rejected without expanding legal aliases
+  emitted_requests: exact UTF-8 LF serialization and expanded JSON nodes are forecast before allocation and native work; the emitted file plus all unique inputs must fit the declared file and aggregate limits
+  native_documents: complete case/sample/output/state forecast must fit supported document limits before native execution; preserve every declared row and reject excess without truncation
+  installed_runtime_boundary: executable, VersionInfo.xml and official function identities use the separate finite installation_identity_budget at the trusted actual-machine gate; generic task runtime fields never authorize external files and these bytes are not claimed as task artifact bytes

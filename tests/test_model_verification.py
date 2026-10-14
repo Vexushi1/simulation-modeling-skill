@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from model_verification_factory import make_model_verification_contract, omitted, review_model_verification
+from model_factory import file_ref
 from model_verification_common import (KINDS, _mathematical_anchor, compute_assessment,
                                        obligation_snapshot, settings_snapshot, structural_snapshot)
 from probe_environment import write_json
@@ -51,6 +52,46 @@ def current_history(model_history):
     saved = {path: path.read_bytes() for path in root.rglob('*') if path.is_file()}
     directories = {path for path in root.rglob('*') if path.is_dir()}
     yield model_history
+    for path in sorted(root.rglob('*'), key=lambda p: len(p.parts), reverse=True):
+        if path.is_file() and path not in saved:
+            path.unlink()
+        elif path.is_dir() and path not in directories:
+            path.rmdir()
+    for path, content in saved.items():
+        path.write_bytes(content)
+
+
+@pytest.fixture(scope='module')
+def advanced_model_history(model_history):
+    """One actual-format complete study history, reused by all consumer attacks."""
+    from h_analysis_study_factory import make_study_for_primary, make_study_history
+    import h_analysis_trial
+    root = model_history.parent
+    original = load_document(model_history)
+    primary = root / original['primary_numerical_receipt']['path']
+    study = make_study_for_primary(primary, project_root=root)
+    study_receipt = make_study_history(study, project_root=root)
+    profile = root / 'synthetic-h-profile' / h_analysis_trial.contract()['evidence']['profile']
+    failed = make_study_for_primary(primary, project_root=root, filename='failed-h-analysis-study.json', upper=0.)
+    failed_receipt = make_study_history(failed, project_root=root, output_name='failed-synthetic-study-evidence', h_profile=profile)
+    value = copy.deepcopy(original)
+    obligation = study_obligation('scenario_response')
+    obligation.update(study_contract=file_ref(root, study), study_receipt=file_ref(root, study_receipt))
+    value['claims'][0]['study_requirements'] = [obligation]
+    path = write_contract(root / 'advanced-model-verification.json', value)
+    review_model_verification(path, project_root=root, prefix='advanced-model-verification')
+    report = run_model_verification(path, root / 'advanced-baseline-assessment', project_root=root)
+    assert report['valid'] and report['model_verified'], report['errors']
+    return {'contract': path, 'study': study, 'study_receipt': study_receipt,
+            'failed_study': failed, 'failed_study_receipt': failed_receipt}
+
+
+@pytest.fixture
+def advanced_history(advanced_model_history):
+    root = advanced_model_history['contract'].parent
+    saved = {path: path.read_bytes() for path in root.rglob('*') if path.is_file()}
+    directories = {path for path in root.rglob('*') if path.is_dir()}
+    yield advanced_model_history
     for path in sorted(root.rglob('*'), key=lambda p: len(p.parts), reverse=True):
         if path.is_file() and path not in saved:
             path.unlink()
@@ -122,6 +163,73 @@ def test_technical_missing_H1_is_blocked_not_a_domain_failure(current_history):
     assert not report['assessment_ready']
     with pytest.raises(ValueError, match='blocked'):
         run_model_verification(path, path.parent / 'technical-failure', project_root=path.parent)
+
+
+def study_obligation(method='morris', *, requirement='required'):
+    return {'id': 'full_sensitivity', 'method': method, 'requirement': requirement,
+            'reason': 'Original synthetic claim explicitly requires this complete method.',
+            'study_contract': None, 'study_receipt': None}
+
+
+def test_each_source_required_study_missing_blocks_actual_H2_chain(current_history):
+    methods = ['local_derivative', 'normalized_sensitivity', 'parameter_oat', 'morris',
+        'sobol', 'variance_based', 'prcc', 'independent_mc', 'gaussian_joint_mc', 'gaussian_copula_mc',
+        'initial_condition_catalog', 'initial_condition_grid', 'joint_stress_catalog', 'stress_grid',
+        'scenario_response', 'failure_boundary', 'runtime_comparison']
+    value = load_document(current_history)
+    value['claims'][0]['study_requirements'] = [dict(study_obligation(method), id='required_' + method) for method in methods]
+    write_contract(current_history, value)
+    review_model_verification(current_history)
+    report = validate_model_verification(current_history, project_root=current_history.parent, require_reviewed=True)
+    assert report['schema_valid'] and not report['valid'] and not report['assessment_ready']
+    assert set(methods) == set(report['required_study_methods'])
+    assert sum('complete_source_required_study' in gate for gate in report['missing_gates']) == len(methods)
+
+
+def test_required_study_omission_cannot_be_hidden_by_new_settings_review(current_history):
+    value = load_document(current_history)
+    value['claims'][0]['study_requirements'] = [study_obligation()]
+    write_contract(current_history, value)
+    review_model_verification(current_history)
+    value = load_document(current_history)
+    value['claims'][0]['study_requirements'][0]['requirement'] = 'not_required'
+    write_contract(current_history, value)
+    review_model_verification(current_history, refresh_obligations=False)
+    report = validate_model_verification(current_history, project_root=current_history.parent, require_reviewed=True)
+    assert not report['valid'] and not report['assessment_ready']
+    assert any('snapshot' in error for error in report['errors'])
+
+
+def test_source_justified_study_not_required_preserves_legacy_H2_chain(current_history):
+    value = load_document(current_history)
+    value['claims'][0]['study_requirements'] = [study_obligation(requirement='not_required')]
+    write_contract(current_history, value)
+    review_model_verification(current_history)
+    report = run_model_verification(current_history, current_history.parent / 'study-omission-assessment', project_root=current_history.parent)
+    assert report['valid'] and report['model_verified'], report['errors']
+    assert report['claims'][0]['study_decisions'][0]['disposition'] == 'not_required'
+
+
+@pytest.mark.parametrize('accepted,disposition', [(True, 'support'), (False, 'reject')])
+def test_rederived_study_threshold_feeds_claim_disposition(accepted, disposition):
+    value = finite_value()
+    value['claims'][0]['study_requirements'] = [study_obligation()]
+    study = {'study_complete': True, 'defined': True, 'study_accepted': accepted,
+             'study_contract_path': '/synthetic-only/study.json', 'study_contract_sha256': '1'*64,
+             'study_semantic_sha256': '2'*64, 'study_receipt_path': '/synthetic-only/study-receipt.json',
+             'study_receipt_sha256': '3'*64}
+    result = compute_assessment(value, {'primary': metric_member(1.0), 'other': metric_member(2.0, level=2.0)},
+                                {('claim', 'full_sensitivity'): study})
+    assert result['model_verification_decided'] and result['model_verified'] is accepted
+    assert result['claims'][0]['disposition'] == disposition
+    assert result['claims'][0]['study_decisions'][0]['disposition'] == disposition
+
+
+def test_missing_required_study_does_not_become_threshold_rejection():
+    value = finite_value()
+    value['claims'][0]['study_requirements'] = [study_obligation()]
+    with pytest.raises(ValueError, match='required study missing'):
+        compute_assessment(value, {'primary': metric_member(1.0), 'other': metric_member(2.0, level=2.0)})
 
 
 def test_consumer_rejects_rehashed_fake_result(current_history):
@@ -720,3 +828,94 @@ def test_H2_array_source_nested_external_path_stays_task_and_unread(current_hist
     report = validate_model_verification(current_history, project_root=current_history.parent, require_reviewed=True)
     assert not report['valid'] and not report['assessment_ready']
     assert any('leaves project root' in error for error in report['errors'])
+
+
+def review_advanced_H2(path):
+    return review_model_verification(path, project_root=path.parent, prefix='advanced-model-verification')
+
+
+def test_actual_complete_study_is_in_final_H2_receipt_and_keeps_original_primary(advanced_history):
+    history = advanced_history
+    root = history['contract'].parent
+    before = {path: path.read_bytes() for path in root.rglob('*') if path.is_file()}
+    report = validate_model_verification_receipt(root / 'advanced-baseline-assessment' / 'model-verification-receipt.json', project_root=root)
+    assert report['valid'] and report['model_verified'] and report['model_verification_decided'], report['errors']
+    assert report['required_study_methods'] == ['scenario_response']
+    decision = report['claims'][0]['study_decisions'][0]
+    assert decision['study_complete'] and decision['defined'] and decision['study_accepted']
+    assert decision['study_receipt_path'] == str(history['study_receipt'])
+    assert any(item['path'] == str(history['study_receipt']) for item in report['bound_files'])
+    original = load_document(root / 'model-verification.json')
+    assert report['primary_numerical_receipt_path'] == str(root / original['primary_numerical_receipt']['path'])
+    assert not report['environment_checked'] and not report['execution_allowed']
+    assert all(path.read_bytes() == content for path, content in before.items())
+
+
+@pytest.mark.parametrize('disposition', ['modify', 'reject'])
+def test_actual_study_prior_threshold_failure_is_valid_H2_decision(advanced_history, disposition):
+    history = advanced_history
+    path, root = history['contract'], history['contract'].parent
+    value = load_document(path)
+    value['claims'][0]['failure_disposition'] = disposition
+    obligation = value['claims'][0]['study_requirements'][0]
+    obligation.update(study_contract=file_ref(root, history['failed_study']),
+                      study_receipt=file_ref(root, history['failed_study_receipt']))
+    write_contract(path, value)
+    review_advanced_H2(path)
+    report = run_model_verification(path, root / ('advanced-threshold-' + disposition), project_root=root)
+    assert report['valid'] and report['model_verification_decided'], report['errors']
+    assert not report['claim_supported'] and not report['model_verified']
+    assert report['claims'][0]['disposition'] == disposition
+    decision = report['claims'][0]['study_decisions'][0]
+    assert decision['study_complete'] and decision['defined'] and not decision['study_accepted']
+    assert decision['disposition'] == disposition
+
+
+def test_rehashed_actual_study_result_cannot_support_H2_claim(advanced_history):
+    from h_analysis_study import RESULT_NAME as STUDY_RESULT
+    history = advanced_history
+    study_receipt = history['study_receipt']
+    numeric = study_receipt.parent / STUDY_RESULT
+    result = load_document(numeric)
+    result['result']['analysis']['maximum'] += .25
+    write_json(numeric, result)
+    receipt = load_document(study_receipt)
+    receipt['artifacts']['result']['sha256'] = sha256_file(numeric)
+    write_json(study_receipt, receipt)
+    path, root = history['contract'], history['contract'].parent
+    value = load_document(path)
+    value['claims'][0]['study_requirements'][0]['study_receipt'] = file_ref(root, study_receipt)
+    write_contract(path, value)
+    review_advanced_H2(path)
+    report = validate_model_verification(path, project_root=root, require_reviewed=True)
+    assert not report['valid'] and not report['assessment_ready']
+    assert any('recomputation' in error or 'recomputed' in error for error in report['errors'])
+
+
+def test_missing_actual_native_point_cannot_be_dropped_from_required_H2_study(advanced_history):
+    import h_analysis_trial
+    history = advanced_history
+    study_receipt = load_document(history['study_receipt'])
+    trial_receipt_path = Path(study_receipt['trial_receipts'][0]['path'])
+    names = h_analysis_trial.contract()['evidence']
+    raw = load_document(trial_receipt_path.parent / names['raw'])
+    actual = raw['cases'][0]
+    directory = trial_receipt_path.parent / 'cases' / actual['case_id']
+    (directory / actual['data_file']).unlink()
+    path = history['contract']
+    report = validate_model_verification(path, project_root=path.parent, require_reviewed=True)
+    assert not report['valid'] and not report['assessment_ready']
+    assert report['errors'] or report['missing_gates']
+
+
+def test_actual_study_cannot_replace_original_H2_primary_anchor(advanced_history):
+    path, root = advanced_history['contract'], advanced_history['contract'].parent
+    value = load_document(path)
+    value['primary_numerical_receipt'] = value['members'][0]['numerical_receipt']
+    # The selected study is still genuinely complete for the original primary.
+    # Merely selecting another current accepted H1 cannot make it this study's base.
+    write_contract(path, value)
+    review_advanced_H2(path)
+    report = validate_model_verification(path, project_root=root, require_reviewed=True)
+    assert not report['valid'] and not report['assessment_ready']
+    assert any('original-primary identity differs' in error for error in report['errors'])

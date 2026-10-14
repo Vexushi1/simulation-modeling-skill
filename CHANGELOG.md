@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0 — Remaining Phase H analyses
+
+- Freeze full remaining-H feasibility amendments before implementing parameter/IC trials, complete numerical checks and source-required advanced studies.
+- Add residual, constraint, conservation, event and drift executors, adaptive PWL trajectory comparisons and ode15s refinement with explicit reconstruction scope.
+- Add local/normalized/OAT, Morris, Sobol, weighted factorial ANOVA and PRCC; continuous/correlated uncertainty, stress/IC robustness, failure brackets and extended solver metrics.
+- Bind separate hypothetical trials to the immutable approved baseline, owned model copies, actual state/timing/numeric readback, restoration and independent operation qualification.
+- Extend source-budgeted receipt graphs, claim acceptance, routes and historical state. Keep A7/B2/D19 protected bytes, source closures and separate development exits; I–K, release and installation remain deferred.
+
+- Export verified native `CSTATE` labels as explicit MAT character rows with matching JSON labels, use declared full-interval recorded-PWL comparisons for ode15s qualification, and preserve complete failed numerical results and all earlier failure evidence.
+- Record complete original native H studies and finite H2 decisions with independent native/baseline/statistical recomputation, accepted numeric/support caller evidence, passed modify/reject historical readbacks and necessary fresh E/F/G qualification. Strict support acceptance preserves its first-readback qualification-expiry failure and separate root-only supplement without refreshing state bindings or relabelling FIRST. Actual bounded F/G progress and the pending final regression, candidate review, CI, merge and main readback are recorded separately in §12.32.
+
 ## 0.8.0 — Phase H bounded evidence assessments
 
 - Amend the plan for executable three-level numerical criteria, complete historical identity checks and explicit finite claim scope before implementing consumers.

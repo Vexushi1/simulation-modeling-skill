@@ -4,9 +4,23 @@ status: draft
 primary_protocol: null
 refinement_protocols: []
 method: null
+scope: actual_points
+trajectory: {mode: actual_points, max_gap: null}
 comparison_times: null
 outputs: []
 obligations: null
+observables: []
+checks: []
+math_budget:
+  max_ast_nodes: 512
+  max_ast_depth: 24
+  max_evaluations: 200000
+  max_checks: 32
+  max_union_knots: 36003
+continuous_scope:
+  target: recorded_reconstruction
+  source_ids: []
+  reason: Incomplete draft; no source-reviewed continuous-solution envelope.
 budget: null
 claim_limit: Incomplete refinement draft; no numerical acceptance or real-system validity claim.
 sources: []

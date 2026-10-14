@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-title: Phase H1 reviewed three-level numerical refinement evidence contract
+title: Phase H1 reviewed refinement and complete recorded numerical checks
 type: object
 additionalProperties: false
 required: [schema_version, project_id, status, primary_protocol, refinement_protocols, method, comparison_times, outputs, obligations, budget, claim_limit, sources, settings_source_ref, review_record]
@@ -9,12 +9,24 @@ properties:
   status: {enum: [draft, reviewed]}
   primary_protocol: {$ref: '#/$defs/nullable_file'}
   refinement_protocols: {type: array, maxItems: 2, items: {$ref: '#/$defs/file'}}
-  method: {enum: [null, ode4_step_refinement, ode45_tolerance_refinement]}
+  method: {enum: [null, ode4_step_refinement, ode45_tolerance_refinement, ode15s_tolerance_refinement]}
+  scope: {enum: [actual_points, pwl_trajectory]}
+  trajectory:
+    type: object
+    additionalProperties: false
+    required: [mode, max_gap]
+    properties:
+      mode: {enum: [actual_points, pwl_union]}
+      max_gap: {type: [number, 'null'], exclusiveMinimum: 0}
+  observables: {type: array, maxItems: 128, items: {$ref: '#/$defs/observable'}}
+  checks: {type: array, maxItems: 128, items: {$ref: '#/$defs/check'}}
+  math_budget: {$ref: '#/$defs/math_budget'}
+  continuous_scope: {$ref: '#/$defs/continuous_scope'}
   comparison_times:
     anyOf:
       - {type: 'null'}
       - {type: array, minItems: 2, maxItems: 3001, items: {type: number}}
-  outputs: {type: array, maxItems: 2, items: {$ref: '#/$defs/output'}}
+  outputs: {type: array, maxItems: 128, items: {$ref: '#/$defs/output'}}
   obligations:
     anyOf:
       - {type: 'null'}
@@ -82,11 +94,22 @@ $defs:
       status: {enum: [required, not_applicable, deferred]}
       reason: {$ref: '#/$defs/text'}
       source_ids: {type: array, minItems: 1, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+      check_ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
   output:
     type: object
     additionalProperties: false
-    required: [port, variable_id, unit, absolute_tolerance, relative_tolerance, contraction_limit, roundoff_floor]
+    required: [variable_id, unit, absolute_tolerance, relative_tolerance, contraction_limit, roundoff_floor]
+    allOf:
+      - if:
+          required: [kind]
+          properties: {kind: {const: state}}
+        then:
+          required: [block_path]
+          not: {required: [port]}
+        else: {required: [port]}
     properties:
+      kind: {enum: [output, state]}
+      block_path: {$ref: '#/$defs/text'}
       port: {type: integer, minimum: 1}
       variable_id: {$ref: '#/$defs/id'}
       unit: {type: [string, 'null']}
@@ -94,6 +117,134 @@ $defs:
       relative_tolerance: {type: number, minimum: 0}
       contraction_limit: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}
       roundoff_floor: {type: number, minimum: 0}
+  dimensions:
+    type: object
+    additionalProperties: false
+    properties:
+      mass: {type: integer, minimum: -32, maximum: 32}
+      length: {type: integer, minimum: -32, maximum: 32}
+      time: {type: integer, minimum: -32, maximum: 32}
+      current: {type: integer, minimum: -32, maximum: 32}
+      temperature: {type: integer, minimum: -32, maximum: 32}
+      amount: {type: integer, minimum: -32, maximum: 32}
+      luminous_intensity: {type: integer, minimum: -32, maximum: 32}
+  observable:
+    type: object
+    additionalProperties: false
+    required: [id, kind, unit, dimensions]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      kind: {enum: [time, output, state, input, parameter]}
+      variable_id: {$ref: '#/$defs/id'}
+      unit: {type: [string, 'null']}
+      dimensions: {$ref: '#/$defs/dimensions'}
+      port: {type: integer, minimum: 1}
+      block_path: {$ref: '#/$defs/text'}
+      code_name: {$ref: '#/$defs/id'}
+      scale: {type: number, exclusiveMinimum: 0}
+      offset: {type: number}
+      canonical_unit: {$ref: '#/$defs/text'}
+      relation_ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+  expression:
+    type: object
+    additionalProperties: false
+    required: [op]
+    properties:
+      op: {enum: [constant, variable, derivative, integral, add, sub, mul, div, pow, neg, abs, sqrt, exp, log, sin, cos, min, max]}
+      id: {$ref: '#/$defs/id'}
+      value: {type: number}
+      unit: {$ref: '#/$defs/text'}
+      dimensions: {$ref: '#/$defs/dimensions'}
+      args: {type: array, maxItems: 2, items: {type: object}}
+      exponent: {type: integer, minimum: -16, maximum: 16}
+      scheme: {enum: [central, forward, backward]}
+      start: {type: number}
+  window: {type: array, minItems: 2, maxItems: 2, items: {type: number}}
+  check:
+    type: object
+    additionalProperties: false
+    required: [id, kind, window, source_ids, relation_ids, unit, dimensions]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      kind: {enum: [residual, constraint, conservation, event_localization, numerical_drift]}
+      window: {$ref: '#/$defs/window'}
+      source_ids: {type: array, minItems: 1, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+      relation_ids: {type: array, minItems: 1, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+      unit: {$ref: '#/$defs/text'}
+      dimensions: {$ref: '#/$defs/dimensions'}
+      absolute_tolerance: {type: number, exclusiveMinimum: 0}
+      relative_tolerance: {type: number, minimum: 0}
+      scale: {type: number, minimum: 0}
+      expression: {$ref: '#/$defs/expression'}
+      mode: {enum: [algebraic, integral]}
+      inventory: {$ref: '#/$defs/expression'}
+      flux: {$ref: '#/$defs/expression'}
+      state: {$ref: '#/$defs/expression'}
+      rhs: {$ref: '#/$defs/expression'}
+      reference: {$ref: '#/$defs/expression'}
+      relation: {enum: [eq, le, ge]}
+      threshold: {type: number}
+      drift_tolerance: {type: number, exclusiveMinimum: 0}
+      rate_unit: {$ref: '#/$defs/text'}
+      direction: {enum: [rising, falling, either]}
+      expected_count: {type: integer, minimum: 0, maximum: 1024}
+      matching: {enum: [first, all]}
+      time_tolerance: {type: number, exclusiveMinimum: 0}
+      value_tolerance: {type: number, minimum: 0}
+      max_bracket_width: {type: number, exclusiveMinimum: 0}
+      include_boundary: {type: boolean}
+      event_type: {enum: [crossing, contact]}
+      contraction_limit: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}
+      roundoff_floor: {type: number, minimum: 0}
+      convergence_required: {type: boolean}
+  math_budget:
+    type: object
+    additionalProperties: false
+    required: [max_ast_nodes, max_ast_depth, max_evaluations, max_checks, max_union_knots]
+    properties:
+      max_ast_nodes: {type: integer, minimum: 1, maximum: 4096}
+      max_ast_depth: {type: integer, minimum: 1, maximum: 32}
+      max_evaluations: {type: integer, minimum: 1, maximum: 2000000}
+      max_checks: {type: integer, minimum: 1, maximum: 128}
+      max_union_knots: {type: integer, minimum: 1, maximum: 48004}
+  continuous_scope:
+    type: object
+    additionalProperties: false
+    required: [target, source_ids, reason]
+    properties:
+      target: {enum: [recorded_reconstruction, underlying_continuous]}
+      source_ids: {type: array, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+      reason: {$ref: '#/$defs/text'}
+      envelope: {$ref: '#/$defs/envelope'}
+  envelope:
+    type: object
+    additionalProperties: false
+    required: [kind, window, proof_source_ids, output_bounds, check_bounds]
+    properties:
+      kind: {const: reviewed_uniform_bound}
+      window: {$ref: '#/$defs/window'}
+      proof_source_ids: {type: array, minItems: 1, uniqueItems: true, items: {$ref: '#/$defs/id'}}
+      output_bounds: {type: array, items: {$ref: '#/$defs/output_bound'}}
+      check_bounds: {type: array, items: {$ref: '#/$defs/check_bound'}}
+  three_bounds: {type: array, minItems: 3, maxItems: 3, items: {type: number, minimum: 0}}
+  output_bound:
+    type: object
+    additionalProperties: false
+    required: [variable_id, unit, levels]
+    properties:
+      variable_id: {$ref: '#/$defs/id'}
+      unit: {$ref: '#/$defs/text'}
+      levels: {$ref: '#/$defs/three_bounds'}
+  check_bound:
+    type: object
+    additionalProperties: false
+    required: [id, unit, levels]
+    properties:
+      id: {$ref: '#/$defs/id'}
+      unit: {$ref: '#/$defs/text'}
+      levels: {$ref: '#/$defs/three_bounds'}
+      rate_levels: {$ref: '#/$defs/three_bounds'}
+      rate_unit: {$ref: '#/$defs/text'}
   budget:
     type: object
     additionalProperties: false

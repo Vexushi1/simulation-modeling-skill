@@ -1,0 +1,20 @@
+schema_version: 1
+project_id: replace_project
+status: draft
+base_protocol: null
+base_receipt: null
+primary_numerical_receipt: null
+factors: []
+method: null
+settings: null
+design: null
+metric: null
+numerical_policy: null
+inference: null
+criterion: null
+sources: []
+settings_source_ref: null
+budget: null
+claim_limit: Draft only. Hypothetical numerical study; no adoption, real-system validity
+  or model approval.
+review_record: null

@@ -1,11 +1,11 @@
 # Simulation Modeling Skill v1.0.0 全流程实施计划
 
-> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，2026-10-10 Phase G出口回读及Phase H实施前审查）**
+> **文档状态：CANONICAL IMPLEMENTATION PLAN（全量实施主计划，剩余H原生证据、numeric/support caller 接受、modify/reject 决定回读与必要当前资格已通过，最终开发出口待完成）**
 > 仓库：Vexushi1/simulation-modeling-skill  
 > 主目标版本：v1.0.0  
 > 强运行基线：MATLAB R2025b + Simulink R2025b  
-> 已完成阶段：A–G（各阶段已审定的有限范围）；G PR #8 合并基线 `719495b745facce688810a62c2c1d3c7aea9116f`
-> 当前实施阶段：H；实施分支 `phase-h/numerical-verification`，未通过全部出口前不登记为阶段完成
+> 已完成阶段：A–G及H首版有限范围；H PR #9合并基线 `9a0cf191b451eb69153914a5562f91726d3091a3`
+> 当前实施阶段：剩余H全范围出口；实施分支 `phase-h/complete-analyses`。当前实际材料与最终候选前进度见 §12.32；未通过全部出口前不登记为H全范围完成
 > 核心纪律：先冻结计划，再按阶段实施；任何阶段不得脱离本计划直接堆功能。
 
 ---
@@ -2076,6 +2076,224 @@ H计划/审查/准则/范围、任一E协议/运行/数字、C/D/参数/SLX/来�
 先完成计划、受影响契约和实现，再集中进行静态审查、针对性正反例与原始输入行为检查。问题清单逐项记录复现、影响范围、责任文件、修正及定向复核；不在发现第一个错误后立刻重跑全部测试。一次收集可并行审查全部已实现表面，统一修改，定向检查关闭后才执行全量A–G/H回归。仅当之后新的修改/失败/未解决风险影响最终版本时才有依据重跑相应回归；本地tests、MATLAB资格、CI与合并回读仍分别记录，不把跳过实测当成节约。
 
 双平台CI保留PR与main合并后两个独立出口，将push触发限定main，避免同一topic提交在branch push及PR打开时重复运行相同全量矩阵。源码冻结后的PR CI可与本机串行MATLAB资格队列并行；CI没有MATLAB，不能代替任何真实资格或项目运行。全部出口通过后才合并，不因节约额度省略必要Gate。
+
+## 12.16 2026-10-10 剩余H全范围可实施性复核与修订
+
+用户再次明确授权完成剩余H，继续要求先验证计划可实施性、必要时先改计划、集中收集问题后统一修复并最后全量回归。H首版PR [#9](https://github.com/Vexushi1/simulation-modeling-skill/pull/9)已合并为main `9a0cf191b451eb69153914a5562f91726d3091a3`，与资格化候选 `43abdd361eaf0a929fe40cdbc298b1a4572b5955` 同树；本地1498项全部通过，真实E/F/G及H组合、独立审查、PR和main双平台CI、main回读分别完成。这只代表§12.9–12.15的有限首版，不能将原§12.1–12.7全部登记为已实现。
+
+本轮只读审查确认原清单剩余各类方法均可实现。尚无实现不是方法延期的依据。本节及§12.17–12.21取代§12.9–12.15中剩余H整类deferred、无H执行operation、仅自适应端点、不允许明确重建及仅外部输入扰动的首版限制；其他批准、来源、预算、状态和开发出口纪律继续有效。实施目标版本0.9.0，I–K、release/tag/install仍不在本轮授权范围。D的已资格核心block边界不因H扩展；分析可消费其他真实已批准实现的完整合法历史，但不能声称新增Simscape/Stateflow/System Composer建设资格。
+
+可实施性差距集中登记：旧F只证明自建无状态Gain fixture；旧E primary不能覆盖批准参数或条件；现有E/F无状态和TimingInfo证据；Integrator初值和Inport插值缺专项恢复快照；参数dtype/shape/complexity需实际核对；状态必须按真实BlockPath及CSTATE绑定；运行StopEvent不是领域事件；长批次须逐case重建执行资格。另需完整统计设计、预算、数学退化和独立重算契约，以及H2所需新study的接受链。先保存本轮计划修订提交，再改行为文件。
+
+## 12.17 全H1数值检查与共同轨迹口径
+
+保留现有实际三层E证据入口，增加`ode15s_tolerance_refinement`，与ode45一样绑定RelTol/AbsTol三档及其他物理设置精确不变。旧端点模式兼容保留；新增源审定的完整记录轨迹PWL重建模式。重建不是伪造原生样本：保留每层实际时间和值、明确线性重建语义，在三网格union knots独立重算两层PWL之差的全重建区间sup；不直接配对非嵌套采样下标。固定网格模式继续拒绝缺失原生格点。每个声明scope分别核验细化、粗primary、容差、收缩和舍入底线。
+
+新增受限、无任意代码执行的typed数学表达式与源绑定检查定义，绑定已有实际观测、输入、时间、参数、单位及区间，禁止猜测隐藏状态或从字符串执行Python/MATLAB。实现残差、等式/不等式约束、守恒或平衡、数值漂移、事件穿越和收敛检查；导数/积分及误差判据必须预声明计算口径、必要采样和尺度。常数、变量、受控代数运算、有限差分/区间积分仅按实现的语法与观测关系使用，除零、非有限、缺变量/错单位/缺区间/数学未定义均明确阻断所需检查。
+
+事件按源审定阈值、方向、窗口、数量、容差和首次/逐次规则识别，保留实际sample bracket与PWL crossing。未辨识、重合平台、多重穿越或缺观测不能伪造唯一精确event；同时比较三层事件数量、匹配及时间差。峰值声明为记录/PWL极值；积分明确为记录PWL的精确分段梯形积分；漂移和守恒明确首末差、区间平衡或窗口统计。若要求底层连续解的真实误差、连续峰值、精确事件或全域保证，必须另有源绑定且已审阅的适用平滑/单调/插值包络或独立解析/证明证据；无法支持的项目主张为blocked/modify/reject，不能继续将整类方法标为未实现或将缺能力写作not_applicable。
+
+## 12.18 独立H试验执行、资格与不可变基线
+
+新增`h.analysis_trials`独立operation、assurance/profile、受审study/point manifest、MATLAB producer及只读receipt consumer。它绑定当前B/C批准、D模型/映射/参数/SLX、冻结E及真实base receipt和primary H1，审查明确允许源审定hypothetical试验域；这是alternative-world分析许可，不采纳新值、不替代实际C批准、不产生新primary E receipt。旧E primary精确条件、参数、协议及资格检查保持，受保护A7/B2/D19逐字节不改。
+
+因素支持已登记model-workspace标量参数、精确已有Integrator初值及已有root输入的常值或连续分段线性波形。每点完整绑定因素顺序、类型、ID、单位、域、基准、物理快照与设计角色；未知真实参数不得臆造，外界给定值改变仅能在来源明确允许反事实研究时执行。每group三个独立numeric levels仅数值设置不同，H2参与点都必须通过同口径H1纯数值和所需检查，仍保留原primary H1锚点。重复点的实际执行和occurrence不得静默去重。
+
+MATLAB只使用独立owned SLX副本和SimulationInput，参数以model Workspace的setVariable、初值以精确Integrator setBlockParameter、外输入以Dataset/timeseries临时设置。禁止base-workspace、全局路径、callbacks、新业务block或保存覆盖原SLX。逐case核对实际参数dtype/shape/complexity/单位、实际应用初值/输入、solver和termination；新增真实状态记录按BlockPath/CSTATE映射，并保留实际TimingInfo，进程时间单列。成功、受控失败及提前终止均保存参数/IC/Inport插值/solver/logging前后和重开恢复、原/owned SLX字节及批准/协议/primary/state前后SHA。
+
+新执行要求当前同host/runtime A/E/H独立资格及实际功能/solver覆盖，在每case真实started_at重建TTL和operation union，不能仅批次入口检查。为降低启动成本可一进程串行运行多点，但每点保留完整原始SimulationOutput、MAT v7、JSON、17位CSV、实际metadata、数字出口、独立consumer及失败/未尝试ledger。原有qualification外部路径例外只能按原绑定的角色延续；新增H资格也必须明确typed角色，不以文件名/目录名提升信任。历史消费免当前TTL但不免当前源码、产物和执行时资格核验。
+
+## 12.19 全H2设计、估计器及数学边界
+
+新增源绑定study契约，由H2每项claim显式声明所需study和判据。完整冻结ordered factors、baseline/domain/law/dependence、metric/unit、design算法/seed/全部row及role、数值scope、estimator/inference、claim limits、review与budgets。consumer独立重新生成设计、核对真实因素覆盖及其他物理配置、接受全部参与point数字证据并重算结果。原有限OAT/场景及结构对照兼容保留；required方法/成员缺失、技术失败或未定义关键指标不能支持claim，合法越H2阈值保存modify/reject，不能移除失败点。
+
+- local derivative与parameter OAT：源指定central h及h/2和两尺度一致性；边界one-sided必须预声明。报告有限差分近似及单位。normalized sensitivity明确relative elasticity或positive reference scales；零分母返回undefined及原因，不能填0。
+- Morris：源声明even grid、轨迹数、Delta及ordered trajectories，逐步只改一个因素，重算mu、mu-star和sample sigma，区分normalized/physical坐标与单位。
+- Sobol：独立product law下冻结A/B及AB_i，重算统一中心/方差下S_i与ST_i，可声明二阶所需额外BA blocks；负或大于1的有限估计不clip。独立性由审定law而非小样本相关性决定。constant output等数学退化完整记录undefined。
+- variance-based：独立带权完整factorial law的ANOVA，核对全部Cartesian rows及product weights，独立重算所有subset variance、主效应/总效应和总方差闭合；明确是该有限law下的分解，不能称连续域证明。Sobol另可报告V乘其index的估计贡献。
+- PRCC：完整rows的midranks、控制其他因素的intercept+OLS残差相关，检查rank和残差方差；ties、控制矩阵秩亏和零残差明确处理。控制矩阵秩亏时可用其span的唯一投影给出有诊断的rank-adjusted点关联，抑制未经支持的标准推断；被测因素或输出残差零则undefined。只称条件单调关联，不冒充因果或方差贡献。相关输入可用PRCC，但classic Sobol/product ANOVA不适用。
+- uncertainty：实现连续独立uniform/normal及明确joint correlation的Gaussian/Gaussian-copula mixed laws、fixed-N iid MC、经验CDF/quantiles、DKW经验quantile区间与事件比例区间；均绑定metric和law。normal的无界支持与安全试验域分开，越执行域阻断并保留，禁止静默clip或重抽后仍称原law。均值区间仅在明确output-normal或声明CLT近似时使用适合的公式，不由输入normal推断输出normal。所有置信结论限定抽样设计、有限N、事件/指标及假设。
+- stress/scenario response/initial-condition robustness：对完整源审定目录实际执行参数、输入和IC组合，给出perturbation domain、metric、threshold、failure和disposition；全通过只支持该完整目录。
+- automatic failure boundary：source声明已验证pass/fail bracket、方向、metric阈值、factor与其他物理设置、容差和max evaluations；确定性二分或声明搜索保留每次真实点及停止原因。只返回有限数值bracket；无已证明单调性不声称全域唯一边界，多穿越/同号/预算耗尽/技术失败保留incomplete或limited结果，不能伪造精确边界。
+- solver comparison扩展到当前已资格ode4/ode45/ode15s，共同输出、event bracket/time、记录/PWL峰值、积分及残差/误差scope。性能claim仅使用真实TimingInfo、预声明重复次数/顺序/summary和零分母策略；结构模型对照仍必须有真实批准实现和实质结构审查，参数/solver/重命名不得替代结构差异。
+
+高级统计预算预检设计公式与完整point计数，例如Morris r(d+1)、一阶/总效应Sobol N(d+2)、二阶N(2d+2)及完整ANOVA Cartesian size；原16成员限制不能通过删点绕过，study使用自己明确hard bounds。bootstrap只复算Python统计、不新增native调用；whole-row/trajectory/block重抽、全部退化replicate与scope须保存，不允许丢弃退化后冒称无条件区间。
+
+## 12.20 来源闭包、接受链与失效
+
+新的合同、runner、算法、独立消费者和资格依赖纳入同一E/F/G保守source闭包、bootstrap/module/resource/authority索引及H输入typed evidence graph。预算必须在native前完整计数；发现未知transitive边时，只允许按逐文件/累计stat及节点/深度上限读取结构性metadata，完成全读集preflight后才hash、加载MAT/CSV/业务数字或调用业务消费者。不能声称尚未知边时已有完整读集合；固定安全repo闭包另按白名单计入预算，普通task不得获得任意外部源码路径权利。未产生artifact只可预声明hard cap，导出和消费时再实测拒绝，不截断。递归角色限定业务输入与资格外部路径，合法原receipt回绑定以visited去重，真实业务依赖环、路径逃逸、duplicate键、bool伪数值、非有限和typed snapshot漂移受控拒绝；所有读取集合前后SHA复核。
+
+H2只有所有source-required advanced study完整且接受、原primary和所有参与点当前数值接受、原有限分析及结构对照满足，才可决定或支持相应claim。单独算法返回值或native模拟成功不能升级MODEL_VERIFIED。只读review/receipt路由不要求当前runtime；新增trial执行路由明确要求当前A/E/H资格。NUMERICALLY_VERIFIED、MODEL_VERIFICATION_DECIDED、MODEL_VERIFIED继续由显式调用者记录，producer/validator/router不写state/批准/freeze/primary。新合同/方法/设计/数据/源/数字/资格依赖改变使相应H下游stale；历史首版证据及原失败保留。
+
+## 12.21 完整方法矩阵与集中开发出口
+
+实施及退出矩阵逐项覆盖原§12.1全部H1/H2类、§12.2全部敏感性方法和§12.4全部solver指标，每项有可执行正常及必要失败例、当前源绑定实际组合或独立分析oracle，不再将原清单未实现项计为阶段完成。真实native矩阵至少覆盖连续有状态一/二阶模型、参数/IC/常输入/PWL覆盖、实际ode4/ode45/ode15s三层、状态与数字出口/恢复、零响应、受控失败/提前停止/缺输出、TimingInfo重复运行。完整advanced design消费真实trial证据；统计纯数字解析oracle与实际模型analytic oracle分开报告，fixture不替代native。
+
+先完成实现，再集中静态、针对性正反例、原始输入行为和独立跨层审查，记录全部已发现问题、影响、责任文件及复核。统一修正并定向关闭后，冻结最后安全源码，实际重新取得受影响E九/F十一/G十八资格及新H operation资格、真实项目H和受影响既有F/G链证据，最后只运行一次本地全量A–G/H回归。若后续新修改或未关闭失败确需补验，说明范围和原因，仍不在发现第一项错误时重跑全量。根进程独占所有验证/pytest/MATLAB，CPU0,1且数值线程1串行，子审查与编辑不执行测试。
+
+精确最终源码独立审查、最少原材料独立行为测试、source-protected字节、lint/index、真实最终资格和回执、本地全量、PR Windows/Ubuntu CI、单主题PR合并、main字节/历史回读及main双平台CI是分别记录的必要出口。PR CI可与本机串行native队列并行，topic push不触发额外重复矩阵。全部完成才登记H原目标范围完成；开发数据和审查均标注SYNTHETIC INFRASTRUCTURE TEST，不提供真实用户模型批准、现实有效性或发布许可。
+
+本轮实际证据进度见 §12.32；该记录与最终候选本地全量、独立审查、PR/main 双平台 CI、合并及只读回读分别验收。
+
+## 12.22 最终源审查中的数值和证据精度细化
+
+候选 `e3b3677` 的完整定向检测与精确源审查在原生运行前发现实现缺口：共同大偏移下重新减去舍入后的原始均值会改变 Sobol 与 UQ 方差；单位换算中间值下溢可能把非零残差变成零；真实 TimingInfo 尚缺独立可读 MAT 原始量和物理一致性核对；study 写入及 native 原始报告预估未完全执行已有序列化/全读集预算。完整发现及影响集中保存在本轮问题记录，先细化以下口径再统一修正消费者。
+
+统计中心量在偏移坐标中计算；显示均值可舍入，但不能用于回减、方差或协方差。有限估计不裁剪或为了通过先验而改变阈值。非零量的单位换算必须保持已解析的严格正有限尺度；本实现不能解析的下溢/溢出受控拒绝，不把它当成零或放宽标准。
+
+性能证据保留真实 SimulationMetadata.TimingInfo：四项实际 double 标量组成固定列向量，原始 start/stop 字符串在返回 MAT 中与 run/case 身份一起保存，与 JSON 独立核对。[R2025b 官方文档](https://www.mathworks.com/help/releases/R2025b/simulink/slref/simulink.simulationmetadata.html)声明原生 wall-clock 字符串为无时区的秒级本地时间，四项 duration 为微秒级 double，total 为 initialization/execution/termination 之和。实际 `sim(in)` 前后分别捕获明确 UTC 调用时刻和本地 UTC offset；原生字符串依其真实量化区间核对该调用区间，不能当成具有微秒精度的 UTC 时刻。原生组件时间、总时间、native start/stop、实际 sim 区间及 case/raw/process 包围区间须满足文档分辨率支持的物理关系；精确 MAT/JSON 原始量对照不引入近似。进程时间继续单列，不能替代 TimingInfo。任何无法解析、形状/类型/身份/格式错配或不可能时间都阻断性能证据。
+
+study 输入写入前使用与实际输出完全相同的 UTF-8 LF serializer 作精确 forecast，并将虚拟新输入与完整独立授权读集纳入逐文件及累计预算。native 原始报告预估包含每个 case 的全部输入 time/value knots、保存时间、output/state 数列与固定 metadata，完整维度/节点界在调用 MATLAB 前检查。不能先运行再靠 decoder 拒绝可预知的过量报告。
+
+上述细化不改变 H 全范围目标、已冻结标准、现有批准/primary/state 权限或开发出口；失败证据及旧版本保持原样。修复所有已收集问题后只复检受影响节点，最终安全源码冻结并完成实际资格与原始项目行为之后才执行一次本地全量回归。
+
+共享 typed evidence graph 的字节声明 helper 与 H2 claim 循环须保持不同局部绑定；修复不得跳过角色、membership、SHA 或累计预算。原敏感性清单中的 `scenario_response` 同时属于 named sensitivity 与 robustness 路由，其已实现算法和 source-required 接受链保持不变。
+
+## 12.23 完整研究验收的单次校验复用
+
+在原始完整 H 实测之前，集中定向检测及只读栈采样发现验收成本问题：一次 H2/state 校验对每个固定研究重复进行七次完整 source 校验、三次完整 H 资格重建；22 项研究会放大为 154 次 source 校验、66 次 H 资格重建。循环有界且持续推进，但直接重复全部上游会浪费完整方法验收的时间。先细化本节，再在当前集中检测结束、记录全部失败后统一修改。
+
+允许一次顶层只读 H/state 校验内部使用私有、有界、随调用结束清除的已验证 source/receipt 结果复用。结果只能由本次调用中的实际消费者建立，不能信任调用者传入的报告、JSON 标志或跨调用缓存。每次命中仍独立重新发现完整 typed 读集、检查角色/路径权限、完整 stat/文件/节点/总字节预算、全部 SHA 及 source authority；与已验证读集及上下文完全一致才复用，返回独立副本。任何字节、symlink 解析、成员、预算、root、审查要求或 source identity 差异都清除该项并重新完整校验；新调用、异常及退出不保留验收缓存。私有缓存最多 64 项、64 MiB，超过上限则按原算法校验，不截断证据或改变业务结果。
+
+此复用仅消除同一次历史消费中的重复计算，不缓存当前运行资格、当前时效判断、新执行的逐案例开始时间/solver/deadline 检查、执行许可或状态决定。历史回执只有在完整原生/资格读集和原案例固定开始时间、solver、deadline 都未改变时才能复用本次调用中已独立执行的逐案例证明；任一字段或字节改变即重新完整校验，不能由历史证明取得当前许可。新执行及当前资格仍独立重建逐批读集与逐案例 gate。保留 23 个受保护 A/B/D 源字节、全部旧证据、原始七份及 active V5 先验和全部数值标准。使用真实完整消费者的正常、跨调用变更、同次调用文件/读集/symlink 改变、伪造 supplied report、私有信息不泄漏及缓存容量退回负例定向验证；完整方法和开发出口范围不减少。集中记录问题、统一修正、定向关闭、冻结最终源码并完成实际资格/行为后，仍只进行一次本地全量回归。
+
+## 12.24 单次复用计账的实际成本修订
+
+提交 `47995a2` 的受影响 76 节点检测在第一个完整历史 fixture 准备阶段消耗 530.983 秒，仍未完成任何测试。根代理保留原命令、日志、JUnit、20 秒只读栈采样及中断记录；399 个采样中 349 个含完整 retained-size 遍历，306 个含 extras 构建。静态成本审查确认逐原始 record、逐 owned directory、逐 installation 和逐 receipt 的计账循环反复扫描全部父子图及增长中的局部表，反向放大 §12.23 的复用成本。此轮以受控 SIGINT 结束，0 个完成结果，全部 76 节点仍待验收；既不认定通过，也不将其登记为完整问题收集或全量回归。
+
+先记录所有同类扫描点，再集中优化共享私有守卫计账。允许在没有业务回调、子校验或重入的封闭步骤内，先独立核算当时完整 session、父 registry、当前 descriptor/guard/read-set 的基座，再保守累计本步骤新建的完整对象、容器实际增长和下一次复制/插入预留。基座及计账不得跨步骤、守卫、消费者调用或当前资格检查复用；新增对象未知、成环、无法计量或超过当前 64 MiB 上限时，仍清理私有帧后退回原算法。共享字节保守重复计入可以接受，不能少计同时存活的对象或用序列化字节替代实际 Python 内存。
+
+每个步骤结束、原业务计算前后、最终守卫、返回副本、出版及 deferred commit 的完整 live 核算继续独立执行。原始 typed 图发现、角色/路径权限、完整 stat/文件/节点/累计预算、SHA、source authority、lexical link、host/runtime/function resolution 和精确 owned inventory 检查全部保持；新执行仍逐 case 重建实际时效、solver、操作并集和 deadline，不能从历史事实取得新执行许可。不得扩大缓存 scope、缩小预算或数值矩阵，也不得改动 23 个保护源、1160 份旧证据及原先验。
+
+实际成本诊断发现上述退化时可有限停止并保存未执行范围，避免为等待首次 fixture 耗尽完整验收预算；此诊断不替代任何验收结果。集中修正后，先检查真实消费者的计账成本、容量退回、父子 live 计量及完整结果一致性，再一次收齐所有受影响定向结果。所有定向、实际资格、完整 H/既有 F/G 与独立 oracle 闭合后，仍只进行一次最终本地全量回归及原定 GitHub/main 出口。
+
+## 12.25 有界复用的验收修正与增量复核
+
+提交 `cdcd322` 的 76 节点收集后来遭到 SIGKILL，原因未记录；原日志留下 41 项通过及 21 项失败的进度，但没有完整 JUnit，不能登记为完整通过。保留原命令、日志、逐字节源码及顺序核对，只补取 21 项失败的实际轨迹和 14 项未完成结果。该 35 节点收集实际得到 14 PASS、21 FAIL、0 error、0 skip，120 项维护源码在运行期间保持一致。此前未受影响的通过进度继续复用，最终一次全量提供完整正式覆盖。
+
+集中诊断确认三类修正：损坏的 VersionInfo.xml 在 E 消费边界应由特定 XML ParseError 转成受控 ValueError；测试 numeric 探针只统计真实 hypothetical trial，仍原样执行合法 H1 消费；qualification 探针分别统计 trial 与必要的 probe 重建，全部真实调用继续执行。另一项单节点实际诊断确认，已有合法失败 study proof 在 H2 父级 live 图中命中后，其完整 fresh guard 预留使计账 54,538,092 + 13,839,882 超过 64 MiB，正确删除可选 entry 并退回原算法。测试不得要求该 entry 跨越容量回退后仍保留；在同一真实 session 内邻接验证 study 与 H2 各自的实际命中、严格重算计数、返回副本隔离和不升级结果，保留容量为零的原路径一致性控制。生产缓存、64 项/64 MiB 上限、所有资格和数字标准保持原样。
+
+统一应用全部已确认修正后，最小回测覆盖 21 个失败节点、1 个调整调用组合的 supplied-report 负例和 2 个直接 E 正例，共 24 个节点；未变且未受影响的 14 项正式通过结果及此前通过进度无需重跑。若回测暴露此前被探针遮挡的问题，先一次收齐并记录，再修正及复检其依赖范围。scratch 编排 helper 的固定 76 项要求不构成重新执行全部 76 项的理由，也不能据此伪造合并后的正式通过结果。测试结果复用与保守源码绑定的运行资格分别判断；最终源码变化或当前 TTL 要求的实际 A/D/E/F/G/H 资格仍须独立取得。
+
+上述 24 项完整回测实际为 23 PASS、1 FAIL、0 error、0 skip。唯一剩余项是 qualification-owned lexical alias 的拒绝原因可见性：原生 qualification 消费者按精确完整 artifact 集拒绝新增 alias，trial assessment 将实际拒绝写入逐 case 错误，外层 receipt 消费者因原成功回执与重算不一致而拒绝。测试应同时核验实际内部 inventory 拒绝及精确外层重算不一致，再完成 alias 删除、原始字节恢复和真实完整回执重新接受；不能要求内部消息未经外层契约转换直接出现在公开 errors，也不能只接受任意失败。只调整该节点的局部只读观察，复用 23 项通过结果，单独回测该拒绝及恢复过程；生产消费者和共享探针保持不变。
+
+23 个保护源、1160 份旧证据、原始先验和 active V5 先验继续逐字节保留。定向关闭后完成原定完整 H、必要 F/G、独立 oracle 和 caller 回读，再执行一次最终本地全量、最终提交独立审查、PR 与 main 双平台 CI、合并及 main 只读回读。全部材料继续明确 SYNTHETIC INFRASTRUCTURE TEST，不产生真实模型批准、采纳或状态升级。
+
+## 12.26 R2025b 原生状态枚举的明确序列化
+
+最终源码的首次实际 A/D/E/F/G 资格通过；H 的完整 20 案例收集实际得到 3 个受控负例通过、17 个正例及计时检查在同一 state_labels MAT 类型检查失败。逐一解码 18 份实际 state MAT（含受控无输出案例）确认：原生 Label 是 `Simulink.SimulationData.StateType` 枚举，直接保存后为 MCOS opaque 对象；JSON 则编码为 `CSTATE`。合成夹具写入字符行，未覆盖此原生格式差别，不能据此宣称实际资格通过。
+
+先明确原生导出边界，再修正 MATLAB producer：验证 Label 的真实枚举类、标量形状及精确 `StateType.CSTATE` 值，随后将该已验证枚举的规范代码 `CSTATE` 导出为明确 char 行，供 JSON/MAT 对照。原始 returned SimulationOutput 中的原生枚举继续原样保留；不改状态值、BlockPath、单位、时间、CSV、数值阈值或 Python 严格 U1 字符行消费者，不接受 opaque 对象或宽松字符串强制转换。实际完整 20 案例重新验证导出、数值、受控失败及恢复，既有不受影响 Python 通过结果继续复用。
+
+此次单个 H MATLAB 源文件修正落在既有共同 120 项保守安全闭包内，新执行必须取得新源码 E/F/G/H 资格；保留首次全部成功与失败证据，使用新目录和命令身份，不覆盖或把旧源码资格记为新源码通过。A/D 保护源及当前资格未受改变，继续复用。后续未执行命令显式绑定这些新 profile；只修正相应 scratch 配置与严格原始 caller/final-freeze 元数据绑定，不以 helper 固定名称为由重跑旧测试。最终本地全量仍只在全部实际业务及独立出口闭合后执行一次。
+
+## 12.27 原生资格的比较域与失败数值记录
+
+枚举修正后的新源码资格中，E/F/G 通过，H 的完整 20 个原生 case 全部通过；五个数值组有四个通过，`first_ode15s` 在既定两端点准则下合法拒绝。原始端点 D01 为 1.4217772924651761e-05、D12 为 1.9288400064487732e-05，二者均小于 0.001，但收缩比 1.3566400424812077 超过既定 0.9。实际轨迹的独立解析误差随三层细化减小，终点局部误差的抵消不保证端点差异单调；不能把该拒绝改记通过或事后放宽阈值。
+
+先将后继资格的 ode15s 组明确改为 §12.17 已实现的完整 recorded-PWL 比较域，再运行新的实际资格：在整个 [0,2] 区间的三个轨迹 union knots 上比较输出和状态，不删时间点、不调整模型、非零初值、输入、求解器三层设置、绝对阈值 0.001、收缩上限 0.9 或 roundoff floor。此举采用新的全轨迹范数，不能证明原端点准则曾通过；它仅资格化记录轨迹重构的一致性，不声称连续真解误差界。ode45 组保留已有端点覆盖，ode4 组保留完整粗网格覆盖。原始 V5 业务先验和旧失败材料保持不变，后继请求须在新执行前明确声明此域并由真实消费者重算。
+
+同批修正失败数值记录的丢失：若真实三层重算已经生成 complete 但未满足 criteria 的结果，profile 的失败组保留该原始结果和拒绝原因；只有未能完成重算的错误才保留 result=null。任何失败仍令该资格拒绝，不产生 solver、operation 或状态许可。增加一个真实三格式重算的非收缩负例，核验失败细节保存及资格拒绝，并复检完整 profile 正例；其余已通过 Python 结果继续复用。源码绑定的 E/F/G/H 资格使用新身份与新目录，当前 A/D 复用，仍不启动或重复全量回归。
+
+## 12.28 完整实际研究收集后的标量与零因素边界修正
+
+最终源码 `3cfd58e` 的完整原始 H 研究已收齐 22 项：13 项通过，3 项连续/相关 Monte Carlo 在结果 JSON 出口失败，6 项纯数值配置比较在原生请求构造前失败。全部实际命令、13 项成功、9 项失败、519 次已完成仿真及 173 组三层数值证据保持原样；不在首次错误处中断或启动全量。三项 Monte Carlo 各 48 次仿真及 16 组数值检查均成功，但 `uncertainty_metrics._offset_display` 的 NumPy epsilon 运算产生 NumPy bool，沿 `mean.estimate_defined` 进入严格 JSON 而失败。仅在该出口将既有 guard 转为 builtin float、既有比较结果转为 builtin bool；保留 factor 32、原始计算顺序、数学准则、阈值和先验，不引入泛化 JSON 强制转换。
+
+纯 solver/runtime 比较不扰动物理因素时，合法设计有零因素、每行空向量；每个数值配置及每次重复仍须独立三层执行。`materialize_trial_manifest` 只在 `method=runtime_comparison` 且因素集合为空时允许该行空向量，其他方法和非零因素行保持原非空、精确长度、有限可表示数值检查。物理快照、重复顺序、求解器政策及全部预算不变，不放宽通用数值数组消费者。六个原始比较各有 6 组、18 个尚未执行案例；原先总量估计不能替代实际有序设计和自适应边界搜索的完整台账。
+
+先统一记录两类实际问题及独立诊断，再集中应用这两个最小修正。定向检测覆盖普通/未解析/常量不确定性结果的真实 JSON 往返、合法零因素 manifest 的相同物理快照及完整 triplets，以及额外值、非数字、缺失因素和预算拒绝；复用未变、未受影响的 Python PASS，不重复先前全部定向节点或此前阶段的开发验证。最终本地全量仍为全部实际业务、独立 oracle、caller 及必要 F/G 出口闭合后的一次正式回归。
+
+当前历史消费者严格绑定共同 120 项源码，包含这两个修正文件；旧原生请求、E/H 资格、H1 和 study 结果不能在修正后自动成为新源码接受链。保留旧源码真实 PASS 与失败事实，不改写旧 raw/receipt、不重新散列旧文件冒充新执行，不为节省执行而删减安全闭包或引入临时兼容绕过。最终修正源码只取得一轮新的 E/F/G/H 资格及其所需当前业务证据，使用新命令、目录和尝试身份；A/D 23 个保护源及其未过期资格继续复用。此源码绑定所必需的原生证据补取与 Python 全量回归分别记录，不能把复用的旧事实称为新源码 PASS。全部材料仍为 SYNTHETIC INFRASTRUCTURE TEST，不批准、采纳或升级真实模型。
+
+## 12.29 独立核对的内部标量与受控错误元数据边界
+
+当前源码的原始 H 研究已完成 22 项、209 组三层证据、627 次案例及 27 批次；H2 support、modify、reject 均技术有效且决定完整，后两项不升级为验证支持。三个独立 oracle 的首次结果统一收齐后，baseline 的 23 项检查通过；native oracle 完整读取 28 个目录、647 个案例，但其严格原始 JSON 标量检查错误地拒绝了内部 NumPy 浮点时间，另有一项受控错误的 ProfilerData 形态检查失败。统计 oracle 的独立不确定性计算把 NumPy guard 和布尔判定送入严格比较及 JSON 出口，记录两条自身类型问题并导致报告截断。所有首次报告、部分报告和命令保持原样；部分写出的七项通过不能代替完整 22 项统计接受。
+
+原始 JSON 数值入口继续只接受有限 builtin int/float 并拒绝 bool。仅在 native oracle 已严格校验并构造的 float64 时间向量送入其独立解析函数之前，将该内部时间标量转换为 builtin float；不泛化输入转换或接受布尔数值。独立统计 oracle 仅将原计算所得 display guard 和判定分别明确输出为 builtin float/bool，保留 factor 32、计算顺序、随机设计、估计量、阈值及原始先验，不引入通用 JSON 强制转换。
+
+实际 R2025b 资格的 controlled_error 在执行前返回 DiagnosticError：error_count=1、tout_count=0、ExecutionElapsedWallTime=0，原公开 TimingInfo.ProfilerData 为 []。独立 native oracle 只对该预先声明的受控错误及上述一致事实允许原空数组；正常执行仍要求原非 profiling 字符消息，其他数组、空消息或 profiling 结构不据此获得许可。七项 TimingInfo 元数据、六项实际 MAT 原语的类别/形状/逐值身份、真实调用时刻、秒级原生时间与微秒级 duration 区间、duration 加和及恢复核对继续保持，不把受控错误记为成功仿真或数值完整。
+
+先保存集中发现和此计划修正，再生成新版本的两份独立 helper 及必要的明确程序 SHA/报告身份元数据，保留旧 helper 和失败输出。它们不属于共同 120 项生产安全闭包；不修改生产源码、原始 MAT/JSON/CSV、原先验、真实数值准则、十九个 gate、二十一个 acquisition 或六个 main 输出角色。已通过的 baseline 与未受影响测试继续复用，仅关闭内部标量和受控错误边界并重新读取受影响的两个 oracle；不重跑 MATLAB、资格或此前全量。剩余 caller、必要 F/G 和独立出口闭合后才执行原定的一次正式最终候选全量。
+
+## 12.30 独立统计核对的恒定 ZOH 输入子类
+
+修正 §12.29 的独立出口后，native oracle 完整通过 28 个目录、647 个案例；baseline 的 23 项通过继续复用。统计 oracle 首次写出的完整 22 项报告收齐 12 项通过和 10 项同类拒绝，共 312 个输出/状态检查拒绝其输入插值标识。逐项读取对应 15 批次、156 个案例确认：原输入均为有限 builtin 数值、time=[0,2]、values=[1,1]、interpolation=zoh。三项 H2 独立接受链的缺失是这些原始研究未取得独立证明的后果，不改记真实 H2 生产失败或提前通过。
+
+独立统计解析函数原来只承认 continuous PWL 输入。现明确允许已经严格校验、所有原始 values 与首值精确相等的恒定 ZOH 子类：它在整个声明时间域与相同常数的线性插值函数完全一致，既有解析 advance 中的斜率仍为零。时间和值继续逐项执行原 number、有限性、形状、严格时序及区间覆盖检查；未知插值、非恒定 ZOH、bool、非有限值或不完整信号仍拒绝。不把原 zoh 元数据改写为 linear，不扩展任意阶跃输入，不调整模型、初值、采样、解析公式、随机设计、估计器、误差阈值或原先验。
+
+先保存全部同类发现并修正此计划，再创建新版本的独立统计 helper 及其实际程序 SHA/报告身份元数据。新 helper 重新消费已有完整证据，保留旧 12 项通过、10 项拒绝及部分报告事实；已通过且未改变的 native/baseline oracle、生产 120 源、资格、MATLAB 执行和 Python 检测均不重跑。仅对新增恒定输入边界关闭必要拒绝例，并收齐完整统计/H2 独立结果；caller、必要 F/G 及最终一次正式全量仍按原顺序完成。
+
+## 12.31 首次原始回读的时点资格失效与透明补验
+
+原始合成 support caller 的首次只读回读已收齐全部 17 项：16 项通过，只有 h_analysis_trials 当前新执行资格因未改变的 A profile 在长回读期间过期而拒绝；当次 E/H 仍有效。全部原输入、源码、state、sidecar 及 5984 项事前 snapshot 字节身份保持，所有事前事后守卫通过。原 FIRST snapshot、helper、配置、命令、非零退出码、全部检查和失败 summary 逐字节保留，不能覆写或把首次尝试记为成功。
+
+带原 state_path 的请求仍必须匹配原 state 中的 profile 路径及 profile/receipt SHA；其过期资格请求继续 blocked，不能用新资格重绑原 state 来取得许可。仅补验现有 root-only h_analysis_trials：同一原项目根、原失败请求的同一 reviewed/source-bound study、原 physical baseline 及 primary H1，显式当前独立 A/E/H profile，不传 state_path，不写 state。仅对真正过期且新检查所需的资格取得新身份；补验必须完整满足原 source、runtime/host、solver/operation union 和当前许可规则。这是新时点同 study 的当前 eligibility，不是原 state 刷新、模型批准或参数采纳。
+
+后继 support schema2 接受记录透明绑定首次尝试失败、原 snapshot SHA、原 16 项自己的真实通过及新 root-only 单项补验通过。它不称 successful FIRST，不声明 state-conditioned trial 正向比较分支获得新的 actual PASS，不把旧 current PASS 解释为今天的执行许可。此前实际 state scope-all-current-runtime 通过、已通过的 targeted 当前 state 及历史边界检查、精确 source 审查继续作为各自范围证据；保持原字节的 state-conditioned 分支继续约束状态绑定，本次独立 root-only 调用不替它声称执行。numeric 原 schema1 FIRST 接受保持。
+
+此修订仅是 developmental acceptance 的透明时点补充：既有 support_readback gate 和 21 acquisition 中的 readback_support 角色改绑新的实际单项补验 capture 与准确 reviewed 配置，原首次配置与非零 capture 在 support 的 original_first 证据中严格绑定。新 schema2 只增加必要原始/补验 provenance 字段，最终 summary 明确按哪些实际检查完成；不是造一份 all-success FIRST。19 gates、21 acquisitions、13 producer authorities、6 main 输出不增加，不改 production120、protected23、原先验、source binding、TTL 或历史 native/study/H2 证据，不新增 producer、resolver wrapper、workflow 或性能机制。任何其它失败、guard 变化或 physical identity 不符先统一记录，不适用此单项恢复。完整 17 项及可实施性报告收齐、此计划先提交之后，才更新必要资格和进行补验；最终进度段移为 §12.32。
+
+## 12.32 完整 H 原始证据进度与最终候选出口
+
+本节记录最终候选形成前的实际材料；全部开发出口通过前不登记完整 H 完成。
+
+§12.28 的两个最小生产修正后，新身份 E/F/G/H 执行时资格均通过：E 9、F 11、G 18 个预期案例检查，H 20 个原生预期案例检查与五个三层数值组；A/D 保护源码保持，基线消费其合法执行时资格。独立原始合成项目复用两份已批准 D 建设与原冻结协议，取得新源码下 15 次 E 基线运行及五项 H1 通过；没有重新建设 D 或重冻结协议。原始 V5 数学先验、输入、模型、阈值和批准绑定不改变。
+
+新源码原始 H 研究完成 22 项、209 组三层证据、627 次原生案例及 27 批次，全部 valid、complete、defined、accepted。H2 support、modify、reject 三项均技术有效、决定完整，各绑定 22 项必需研究；只有 support 支持其有限合成主张，modify/reject 不升级为验证支持，三者均不提供物理有效性。
+
+独立 native oracle V4 完整通过 H-v4 加全部研究批次的 28 个目录、647 个案例、1292 个输出/状态 streams 及 31938 个 samples，实际 MAT/JSON/CSV、状态、恢复、TimingInfo 与解析数值核对均完成。独立 baseline oracle V2 的 23 项通过继续复用。独立统计 oracle V6 的全部 22 项研究与三项 H2 必需接受链通过，read_set_unchanged=true、issues=[]。§12.29/30 的失败报告和截断输出保持原样；只修独立 helper 后读取现有证据，没有因此重跑 MATLAB、资格、生产源码或此前 Python 全量。
+
+原始 numeric caller 的事前 FIRST 快照、首次当前运行时只读回读及 schema1 接受身份已闭合。support 首次回读收齐 17 项，16 项通过，唯一 h_analysis_trials 当前执行资格因 A profile 在长回读期间过期而阻止；原 snapshot 的 5984 项、state、sidecar 和全部输入守卫保持，首次非零退出及失败报告原样保留。按已先提交的 §12.31，只更新实际过期的 A 资格，在同一原研究、physical baseline 和 primary H1 上进行不带 state 的 root-only 当前 eligibility 补验；新 A probe 和单项 resolver 调用均实际返回退出码 0。严格 support schema2 接受及 composite summary 已实际通过，透明保留原 FIRST 失败；不宣称原 state 的资格刷新或 state-conditioned 正向分支获得新的实际通过。
+
+modify/reject 的决定准备与 model_verification 只读回读均实际退出 0，summary passed=true、findings=[]；两份回读各有 5977 个输入身份，前后 changed=[]，未调用 MATLAB、未写 state。两者的历史决定保持有效，但 verified=false，不升级为 support。
+
+既有 E/F/G 资格实际过期后，为剩余 F/G 新执行仅补必要的 E/F/G-v5 当前资格；三项实际退出 0，9/11/18 个预期案例检查通过，120 文件 source、A2 绑定、同宿主/运行时、各自规范 fingerprint、函数文件 SHA、receipt artifact 和完成时 freshness 已核对。跨阶段 function-file scope 不同的整体 fingerprint 误比较报告保留；窄修仅按既有 same_runtime 七字段比较共同运行时身份，并经独立复核通过。没有修改生产源码、放宽资格或重跑资格；原始 H 执行时资格与已通过 native/H2 证据保持原身份。
+
+必要既有 F/G 实际出口已收齐并通过独立数值核对。legacy own attempt 保持 native-v1，G 准备绑定当前 forward native-v2。F 的 identification.arx_111、calibration.simulink_gain、optimization.quadratic_sqp 三个有界方法实际退出 0，candidate_complete、声明候选 oracle 与独立数字格式核对均通过，42 份原输入字节保持。G 的 scenario_matrix、full_factorial、monte_carlo_catalog 三个 campaign 各完整执行两次 draw，实际/历史消费者和独立解析及三格式核对通过；独立 controlled_failure 保留三条声明行、两次实际尝试和一条未尝试，campaign_complete=false、valid=false 与所需失败记录均符合预声明 oracle，不把它记为正常完整 campaign。执行期后的 F/G 当前 source 与全部输入守卫保持；没有因此重跑已通过且未变的 H 原生研究、资格或 oracle。
+
+本节记录时，最终正式本地全量执行次数为 0；最终 candidate/tree、独立候选审查、lint/index、PR 双平台 CI、合并及 main 六项只读回读和 main 双平台 CI 均分别待定。未改变且已通过的检查继续复用；收齐其余问题后统一修改，只对受影响范围补验，再进行原定的一次最终全量。最终证据冻结选用经独立窄审查通过的 FreezerV11，尚未执行冻结。
+
+全部材料均为 SYNTHETIC INFRASTRUCTURE TEST。23 个保护源、1160 份旧证据、原七份及 active V5 先验保持；当前执行不凭历史旧源码证据取得新源码许可。19 gates、21 acquisitions、13 producer authorities 和 6 main 输出角色不增加；完整 H 开发出口仍按 §12.21 分别验收。I–K、release/tag/install 和真实模型批准不推进。
+
+## 12.33 最终全量中的隔离测试结构修正
+
+候选 `5c977fe02a64d5a667147a2563f7c767c3d3df7f` 的首次正式最终全量已于 2026-10-13 15:11:07 UTC 完整结束：1938 项中 1936 PASS、2 FAIL、0 error、0 skip，耗时 15008.377 秒。没有在首错处重启；原 command、log、result 和完整 JUnit 保持原样。§12.32 的执行前快照继续保留，不将这次非零结果记为全量通过。
+
+完整本地清单确认两项隔离 synthetic fixture 结构过时：`test_per_case_gate_cache_still_rejects_expiry_and_solver` 的手填缓存缺当前 collector 的 required/qualified A 操作、host/executable、include_h 和完整 process/raw 时间窗口；`test_accepted_h2_disposition_does_not_require_support` 的直接 state 输入缺 schema 必需的 artefacts。一次补齐前者的全部必读字段及一致 deadline，后者明确提供空 artefacts；保留原成功、过期拒绝、solver 拒绝和已决定 reject 不要求 support 的全部断言。当前证据没有要求改变生产资格、研究祖先、数字准则或批准/状态边界。
+
+本地完整清单中的两项已确认 fixture 问题在同一批应用最小修复，只补验对应两个节点，这次定向补验不重跑原 1936 项通过检查；同时继续收齐原候选 Ubuntu/Windows CI 完整结果，将额外平台问题记录并统一修复，保留原候选 CI，诊断提交不主动取消其运行。原候选双平台 CI 完整结果收齐、全部本地及平台已发现问题关闭、精确候选复核及静态出口完成后，才按 §12.21 的必要补验规则执行新的 `final-full-regression-v2`，不提前启动第二次全量。保留失败 v1；新 command/log/result/JUnit 使用独立身份和文件路径，不覆盖旧材料。测试和计划文字修订不属于共同 120 项生产安全闭包；确认该闭包字节未变后，复用已通过的 627 次 H 原生研究、H2、资格、独立 oracle、caller 和既有 F/G 材料。
+
+实际 JUnit 耗时集中在七个明确的 H 相关测试文件，占 testcase 累计时间的 91.54%；该时间含 fixture 建立和清理，不等于单一函数的 CPU 归因。本次修正保持原性能机制、预算和完整回归范围。最终冻结的同一 final_local_full 角色改绑真实 v2 配置及 JUnit，薄后继 FreezerV12 只更新这两处元数据；19 gates、21 acquisitions、13 producer authorities 和 6 main 输出角色保持。PR 双平台 CI、合并、main 只读回读及 main 双平台 CI 继续分别验收；全部材料仍为 SYNTHETIC INFRASTRUCTURE TEST。
+
+## 12.34 Windows 可选历史复用断言与最小平台诊断
+
+原候选 `5c977fe02a64d5a667147a2563f7c767c3d3df7f` 的 Windows CI 已完整结束：1938 项中 1933 PASS、5 FAIL、0 error、0 skip，实际终端汇总耗时 17799.17 秒。两项与本地相同的缺字段 fixture 已同批修复并在两个本地定向节点实际通过；旧 Windows 结果绑定修复前候选，不能据此记为新 Windows 通过。额外三项均在 `tests/test_h_validation_reuse.py` 的两个函数：四 H 角色与三 baseline 同 session 的保留断言缺 `study_receipt`、`h2_source`、`h2_receipt`；合法 modify/reject 两个节点的 `claim_metric` 实际各计算 2 次，而断言要求 1 次。完整原始失败与调用计数保留。
+
+已确认的是这些断言之前实际有效结果、typed_equal、合法决定及不升级为支持均已通过；失败之后的副本隔离与零 entry 分支没有在该 Windows 尝试执行。64 项和 64 MiB 是可选复用上限，不保证七类 proof 同时常驻；合规容量回退仍须运行原消费者并保持原报告。当前日志没有自身 proof retained size、拒绝 phase 或 guard 命中信息，不能确证本次 miss 是预算、对象/路径成本、所有权还是某项初始 guard 差异，不能把未确定根因写为生产缺陷。
+
+先记录本节并完成精确源审查，再只修上述两个函数的三个新增受影响节点。候选组织采用每个 public role 邻接 cold/hot/返回副本隔离读、role 间 fresh session；study 与 H2 的合法失败检查分别使用 fresh session。保留真实 baseline 复用、完整 fresh whole-graph guards、typed report equality、合法 modify/reject/nonpromotion、零容量原算法控制和严格实际 recompute 计数。不能把 1 放宽为 1 or 2，不能伪造计数、屏蔽拒绝或把缓存永不命中当作 positive 控制。fresh session 只是待实测的组织候选，不承诺它已解决 Windows；自身 proof 若仍拒绝，仍严格失败并保留全部诊断材料，然后按实际原因继续源先行修订。
+
+仅为本轮诊断增加局部有界 scalar observer，原样 forwarding 真实 `_memo_capacity`、`_memo_builder_check` 与现有 `_retained_size` 观察，记录自身 role、cold/hot 序号、真实 size/None、guard/publication/refusal phase、源行号和原始计数。不得保存实际 graph、report、argument、frame 或 traceback；不得 wrapper 包装 `_attempt_h_validation_reuse` 或 `_publish_validation` 改变 immediate-caller authority。None 不单独证明超限，child role 拒绝不冒充 own role 拒绝；所有原资格、预算、guard 与返回语义保持。
+
+现有 `.github/workflows/ci.yml` 没有 concurrency 或 cancel-in-progress 配置，新 PR 分支提交不会由该工作流自动取消原候选 Ubuntu 运行。因此 §12.33 仅撤销“原候选 CI 完成前禁止推送以免取消”的错误因果限制，继续保留原运行与全部旧材料。必要时在同一现有工作流临时显式选择上述三个节点，以原 Ubuntu/Windows matrix、原 setup/lint/index 环境取一次集中平台诊断；不新增 workflow，不扩展到旧两个已通过节点、无关测试或 native，也不在首个失败处重启。该运行必须标为 diagnostic，其结论只能覆盖三个节点，不能作为 formal pr_ci、全量 PASS 或完整 H 开发出口。
+
+获得真实 Windows 诊断并收齐额外问题后，统一应用最小修正，必要受影响补验关闭，再恢复原工作流的完整 pytest 命令，形成最终候选并完成精确审查和静态出口。原候选 Ubuntu 于 2026-10-13 16:56:18 UTC 仍 in_progress；当前不宣告 timeout。若它之后实际 timeout，先保存完整终止日志、已执行/未执行范围与真实终止状态，不能把 incomplete 当作完整通过；只有发生真实 timeout 后才基于实际运行成本先修计划和必要 workflow 设置，不预猜 timeout 数值、不排除尚未确认的 fixture 或缩减正式全量。诊断发布通道若受权限限制，采用已有授权的最佳可用平台通道取实际材料；无法取得所需实测则保持问题未关闭，不用本地结果替代 Windows。
+
+必要 `final-full-regression-v2` 仍在原候选双平台结果收齐、全部已发现问题关闭、最终候选/静态审查完成后执行；其配置与薄后继 FreezerV12 不因本次诊断改绑或执行。最终正式 PR Ubuntu/Windows 全量 CI、合并、main 六项只读回读及 main 双平台 CI 仍须分别通过，19 gates、21 acquisitions、13 producer authorities 和 6 main 输出角色不变。生产 source120、64 项/64 MiB 预算、数字准则、source/guard、批准与状态边界不变；已有原生 H/F/G、资格、oracle、caller 及两项已通过缺字段定向结果复用，不重跑。保留所有旧失败，全部材料仍为 SYNTHETIC INFRASTRUCTURE TEST；不推进 I–K、release/tag/install 或真实模型批准。
+
+## 12.35 六小时 CI 上限与完整双平台两分区验收
+
+原候选的 Ubuntu job 已实际 completed/cancelled，最后打印 96%，没有完整 pytest summary 或失败节点清单。完整终止日志只写 operation was canceled；随后唯一只读 REST 诊断取得同 run/head 的 check-run 全部四条 annotations，其中 failure 明确为 `The job has exceeded the maximum execution time of 6h0m0s`。现据此确证六小时执行上限，而非仅按 elapsed 推断；保留原取消、全部旧失败及其未完成范围，不把它记为完整 PASS/FAIL。
+
+本节先修订 §12.34 的正式 CI 执行组织。独立按首次完整本地 JUnit 汇总当前默认发现的 39 个测试文件、1938 个历史 testcase，采用确定的 whole-file 两分区清单：17 文件/1091 testcase/7501.880 秒，22 文件/847 testcase/7501.595 秒。每个文件完整落入一处，交集为空、并集覆盖全部当前默认测试文件；不拆文件内 fixture 或测试、不省略病例。历史成本支持分区可实施性，但不保证另一宿主耗时；新候选必须取得真实完整结果，不能以旧耗时或旧 1938 计数替代验收。
+
+同一现有正式 workflow 恢复完整测试范围，固定 Ubuntu/Windows × 两分区的四个直接 job，不设 aggregate job。精确名称为 `Contracts and fixtures (ubuntu-latest, shard 1 of 2)`、`Contracts and fixtures (ubuntu-latest, shard 2 of 2)`、`Contracts and fixtures (windows-latest, shard 1 of 2)`、`Contracts and fixtures (windows-latest, shard 2 of 2)`。各 job 保持原 setup、lint/index 和 fail-fast=false；正式 pytest -q --continue-on-collection-errors 对该分区完整文件运行并写独立 JUnit，不选择三个诊断节点，不加 skip/filter/-x。先做清单完整性守卫，遇遗漏、重复或新增默认测试文件立即拒绝，不能静默遗漏。既有 checkout/setup-python commit pin 保持；仅新增实际已核验的 upload-artifact v4 commit `ea165f8d65b6e75b540449e92b4886f43607fa02`，以 always 保留各 OS/分区独立 JUnit，不上传无关材料。
+
+薄后继 FreezerV13 只将 pr_ci 原两 job 验收改为上述四个精确 job：保留原始 run 和完整、不筛选的 jobs 响应，严格要求四项全在同 run/head、completed/success、无缺失或额外 job，run 自身也须 completed/success；不扩 schema 形状或新增出口角色。四份实际 JUnit 在冻结前须均无 failure/error/skip；分别按 OS 合并 nodeID，拒绝重复/遗漏/额外节点，并与该最终候选真实本地全量 JUnit 的 nodeID 集合逐项相等。完整覆盖核对及四份 JUnit 归档为 additional evidence，不冒充新 gate。main 使用同一四 job 完整 CI 组织分别通过；三个 main helper 和六项 main 只读输出保持。
+
+先完成实际 Windows 额外问题的集中修正与必要受影响补验，再按本节恢复正式完整 workflow、实施必要分区和窄 metadata 后继，完成精确候选审查及静态出口；随后执行必要的唯一 final-full-regression-v2 和新正式完整四 job CI。此前三个节点的 diagnostic 运行不能成为 formal pr_ci 或完整 H 出口。保留首次非零全量、旧 Windows 全部失败、Ubuntu 未完成及全部诊断材料，不在首错处重启全量。
+
+这次只调整测试执行组织、证据留存和严格 CI metadata 接受；不猜测 720 分钟设置，不改变 production120、资格/source/guard、64 项/64 MiB 预算、数字算法或批准/状态边界。19 gates、21 acquisitions、13 producer authorities 和 6 main 输出角色不增加；既有未变且通过的 H/F/G 原生、资格、oracle、caller 和定向结果复用，不重跑。全部材料仍为 SYNTHETIC INFRASTRUCTURE TEST，不推进 I–K、release/tag/install 或真实模型批准。
 
 # 13. Phase I — Verification & Validation、测试与安全分析
 

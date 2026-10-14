@@ -1,8 +1,8 @@
 ---
 name: simulation-modeling-skill
-description: Audit simulation tasks, design and challenge models, prepare human approval, map approved models and run qualified scalar core Simulink models on MATLAB R2025b with frozen protocols. Review bounded ARX, gain calibration, quadratic trials and finite serial experiments. Assess three-level numerical refinement and finite input, solver and reviewed structural evidence with source-bound receipts. Use for contracts, operation evidence and scoped state checks. General analyses, real-system validation, advanced domains and paper delivery remain deferred.
+description: Audit simulation tasks, design and challenge models, prepare human approval, map approved models and run qualified core Simulink models on MATLAB R2025b. Review bounded parameter studies and finite experiments. Verify numerical trajectories, residuals, constraints, conservation, events and drift; assess sensitivity, continuous or correlated uncertainty, stress, initial-condition robustness, failure brackets and solver or structural comparisons with source-bound receipts. Real-system validation, advanced construction domains and paper delivery remain deferred.
 metadata:
-  version: "0.8.0"
+  version: "0.9.0"
   primary_runtime: "MATLAB R2025b"
 ---
 
@@ -16,7 +16,7 @@ For repository changes, first read [the full implementation plan](docs/V1_FULL_I
 
 ## Current scope
 
-Version 0.8.0 adds the bounded Phase H numerical and model-evidence assessment layers to A–G. Local checks, actual MATLAB qualification, independent review, CI, merge and release are separate evidence recorded in the development PR; a version label does not establish qualification.
+Version 0.9.0 implements the remaining Phase H analysis families under the full plan's feasibility amendments. Local checks, actual MATLAB qualification, independent review, CI, merge and release are separate evidence recorded in the development PR; a version label does not establish qualification.
 
 For problem audit, read [modules/01_problem_audit.md](modules/01_problem_audit.md) and the Problem Contract schema before using its draft template. Text audit and read-only validation require no environment profile. Preserve original material identities, literal coverage, requirements, roles, dependencies, and critical ambiguities. Freeze requires a current source-bound review decision under the actual task authorization; resolve necessary material decisions without demanding approval for every question. Repository development authorization does not approve a real task or its model.
 
@@ -44,8 +44,10 @@ For F, read [modules/05_identification_calibration_optimization.md](modules/05_i
 
 ## Finite experiments
 
-Read [modules/06_experiment_design.md](modules/06_experiment_design.md). Use `experiment_design` for read-only review, `experiment_campaign` for qualified serial execution and `campaign_review` for independent receipt readback. Bind factors, ordered probabilities and settings to source declarations. Every draw uses an independently frozen E member and a fresh E receipt. Stop on a technical failure and preserve partial evidence. Complete fixed-size Monte Carlo statistics are conditional on the declared finite law; numerical verification and physical validity remain later gates. General parameter sweeps, continuous Monte Carlo, LHS and parallel execution remain deferred.
+Read [modules/06_experiment_design.md](modules/06_experiment_design.md). Use `experiment_design` for read-only review, `experiment_campaign` for qualified serial execution and `campaign_review` for independent receipt readback. Bind factors, ordered probabilities and settings to source declarations. Every draw uses an independently frozen E member and a fresh E receipt. Stop on a technical failure and preserve partial evidence. Complete fixed-size Monte Carlo statistics are conditional on the declared finite law. Continuous/correlated and parameter/IC studies use the separate H chain; LHS and parallel execution remain deferred.
 
 ## Numerical and model evidence
 
-Read [modules/07_numerical_verification.md](modules/07_numerical_verification.md) and [modules/08_model_verification.md](modules/08_model_verification.md), their contracts and full plan §12.9–12.15. H consumes independently frozen E protocols and complete actual receipts. H1 supports three-level `ode4` coarse-grid or `ode45` endpoint refinement; H2 supports finite external-input responses, scenario thresholds, sampled solver metrics and reviewed structural differences. Required unsupported checks block acceptance. Keep finite numerical evidence, claim disposition and real-system validity distinct. Write assessments to new directories; never generate model approvals or change approved parameters, conditions, primary runs or state.
+Read [modules/07_numerical_verification.md](modules/07_numerical_verification.md) and [modules/08_model_verification.md](modules/08_model_verification.md), their contracts and full plan §12.16–12.21. H1 supports actual `ode4`, `ode45` and `ode15s` three-level refinement, declared PWL trajectories and source-bound residual, constraint, conservation, event and drift checks. H2 requires accepted primary H1 and complete numeric evidence for source-required sensitivity, uncertainty, stress/IC, boundary, solver and structural studies. Missing or undefined required evidence blocks support; legitimate thresholds can modify/reject claims. Keep reconstruction and statistical scope explicit.
+
+H hypothetical parameter/IC trials require a separately reviewed domain and current same-runtime A/E/H operation qualification for each case. Apply temporary SimulationInput overlays to owned model copies, preserve all original approval/protocol/primary/state bytes, and independently read actual state, timing and numeric evidence. Write only new evidence directories. Validators, routers and producers never generate model approvals, adopt trial values or advance project state. Historical assessment leaves current runtime readiness unassessed while retaining execution-time qualification and current source identities.

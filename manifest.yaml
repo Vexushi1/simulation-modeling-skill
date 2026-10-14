@@ -1,6 +1,6 @@
 schema_version: 1
 name: simulation-modeling-skill
-version: 0.8.0
+version: 0.9.0
 status: phase_h_implementation
 primary_runtime:
   product: MATLAB
@@ -58,5 +58,7 @@ active_authorities:
 - modules/06_experiment_design.md
 - core/numerical_verification_contract.yaml
 - core/model_verification_contract.yaml
+- core/h_analysis_study.schema.yaml
+- core/h_analysis_assurance_contract.yaml
 - modules/07_numerical_verification.md
 - modules/08_model_verification.md

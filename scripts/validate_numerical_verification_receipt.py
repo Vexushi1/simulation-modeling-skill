@@ -121,6 +121,10 @@ def validate_numerical_verification_receipt(path, *, project_root=None, contract
                       primary_receipt_path=str(receipt_paths[0]), primary_receipt_sha256=verified[str(receipt_paths[0])]['sha256'],
                       primary_protocol_report=report['protocol_reports'][0], primary_simulation_report=runs[0],
                       outputs=computed['outputs'], claim_limit=computed['claim_limit'],
+                      checks=computed.get('checks', []), complete=computed.get('complete', True),
+                      scope=computed.get('scope', 'actual_points'),
+                      numeric_policy=report['numeric_policy'], numeric_context=report.get('numeric_context'),
+                      continuous_scope=computed.get('continuous_scope'),
                       bound_files=complete_manifest, input_manifest=complete_manifest,
                       allowed_external=sorted(map(str, paths.allowed_external)),
                       receipt_sha256=verified[str(path)]['sha256'])

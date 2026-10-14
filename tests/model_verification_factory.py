@@ -21,10 +21,12 @@ from verification_common import HARD_BUDGET, semantic_digest
 from model_verification_common import KINDS, obligation_snapshot, settings_snapshot
 
 
-def review_model_verification(path, *, refresh_settings=True, refresh_obligations=True):
-    path, root = Path(path), Path(path).parent
+def review_model_verification(path, *, refresh_settings=True, refresh_obligations=True, project_root=None,
+                              prefix='model-verification'):
+    path = Path(path)
+    root = Path(project_root).resolve() if project_root is not None else path.parent
     value = load_document(path)
-    source_path = root / 'model-verification-settings.json'
+    source_path = root / (prefix + '-settings.json')
     source = load_document(source_path) if source_path.exists() else {}
     if refresh_settings:
         source['settings'] = settings_snapshot(value)
@@ -37,9 +39,9 @@ def review_model_verification(path, *, refresh_settings=True, refresh_obligation
     quote = (f"project_id={value['project_id']}\nverification_semantic_sha256={digest}\n"
              'reviewed_by=synthetic-h2-reviewer\naction=review\n'
              'SYNTHETIC INFRASTRUCTURE TEST ONLY; no real approval, qualification or physical validity.')
-    decision = root / 'model-verification-review-decision.txt'
+    decision = root / (prefix + '-review-decision.txt')
     decision.write_text(quote + '\n', encoding='utf-8')
-    record = write_contract(root / 'model-verification-review.json', {
+    record = write_contract(root / (prefix + '-review.json'), {
         'schema_version': 1, 'project_id': value['project_id'], 'verification_semantic_sha256': digest,
         'decision': {**file_ref(root, decision), 'start': 0, 'end': len(quote), 'quote': quote,
                      'reviewed_by': 'synthetic-h2-reviewer', 'action': 'review'}})

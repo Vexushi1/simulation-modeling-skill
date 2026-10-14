@@ -11,7 +11,7 @@ from validate_simulation_protocol import validate_simulation_protocol
 from model_verification_common import (KINDS, METHODS, constant_level, execution_configuration,
     metric_value, obligation_snapshot, output_port, settings_snapshot, structural_snapshot, variable_quantity)
 from verification_common import (HARD_BUDGET, assert_unchanged, bind_sources, evidence_paths, finite,
-    input_manifest, limited_document, checked_binding, semantic_digest, source_snapshot, typed_equal, validate_review)
+    input_manifest, limited_document, checked_binding, semantic_digest, source_snapshot, typed_equal, validate_review,_memoized_h_validation)
 
 
 def _member(binding, identity, root, result):
@@ -64,6 +64,48 @@ def _bounds(bounds, unit, label, result):
         result['errors'].append(label + ': lower bound exceeds upper')
 
 
+def _study(obligation, claim, primary, root, result):
+    """Selected study evidence is always freshly consumed through its controller."""
+    label = claim['id'] + ':study:' + obligation['id']
+    if obligation['requirement'] != 'required':
+        if obligation['study_contract'] is not None or obligation['study_receipt'] is not None:
+            result['errors'].append(label + ': omitted study cannot carry execution evidence')
+        return None
+    result['required_study_methods'].append(obligation['method'])
+    if primary is None:
+        result['missing_gates'].append(label + ':accepted_original_primary_H1')
+        return None
+    contract = checked_binding(root, obligation['study_contract'], result, label + ':contract')
+    receipt = checked_binding(root, obligation['study_receipt'], result, label + ':receipt')
+    if contract is None or receipt is None:
+        result['missing_gates'].append(label + ':complete_source_required_study')
+        return None
+    from validate_h_analysis_study_receipt import validate_h_analysis_study_receipt
+    report = validate_h_analysis_study_receipt(receipt, project_root=root)
+    result['bound_files'].extend(report.get('bound_files', report.get('input_manifest', [])))
+    if not report.get('valid'):
+        result['errors'].extend(label + ': ' + error for error in report.get('errors', []))
+        result['missing_gates'].append(label + ':current_valid_study_receipt')
+        return None
+    if (report.get('project_id') != result['project_id'] or report.get('method') != obligation['method'] or
+            report.get('contract_path') != str(contract) or report.get('contract_sha256') != obligation['study_contract']['sha256'] or
+            report.get('primary_numerical_receipt_path') != primary['numerical_path']):
+        result['errors'].append(label + ': method/project/selected-study/original-primary identity differs')
+        return None
+    if any(type(report.get(key)) is not bool for key in ('study_complete', 'study_accepted', 'defined')):
+        result['errors'].append(label + ': study completion/acceptance/defined must be exact booleans')
+        return None
+    if not report['study_complete'] or not report['defined']:
+        result['missing_gates'].append(label + ':complete_defined_required_study')
+        return None
+    return {'claim_id': claim['id'], 'id': obligation['id'], 'method': obligation['method'], 'requirement': 'required',
+        'study_contract_path': str(contract), 'study_contract_sha256': report['contract_sha256'],
+        'study_semantic_sha256': report['semantic_sha256'], 'study_receipt_path': str(receipt),
+        'study_receipt_sha256': report['receipt_sha256'], 'study_complete': report['study_complete'],
+        'study_accepted': report['study_accepted'], 'defined': report['defined'],
+        'degeneracies': report.get('result', {}).get('analysis', {}).get('degeneracies', [])}
+
+
 def _analysis(analysis, claim, members, sources, root, result):
     kind, requirement = analysis['kind'], analysis['requirement']
     label = claim['id'] + ':' + kind
@@ -96,6 +138,15 @@ def _analysis(analysis, claim, members, sources, root, result):
             analysis['factor'] is not None and type(analysis['factor']['input_port']) is not int):
         result['errors'].append(label + ': port identities must be actual integers, not equivalent floats')
         return
+    if 'event_index' in metric and type(metric['event_index']) is not int:
+        result['errors'].append(label + ': event occurrence must be an exact integer')
+        return
+    for check_key in ('event', 'check'):
+        if check_key in metric:
+            source_ids = metric[check_key].get('source_ids')
+            if not isinstance(source_ids, list) or not source_ids or not set(source_ids) <= set(sources):
+                result['errors'].append(label + ': derived metric check references unknown/unbound H2 source')
+                return
     mapped = [item['member_id'] for item in metric['member_output_ports']]
     if len(set(mapped)) != len(mapped) or set(mapped) != set(ids) - {'primary'}:
         result['errors'].append(label + ': explicit member output mappings must exactly cover domain')
@@ -166,8 +217,8 @@ def _analysis(analysis, claim, members, sources, root, result):
                 names.add(member['protocol_report']['run_spec']['solver']['name'])
                 if not typed_equal(reference, execution_configuration(member, solver=False)):
                     result['errors'].append(label + ': solver comparison changes nonnumerical settings')
-            if names != {'ode4', 'ode45'}:
-                result['errors'].append(label + ': first comparison requires actual ode4 and ode45 H1 members')
+            if len(names) < 2 or names - {'ode4', 'ode45', 'ode15s'}:
+                result['errors'].append(label + ': solver comparison needs at least two qualified ode4/ode45/ode15s H1 solvers')
         else:
             reviews = analysis['structural_review']
             if reviews is None:
@@ -202,12 +253,14 @@ def _analysis(analysis, claim, members, sources, root, result):
                     result['errors'].append(label + ': ' + str(error))
 
 
+@_memoized_h_validation('h2_source', 'h2_contract')
 def validate_model_verification(path, *, project_root=None, require_reviewed=False):
     result = {'valid': False, 'schema_valid': False, 'reviewed': False, 'assessment_ready': False,
               'environment_checked': False, 'execution_allowed': False, 'contract_path': None,
               'contract_sha256': None, 'project_id': None, 'semantic_sha256': None, 'bound_files': [],
               'primary_numerical_receipt_path': None, 'primary_protocol_path': None, 'primary_receipt_path': None,
               'model_identity': None, 'required_analysis_kinds': [], 'members': [], 'budget': None,
+              'required_study_methods': [], 'study_reports': [],
               'errors': [], 'missing_gates': [], 'changed_sources': []}
     try:
         path = Path(path).resolve()
@@ -265,6 +318,7 @@ def validate_model_verification(path, *, project_root=None, require_reviewed=Fal
         if not value['claims']:
             result['missing_gates'].append('material_claim_decisions')
         used_members = {'primary'}
+        studies = {}
         problem = limited_document(Path(primary['protocol_report']['problem_path']), budget) if primary else None
         requirement_ids = {entry['id'] for entry in problem['requirements']} if problem else set()
         for claim in value['claims']:
@@ -283,6 +337,17 @@ def validate_model_verification(path, *, project_root=None, require_reviewed=Fal
                     _analysis(analysis, claim, members, sources, root, result)
                 except (ValueError, KeyError, TypeError, IndexError, StopIteration) as error:
                     result['errors'].append(claim['id'] + ':' + analysis['kind'] + ': ' + str(error))
+            study_ids = set()
+            for obligation in claim.get('study_requirements', []):
+                if obligation['id'] in study_ids:
+                    result['errors'].append(claim['id'] + ': duplicate study obligation id')
+                study_ids.add(obligation['id'])
+                try:
+                    study = _study(obligation, claim, primary, root, result)
+                    if study is not None:
+                        studies[(claim['id'], obligation['id'])] = study
+                except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
+                    result['errors'].append(claim['id'] + ':study:' + obligation['id'] + ': ' + str(error))
         if set(seen) - used_members:
             result['errors'].append('registered H1 member is outside every declared finite analysis domain')
         result['reviewed'] = validate_review(value, root, result, schema, label='model_verification')
@@ -298,6 +363,9 @@ def validate_model_verification(path, *, project_root=None, require_reviewed=Fal
                          for output in member['numerical_report']['outputs']]}
             for identity, member in members.items()]
         result['_members'] = members
+        result['_studies'] = studies
+        result['study_reports'] = list(studies.values())
+        result['required_study_methods'] = sorted(set(result['required_study_methods']))
         result['input_manifest'] = manifest
         assert_unchanged(manifest)
         assert_unchanged(contract_bootstrap)
@@ -315,7 +383,7 @@ def main():
     parser.add_argument('--require-reviewed', action='store_true')
     args = parser.parse_args()
     result = validate_model_verification(args.path, project_root=args.project_root, require_reviewed=args.require_reviewed)
-    emit({key: value for key, value in result.items() if key != '_members'})
+    emit({key: value for key, value in result.items() if not key.startswith('_')})
     return 0 if result['valid'] else 1
 
 

@@ -44,6 +44,8 @@ def lint(root: Path = ROOT) -> list[str]:
             "experiment_assurance": "core/experiment_assurance_contract.yaml",
             "numerical_verification": "core/numerical_verification_contract.yaml",
             "model_verification": "core/model_verification_contract.yaml",
+            "h_analysis_study": "core/h_analysis_study.schema.yaml",
+            "h_analysis_assurance": "core/h_analysis_assurance_contract.yaml",
         }
         if bootstrap["runtime_entry"] != bindings:
             errors.append("bootstrap runtime entry differs from implemented consumers")
@@ -68,6 +70,8 @@ def lint(root: Path = ROOT) -> list[str]:
         router_bindings["experiment_assurance_contract"] = bindings["experiment_assurance"]
         router_bindings["numerical_verification_contract"] = bindings["numerical_verification"]
         router_bindings["model_verification_contract"] = bindings["model_verification"]
+        router_bindings["h_analysis_study_schema"] = bindings["h_analysis_study"]
+        router_bindings["h_analysis_assurance_contract"] = bindings["h_analysis_assurance"]
         if any(router.get(key) != value for key, value in router_bindings.items()):
             errors.append("router Authority references differ from implemented consumers")
         upstream = {"simulink_execution": "matlab/simulink-agentic-toolkit",
@@ -119,7 +123,9 @@ def lint(root: Path = ROOT) -> list[str]:
                                    "numerical_verification": "H", "numerical_verification_review": "H",
                                    "model_verification": "H", "model_verification_review": "H",
                                    "sensitivity_analysis": "H", "robustness_analysis": "H",
-                                   "model_comparison": "H", "solver_comparison": "H"}
+                                   "model_comparison": "H", "solver_comparison": "H",
+                                   "h_analysis_study": "H", "h_analysis_trials": "H",
+                                   "h_analysis_trial_review": "H", "h_analysis_study_review": "H"}
                 if identity not in expected_phases or module["phase"] != expected_phases[identity]:
                     errors.append(f"business capability activated before implementation: {identity}")
                 for path in module["resources"]:
@@ -297,6 +303,26 @@ def lint(root: Path = ROOT) -> list[str]:
         for identity in ('numerical_verification', 'model_verification'):
             if output[identity].get('execution_allowed') is not False or output[identity].get('state_writes') != 'explicit caller only':
                 errors.append(f'{identity} cannot grant execution or write project state')
+
+        h_review_intents = ('h_analysis_study', 'h_analysis_trial_review', 'h_analysis_study_review')
+        for intent in h_review_intents:
+            route = router['intents'][intent]
+            if (route.get('mode') != 'read_only' or route.get('profile_required') is not False or
+                    route.get('execution_allowed') is not False or route.get('state_validation_scope') != 'h_analysis_study' or
+                    modules[intent]['required_operations']):
+                errors.append(f'{intent} must remain historical read-only H review')
+        native_h = load_document(root / bindings['h_analysis_assurance'])
+        h_route = router['intents']['h_analysis_trials']
+        if (native_h.get('operation_id') != 'h.analysis_trials' or h_route.get('execution_allowed') is not True or
+                h_route.get('profile_required') is not True or h_route.get('state_validation_scope') != 'h_analysis_study' or
+                'h.analysis_trials' not in modules['h_analysis_trials']['required_operations']):
+            errors.append('new H trials require their independent qualified operation and explicit scope')
+        if not {bindings['h_analysis_study'], bindings['h_analysis_assurance']} <= set(manifest['active_authorities']):
+            errors.append('full H trial/study Authorities are absent')
+        if not (set(modules['h_analysis_study']['resources']) | set(native_h['source_files'])) <= safety_lists[0]:
+            errors.append('E/F/G closure omits a full H trial/study safety dependency')
+        if output['h_analysis_trials'].get('primary_run_complete') is not False or output['h_analysis_trials'].get('adoption_allowed') is not False:
+            errors.append('hypothetical H trials cannot adopt parameters or complete primary E')
 
         graph = bootstrap["authority_graph"]
         edges = {node: [] for node in graph["nodes"]}

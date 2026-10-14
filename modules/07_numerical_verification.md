@@ -1,39 +1,100 @@
-# Numerical refinement evidence
+# Numerical verification of recorded evidence
 
-Read [the H1 contract](../core/numerical_verification_contract.yaml) after the current approved C model, D implementation and three independently frozen E protocols. This module evaluates existing complete E receipts in Python. New E runs still require the E runner's current independent A/E qualifications. H1 does not invoke MATLAB, freeze protocols, approve models or write project state.
+Read [the H1 contract](../core/numerical_verification_contract.yaml), full plan §12.16–12.21 and the current approved C/D/E chain. Standalone H1 consumes three distinct, independently frozen E protocols and their complete actual receipts. It does not execute MATLAB, approve a model, freeze a protocol or write state. New runs require their own current execution qualifications. The independent H trial operation uses the same pure numerical evaluator after its own native consumer establishes the approved baseline, permitted hypothetical point, states, restoration and execution-time A/E/H qualifications.
 
-## Review the finite assessment
+## Declare refinement and trajectory scope
 
-Use [the draft](../templates/contracts/numerical_verification.yaml). Bind the coarse primary protocol and two distinct ordered refinement protocols. Keep the complete C/D approval, parameters, SLX, initial/boundary conditions, time, external inputs, output mappings, logging, seed, E admission metrics and warning policy identical. Only the method's selected numerical settings may differ; protocol source/scenario/review identities and solver explanation text may differ.
+Use [the draft](../templates/contracts/numerical_verification.yaml). Keep approved model/SLX, parameters, initial/boundary conditions, time, input waveforms, outputs, admission metrics, seed and warning policy unchanged between the three numerical levels. Only the chosen numerical refinement fields may change. Protocol source/review identities and solver explanation text can differ.
 
-`ode4_step_refinement` uses exactly h, h/2 and h/4. Declare every coarse integer time point; each actual native output must cover its own complete integer grid. Constant external inputs and continuous piecewise-linear inputs with coarse-grid breakpoints are supported. The interval is at most 30 seconds, each level at most 3000 steps and at most two outputs.
+- `ode4_step_refinement` uses exactly h, h/2 and h/4. Every output and state must retain its complete actual integer grid, including in reconstructed mode. Missing native grid points never become acceptable by interpolation. Inputs are constant or continuous PWL with breakpoints aligned to the coarse grid.
+- `ode45_tolerance_refinement` and `ode15s_tolerance_refinement` divide both RelTol and AbsTol by 10 and 100 while keeping all other solver settings fixed. No fixed discretization order is claimed for tolerance refinement.
+- `scope: actual_points` retains the original complete coarse grid or two actual adaptive endpoints. Time matching uses `64 * binary64 epsilon * max(1, abs(t))`; fixed matching tolerance must be below one thirty-second of the finest step. Missing, duplicate and ambiguous actual samples block.
+- `scope: pwl_trajectory` and `trajectory: {mode: pwl_union, max_gap: <prior limit>}` compare the complete recorded piecewise-linear reconstructions. Evaluate each on the union of all three native meshes. The maximum adjacent-level difference at union knots equals the supremum between those reconstructed curves on the full covered interval. Synthetic evaluations are never reported as actual native samples. No extrapolation or discarded intervals is allowed.
 
-`ode45_tolerance_refinement` divides both RelTol and AbsTol by 10 and then 100, with every other execution setting unchanged. Declare start and stop only. It assesses two actual endpoint samples; it does not establish whole-trajectory refinement. H combinations with ode15s remain deferred.
+Each output binds its real port/variable/unit and absolute/relative tolerance, contraction limit and roundoff floor. A trial state instead binds `kind: state`, variable/unit and exact BlockPath, with no invented port; every actual trial state requires its own criteria. Standalone E receipts currently expose root outputs; use approved observed-state relations or the separately qualified H state interface when a check needs states.
 
-Time matching uses `64 * binary64 epsilon * max(1, abs(t))`. For fixed refinement this must be strictly smaller than one eighth of the finest step. Missing, duplicate, ambiguous or unrepresentable samples block assessment. No interpolation, synthetic time axis or copied sample is allowed.
+Trial `solver_levels` contain exactly E's controlled numeric solver fields (`name,type,max_step,min_step,initial_step,rel_tol,abs_tol,fixed_step,zero_crossing`). Protocol `reason` and `classification` fields are bound in E review and do not belong in the native numeric solver object. Invalid shape or applicability blocks source preflight before execution.
 
-Bind the method, comparison times, output identities/units and complete criteria, all five check obligations, read budget and claim limit to a structured source snapshot. A reviewed contract requires an independent review record with the current semantic digest, project, reviewer and exact unique `action=review` context. This analysis review supplies no actual C Human Model Approval.
+D01 and D12 must both satisfy `atol + rtol * max(abs(all three compared sets))`. Above the floor D12 must contract by the prior limit; at or below it both differences must stay below the floor. Zero differences have null order. An empirical fixed-step order describes the selected recorded-point or reconstruction comparison, not a proof of the solver's formal order.
 
-Structured JSON/YAML task sources may have object or array roots; an integer selector can select an array element before its settings field. Source keys must be unique and numerical values finite. YAML sharing is scanned once per node, while cycles reject. Contracts, receipts and qualification profiles still require object roots; array source data supplies no qualification role.
+Legacy contracts retain their original limits. Extended policies replace the 30-second/two-output limit with source-declared file, sample, union-knot, AST, check and computation budgets. The absolute sample cap is 12001 per series and there is no truncation. Unrepresentable time axes, overflow and exhausted budgets remain incomplete.
 
-Residual, constraint, conservation, event localization and numerical drift require explicit source-based reasons. Their general evaluators are deferred. Any `required` or `deferred` obligation blocks numerical acceptance; lack of capability cannot justify `not_applicable`.
+## Bind observations and typed mathematics
+
+`observables` entries contain `id`, `kind`, `unit`, `dimensions` and the applicable variable/port/BlockPath. Kinds are `output`, `state`, `input`, `parameter` and `time`. Bind every non-time variable to current C and all root/state/parameter identities to their actual approved/native mappings. Parameter entries also require the exact `code_name` in current D parameter provenance. An output-state equivalence is an explicit current C relation included in the check's relation anchors; the evaluator never guesses a hidden state.
+
+Dimensions use integer exponents of `mass,length,time,current,temperature,amount,luminous_intensity`. Supported SI and prefix unit products/divisions/powers are checked against dimensions and converted to canonical SI during expression arithmetic. A custom observation unit requires an explicit reviewed `canonical_unit` and `scale`; optional `offset` supports an affine conversion. Recognized conversions cannot contradict their physical scale. Values and thresholds in a check are reported in that check's unit. Unknown units and unbound conversions block mathematical checks.
+
+AST nodes have exact fields:
+
+```yaml
+# Leaves
+{op: variable, id: y}
+{op: constant, value: 1.0, unit: m/s, dimensions: {length: 1, time: -1}}
+{op: derivative, id: y, scheme: central}
+{op: integral, id: y, start: 0.0}
+# Unary and binary examples
+{op: neg, args: [{op: variable, id: y}]}
+{op: sub, args: [{op: variable, id: y}, {op: variable, id: reference}]}
+{op: pow, args: [{op: variable, id: dimensionless}], exponent: 2}
+```
+
+Other supported operations are add/mul/div/min/max/abs/sqrt/exp/log/sin/cos. Transcendental arguments are dimensionless. No string, callback or arbitrary code is executed. Finite-difference derivatives are explicitly approximate: central uses the nonuniform three-point stencil at interior native knots and one-sided endpoints, while an explicitly forward/backward stencil blocks when its required endpoint neighbour is missing. Between knots it differentiates the declared PWL segment. Integrals use exact segment integration of the recorded reconstruction. Every traversed expression and integration axis counts toward the work budget.
+
+Every check binds `id,kind,window,source_ids,relation_ids,unit,dimensions`. All referenced C variables must be covered by current relation anchors. All five obligations declare `required` or `not_applicable`, reasons and sources. Required checks must execute; `check_ids`, if present, match the complete requested set. Neither absent checks nor obsolete `deferred` decisions establish acceptance.
+
+- **Residual:** an `expression` for algebraic/differential finite-difference residual, or `mode: integral` with `state/rhs` (equivalently inventory/flux). Integrated defect is `x(t)-x(t0)-integral(f)` and avoids inventing a true derivative.
+- **Constraint:** expression, `relation: eq|le|ge` and explicit threshold. Evaluate equality magnitude or the appropriate one-sided violation.
+- **Conservation:** inventory and net source/boundary flux expressions. Inspect all prefix balance defects and segment interior extrema, not only the final cancellation.
+- **Drift:** expression and optional reference, an amount tolerance plus `drift_tolerance` and `rate_unit`. Subtract the initial detrended value and calculate the time-weighted continuous PWL slope. Adaptive observation density does not alter the weighting. Intended forcing needs the correct reference/balance law.
+- **Event localization:** expression, threshold, direction, expected_count, matching (`first` or `all`), time/value tolerances and maximum bracket width. Preserve crossings and every referenced observable's actual indexed sample brackets across all three levels. `reconstructed_zero` describes the event-function reconstruction, including union points interpolated from other actual axes; it never asserts native event detection. Both reconstruction and actual observable support must satisfy the prior bracket width. Boundary events require an explicit rule. Zero platforms, unresolved contacts, insufficient separation or localization width are incomplete; wrong count or time agreement is a criterion failure. Contact mode only reports resolved recorded contacts, not a continuous tangency proof. Solver StopEvent remains termination metadata.
+
+Non-event checks require prior positive `absolute_tolerance`, nonnegative `relative_tolerance` and reference `scale`. Apply every criterion to all three levels, including the coarse primary. Optional check convergence requires its own contraction and floor. Derived expression quantities are reconstructed from evaluations on complete observation-union knots; nonlinear expressions are not thereby proved between the underlying continuous signal values.
+
+## Preserve continuous claim limits
+
+Default conclusions concern the recorded points or complete declared reconstruction. PWL extrema and integrals do not prove the continuous solution's true peak, integral or exact event time. A requested full-window `continuous_scope.target: underlying_continuous` requires complete PWL trajectory refinement and a complete source-bound reviewed envelope; endpoint agreement cannot become a full-window conclusion:
+
+```yaml
+continuous_scope:
+  target: underlying_continuous
+  source_ids: [analytic_proof]
+  reason: Conditional on the reviewed bounds and their stated assumptions.
+  envelope:
+    kind: reviewed_uniform_bound
+    window: [0.0, 1.0]
+    proof_source_ids: [analytic_proof]
+    output_bounds:
+      - {variable_id: y, unit: m, levels: [0.0001, 0.00001, 0.000001]}
+    check_bounds:
+      - {id: balance, unit: m, levels: [0.0001, 0.00001, 0.000001]}
+```
+
+Bind every output/check, three levels, unit, full window and proof source to the complete H review. Check primary bounds and differences plus their bound allowances against unchanged criteria. Event bounds are **time** bounds in seconds; a function-amplitude bound alone cannot supply one. The independently reviewed proof must justify its transversality/monotonicity assumptions or directly justify the time bound. Drift additionally needs `rate_unit` and three `rate_levels`. Acceptance states `conditional_on_reviewed_uniform_envelope`; it never means the evaluator automatically proved source mathematics. Missing or inapplicable evidence remains incomplete.
+
+## Shared computation and historical evidence
+
+```python
+from numerical_obligations import evaluate_trial_numeric, validate_trial_numeric_policy
+from numerical_math_common import evaluate_metric
+
+# levels: three {run_spec, outputs, states} native records; no file I/O here.
+# context: current C variables/relations and exact D parameter_bindings.
+result = evaluate_trial_numeric(levels, numeric_policy, context)
+metric = evaluate_metric({'statistic': 'integral', 'output_port': 1, 'unit': 'm*s'},
+                         levels[0], context=context, numeric_policy=numeric_policy)
+```
+
+`numeric_context_from_documents(model, selection, parameters)` selects already validated documents without I/O. Trial policy also binds three exact `solver_levels`; it may not change any physical run_spec field between levels. Metrics include final/minimum/maximum/peak/peak_time/integral/absolute_integral/squared_integral and event/check metrics. Integral labels are `<output unit>*s` or `(<output unit>)^2*s`. Peak time and event time use seconds; event count uses `1`. Nonunique peak time and undefined event occurrence remain undefined, never zero. Derived metric definitions must exactly bind an executed current H1 check, its kind, result unit and window.
+
+All policy settings, obligations, complete expressions, units, envelopes, budgets and limits are captured by `settings_snapshot`. Preserve independent review, exact typed values, source identities, all transitive read budgets and before/after SHA. A legitimate failed criterion retains complete rejection evidence. Technical/mathematical incompleteness retains its explanation and cannot set numerically_verified.
 
 ```text
 python scripts/validate_numerical_verification.py '<contract>' --project-root '<root>' --require-reviewed
-python scripts/run_numerical_verification.py '<contract>' --project-root '<root>' --receipt '<primary E receipt>' --receipt '<first refinement E receipt>' --receipt '<second refinement E receipt>' --output-dir '<new directory>'
-python scripts/validate_numerical_verification_receipt.py '<numerical-verification-receipt.json>' --project-root '<root>'
+python scripts/run_numerical_verification.py '<contract>' --project-root '<root>' --receipt '<primary>' --receipt '<level1>' --receipt '<level2>' --output-dir '<new directory>'
+python scripts/validate_numerical_verification_receipt.py '<receipt>' --project-root '<root>'
 ```
 
-## Read the numerical conclusion
+Historical consumers independently validate original native E MAT/JSON/CSV, current source/model/protocol bytes and each execution-time qualification. Current TTL affects new execution, not unchanged history. Task/model/review/numeric files stay project-contained; only specifically typed original execution qualifications retain authorized external paths. Filename resemblance or task assertions grant no qualification role. Source object/array rules, unique keys, finite values, cycle rejection and exact result recomputation remain unchanged.
 
-For each output, D01 and D12 are maximum absolute adjacent-level differences at the declared common points. The shared scale is the largest absolute value across all three compared sets. Both differences must satisfy `absolute_tolerance + relative_tolerance * scale`; the coarse primary must pass too. Above the declared roundoff floor D12 must not exceed `contraction_limit * D01`. At or below the floor both differences must remain below it. All differences, scales and tolerances must be finite.
-
-An empirical step order is reported only for two resolved nonzero differences. All-zero or floor-limited agreement has null order; tolerance refinement does not report a discretization order. These finite comparisons give empirical agreement under the declared criteria. They supply no true error bound, fourth-order proof, continuous-domain stability or physical validity.
-
-The producer owns a new output directory. Criterion failure retains complete technically valid evidence with a reject disposition; missing/changed input or technical failure retains blocked evidence and cannot be accepted. The consumer rechecks E's complete execution-time A/E qualifications, source/model/protocol identities and MAT/JSON/CSV numbers, then recomputes H1 and compares its exact results and manifest. Current runtime TTL does not expire unchanged historical analysis, while changed safety source or bound project data makes it stale. Input and output byte/sample budgets reject excess data without truncation, and input SHA is checked again after reading.
-
-Task sources, protocols, models, reviews, numeric outputs and H artifacts stay inside the project root. Only the original D/E request's explicitly bound execution-time A/D/E qualification profiles and receipts may keep their original external paths; their native artifacts must remain inside their qualification directories. These exact files count toward the same read budget and before/after hashes, and existing D/E consumers independently verify them. Do not copy or substitute qualification history. The final manifest includes H's own receipt, captured input, original contract and result; both file identities and safety sources are rechecked before acceptance. Source snapshots and computed results preserve exact JSON types, including integer versus float.
-
-Evidence traversal derives qualification roles only from the selected H/E/D contract and receipt chain. A task source or review stays a task source even if its name resembles a receipt or it contains artifact and qualification assertions; those claims never authorize external paths.
-
-Only an explicit authorized caller may record `NUMERICALLY_VERIFIED`, bound to the current H1 receipt and its finite claim scope. H1 grants no H2, reality validation, evidence publication or paper acceptance.
+Only an explicit authorized caller records NUMERICALLY_VERIFIED and its scope. H1 grants no reality validation, publication acceptance or automatic model approval.
