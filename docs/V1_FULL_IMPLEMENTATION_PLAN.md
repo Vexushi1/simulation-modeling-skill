@@ -2281,6 +2281,20 @@ modify/reject 的决定准备与 model_verification 只读回读均实际退出 
 
 必要 `final-full-regression-v2` 仍在原候选双平台结果收齐、全部已发现问题关闭、最终候选/静态审查完成后执行；其配置与薄后继 FreezerV12 不因本次诊断改绑或执行。最终正式 PR Ubuntu/Windows 全量 CI、合并、main 六项只读回读及 main 双平台 CI 仍须分别通过，19 gates、21 acquisitions、13 producer authorities 和 6 main 输出角色不变。生产 source120、64 项/64 MiB 预算、数字准则、source/guard、批准与状态边界不变；已有原生 H/F/G、资格、oracle、caller 及两项已通过缺字段定向结果复用，不重跑。保留所有旧失败，全部材料仍为 SYNTHETIC INFRASTRUCTURE TEST；不推进 I–K、release/tag/install 或真实模型批准。
 
+## 12.35 六小时 CI 上限与完整双平台两分区验收
+
+原候选的 Ubuntu job 已实际 completed/cancelled，最后打印 96%，没有完整 pytest summary 或失败节点清单。完整终止日志只写 operation was canceled；随后唯一只读 REST 诊断取得同 run/head 的 check-run 全部四条 annotations，其中 failure 明确为 `The job has exceeded the maximum execution time of 6h0m0s`。现据此确证六小时执行上限，而非仅按 elapsed 推断；保留原取消、全部旧失败及其未完成范围，不把它记为完整 PASS/FAIL。
+
+本节先修订 §12.34 的正式 CI 执行组织。独立按首次完整本地 JUnit 汇总当前默认发现的 39 个测试文件、1938 个历史 testcase，采用确定的 whole-file 两分区清单：17 文件/1091 testcase/7501.880 秒，22 文件/847 testcase/7501.595 秒。每个文件完整落入一处，交集为空、并集覆盖全部当前默认测试文件；不拆文件内 fixture 或测试、不省略病例。历史成本支持分区可实施性，但不保证另一宿主耗时；新候选必须取得真实完整结果，不能以旧耗时或旧 1938 计数替代验收。
+
+同一现有正式 workflow 恢复完整测试范围，固定 Ubuntu/Windows × 两分区的四个直接 job，不设 aggregate job。精确名称为 `Contracts and fixtures (ubuntu-latest, shard 1 of 2)`、`Contracts and fixtures (ubuntu-latest, shard 2 of 2)`、`Contracts and fixtures (windows-latest, shard 1 of 2)`、`Contracts and fixtures (windows-latest, shard 2 of 2)`。各 job 保持原 setup、lint/index 和 fail-fast=false；正式 pytest -q --continue-on-collection-errors 对该分区完整文件运行并写独立 JUnit，不选择三个诊断节点，不加 skip/filter/-x。先做清单完整性守卫，遇遗漏、重复或新增默认测试文件立即拒绝，不能静默遗漏。既有 checkout/setup-python commit pin 保持；仅新增实际已核验的 upload-artifact v4 commit `ea165f8d65b6e75b540449e92b4886f43607fa02`，以 always 保留各 OS/分区独立 JUnit，不上传无关材料。
+
+薄后继 FreezerV13 只将 pr_ci 原两 job 验收改为上述四个精确 job：保留原始 run 和完整、不筛选的 jobs 响应，严格要求四项全在同 run/head、completed/success、无缺失或额外 job，run 自身也须 completed/success；不扩 schema 形状或新增出口角色。四份实际 JUnit 在冻结前须均无 failure/error/skip；分别按 OS 合并 nodeID，拒绝重复/遗漏/额外节点，并与该最终候选真实本地全量 JUnit 的 nodeID 集合逐项相等。完整覆盖核对及四份 JUnit 归档为 additional evidence，不冒充新 gate。main 使用同一四 job 完整 CI 组织分别通过；三个 main helper 和六项 main 只读输出保持。
+
+先完成实际 Windows 额外问题的集中修正与必要受影响补验，再按本节恢复正式完整 workflow、实施必要分区和窄 metadata 后继，完成精确候选审查及静态出口；随后执行必要的唯一 final-full-regression-v2 和新正式完整四 job CI。此前三个节点的 diagnostic 运行不能成为 formal pr_ci 或完整 H 出口。保留首次非零全量、旧 Windows 全部失败、Ubuntu 未完成及全部诊断材料，不在首错处重启全量。
+
+这次只调整测试执行组织、证据留存和严格 CI metadata 接受；不猜测 720 分钟设置，不改变 production120、资格/source/guard、64 项/64 MiB 预算、数字算法或批准/状态边界。19 gates、21 acquisitions、13 producer authorities 和 6 main 输出角色不增加；既有未变且通过的 H/F/G 原生、资格、oracle、caller 和定向结果复用，不重跑。全部材料仍为 SYNTHETIC INFRASTRUCTURE TEST，不推进 I–K、release/tag/install 或真实模型批准。
+
 # 13. Phase I — Verification & Validation、测试与安全分析
 
 ## 13.1 Verification / Validation 分离
